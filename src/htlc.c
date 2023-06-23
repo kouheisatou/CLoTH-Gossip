@@ -149,7 +149,7 @@ void process_success_result(struct node* node, struct payment *payment, uint64_t
 }
 
 /* process a payment which failed (different processments depending on the error type) */
-// node is payment receiver
+// node is payment sender
 void process_fail_result(struct node* node, struct payment *payment, uint64_t current_time){
   struct route_hop* hop, *error_hop;
   int i;
@@ -166,15 +166,21 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
   }
   else if(payment->error.type == NOBALANCE) {
 
-    long channel_id = -1;
-    for(int i = 0; i < array_len(node->open_edges); i++){
-      struct edge* edge = array_get(node->open_edges,i);
-      if(edge->channel_id == payment->receiver){
-        printf("%d %d\n", edge->channel_id, payment->receiver);
-        channel_id = edge->channel_id;
+    if(payment->route->route_hops->size > 0){
+      struct node* sender = node;
+      long receiver_node_id = ((struct route_hop*)array_get(payment->route->route_hops, 0))->to_node_id;
+
+      long channel_id;
+      for(long i = 0; i < node->open_edges->size; i++){
+        struct edge* edge = array_get(node->open_edges, i);
+        if(edge->from_node_id == sender->id && edge->to_node_id == receiver_node_id){
+          channel_id = edge->channel_id;
+          break;
+        }
       }
+      printf("%d->%d err=NOBALANCE amount=%ld, channel_id=%ld)\n", sender->id, receiver_node_id, payment->amount, channel_id);
     }
-    printf("payment err : NOBALANCE(amount=%d, channel_id=%d)\n", payment->amount, channel_id);
+
     // struct channel_update update = {};
 
     route_hops = payment->route->route_hops;
