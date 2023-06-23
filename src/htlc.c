@@ -17,6 +17,7 @@
 #include "../include/network.h"
 #include "../include/event.h"
 #include "../include/utils.h"
+#include "../include/gossip.h"
 
 /* Functions in this file simulate the HTLC mechanism for exchanging payments, as implemented in the Lightning Network.
    They are a (high-level) copy of functions in lnd-v0.9.1-beta (see files `routing/missioncontrol.go`, `htlcswitch/switch.go`, `htlcswitch/link.go`) */
@@ -148,6 +149,7 @@ void process_success_result(struct node* node, struct payment *payment, uint64_t
 }
 
 /* process a payment which failed (different processments depending on the error type) */
+// node is payment receiver
 void process_fail_result(struct node* node, struct payment *payment, uint64_t current_time){
   struct route_hop* hop, *error_hop;
   int i;
@@ -163,6 +165,18 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
     set_node_pair_result_fail(node->results, error_hop->to_node_id, error_hop->from_node_id, 0, current_time);
   }
   else if(payment->error.type == NOBALANCE) {
+
+    long channel_id = -1;
+    for(int i = 0; i < array_len(node->open_edges); i++){
+      struct edge* edge = array_get(node->open_edges,i);
+      if(edge->channel_id == payment->receiver){
+        printf("%d %d\n", edge->channel_id, payment->receiver);
+        channel_id = edge->channel_id;
+      }
+    }
+    printf("payment err : NOBALANCE(amount=%d, channel_id=%d)\n", payment->amount, channel_id);
+    // struct channel_update update = {};
+
     route_hops = payment->route->route_hops;
     for(i=0; i<array_len(route_hops); i++){
       hop = array_get(route_hops, i);

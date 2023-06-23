@@ -1,0 +1,26 @@
+{
+	"files.associations": {
+		"__hash_table": "c",
+		"__node_handle": "c",
+		"unordered_map": "c",
+		"array": "c",
+		"bitset": "c",
+		"charconv": "c",
+		"deque": "c",
+		"memory": "c",
+		"optional": "c",
+		"span": "c",
+		"string_view": "c",
+		"tuple": "c",
+		"__string": "c",
+		"*.tcc": "c",
+		"chrono": "c",
+		"string": "c",
+		"vector": "c",
+		"functional": "c",
+		"initializer_list": "c",
+		"numeric": "c",
+		"streambuf": "c",
+		"variant": "c"
+	}
+}
