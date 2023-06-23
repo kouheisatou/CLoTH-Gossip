@@ -54,3 +54,5 @@ dkms.conf
 /out/
 cloth
 payments.csv
+/.idea/
+/.vscode/
