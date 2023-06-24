@@ -56,3 +56,4 @@ cloth
 payments.csv
 /.idea/
 /.vscode/
+*.DS_Store

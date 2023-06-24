@@ -18,6 +18,21 @@
 #define MINBALANCE 1E2
 #define MAXBALANCE 1E11
 
+/**
+ * a type of edge direction in channel
+ * 
+ * direction of node1 and node2 of channel that is connected to edge 
+ * 
+ * ex : 
+ * channel(id=1, node1, node2)
+ * edge(channel_id=1, from=node1, to=node2)
+ * the edge is DIRECTION_NODE1_TO_NODE2
+ */
+typedef enum{
+  DIRECTION_NODE1_TO_NODE2, 
+  DIRECTION_NODE2_TO_NODE1
+} direction;
+
 /* a policy that must be respected when forwarding a payment through an edge (see edge below) */
 struct policy {
   uint64_t fee_base;
@@ -56,6 +71,7 @@ struct edge {
   uint64_t balance;
   unsigned int is_closed;
   uint64_t tot_flows;
+  direction direction;
 };
 
 
@@ -77,7 +93,7 @@ struct node* new_node(long id);
 
 struct channel* new_channel(long id, long direction1, long direction2, long node1, long node2, uint64_t capacity);
 
-struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy);
+struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy, direction direction);
 
 void open_channel(struct network* network, gsl_rng* random_generator);
 

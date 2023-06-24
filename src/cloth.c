@@ -19,6 +19,7 @@
 #include "../include/cloth.h"
 #include "../include/network.h"
 #include "../include/event.h"
+#include "../include/gossip.h"
 
 /* This file contains the main, where the simulation logic is executed;
    additionally, it contains the the initialization functions,
@@ -27,7 +28,7 @@
 
 /* write the final values of nodes, channels, edges and payments in csv files */
 void write_output(struct network* network, struct array* payments, char output_dir_name[], struct array* channel_updates) {
-  FILE* csv_channel_update_output, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
+  FILE* csv_channel_update_log, *csv_channel_annoucement_log, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
   long i,j, *id;
   struct channel* channel;
   struct edge* edge;
@@ -46,6 +47,52 @@ void write_output(struct network* network, struct array* payments, char output_d
   }
 
   strcpy(output_filename, output_dir_name);
+  strcat(output_filename, "channel_update_log.csv");
+  csv_channel_update_log = fopen(output_filename, "w");
+  if(csv_channel_update_log  == NULL) {
+    printf("ERROR cannot open channel_update_output.csv\n");
+    exit(-1);
+  }
+  struct channel_update* update;
+  fprintf(csv_channel_update_log, "sig,chainHash,channel_id,timestamp,message_flags,channel_flags,time_lock_delta,htlc_minimum_msat,base_fee,fee_late,htlc_maximum_msat\n");
+  for(i = 0; i < array_len(channel_updates); i++){
+    update = array_get(channel_updates, i);
+    int direction;
+    if(update->edge->direction == DIRECTION_NODE1_TO_NODE2){
+      direction = 0;
+    }else if(update->edge->direction == DIRECTION_NODE2_TO_NODE1){
+      direction = 1;
+    }
+    fprintf(
+      csv_channel_update_log,
+      "null,null,%ld,%d,null,%d,%d,%ld,%ld,%f,%ld\n", 
+      (long)update->edge->channel_id,
+      update->timestamp, 
+      direction,
+      (int)update->edge->policy.timelock,
+      (long)update->edge->policy.min_htlc,
+      (long)update->edge->policy.fee_base,
+      (float)update->edge->policy.fee_proportional,
+      (long)update->htlc_maximum_msat
+    );
+  }
+  fclose(csv_channel_update_log);
+
+  strcpy(output_filename, output_dir_name);
+  strcat(output_filename, "channel_annoucement_log.csv");
+  csv_channel_annoucement_log = fopen(output_filename, "w");
+  if(csv_channel_annoucement_log  == NULL) {
+    printf("ERROR cannot open channel_update_output.csv\n");
+    exit(-1);
+  }
+  fprintf(csv_channel_annoucement_log, "node_sig_1,node_sig2,bitcoin_sig_1,bitcoin_sig_2,features,chain_hash,channel_id,node_id_1,node_id_2,bitcoin_key_1,bitcoin_key_2\n");
+  for(i=0; i<array_len(network->channels); i++) {
+    channel = array_get(network->channels, i);
+    fprintf(csv_channel_annoucement_log, "null,null,null,null,null,null,%ld,%ld,%ld,null,null\n", channel->id, channel->node1, channel->node2);
+  }
+  fclose(csv_channel_annoucement_log);
+
+  strcpy(output_filename, output_dir_name);
   strcat(output_filename, "channels_output.csv");
   csv_channel_output = fopen(output_filename, "w");
   if(csv_channel_output  == NULL) {
@@ -58,19 +105,6 @@ void write_output(struct network* network, struct array* payments, char output_d
     fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
   }
   fclose(csv_channel_output);
-
-  strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "channel_update_output.csv");
-  csv_channel_update_output = fopen(output_filename, "w");
-  if(csv_channel_update_output  == NULL) {
-    printf("ERROR cannot open edge_output.csv\n");
-    exit(-1);
-  }
-  struct channel_update* update;
-  for(i = 0; i < array_len(channel_updates); i++){
-    update = array_get(channel_updates, i);
-    fprintf(csv_channel_update_output, "%ld,%ld,%ld"0, 0, 0);
-  }
 
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "edges_output.csv");

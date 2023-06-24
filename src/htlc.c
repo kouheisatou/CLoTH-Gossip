@@ -166,12 +166,12 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
   }
   else if(payment->error.type == NOBALANCE) {
 
-    if(payment->route->route_hops->size > 0){
+    if(array_len(payment->route->route_hops) > 0){
       struct node* sender = node;
       long receiver_node_id = ((struct route_hop*)array_get(payment->route->route_hops, 0))->to_node_id;
 
       struct edge* edge;
-      for(long i = 0; i < node->open_edges->size; i++){
+      for(long i = 0; i < array_len(node->open_edges); i++){
         edge = array_get(node->open_edges, i);
         if(edge->from_node_id == sender->id && edge->to_node_id == receiver_node_id){
           break;
