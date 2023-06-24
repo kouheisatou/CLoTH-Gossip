@@ -150,7 +150,7 @@ void process_success_result(struct node* node, struct payment *payment, uint64_t
 
 /* process a payment which failed (different processments depending on the error type) */
 // node is payment sender
-void process_fail_result(struct node* node, struct payment *payment, uint64_t current_time){
+void process_fail_result(struct node* node, struct payment *payment, uint64_t current_time, struct array* channel_updates){
   struct route_hop* hop, *error_hop;
   int i;
   struct array* route_hops;
@@ -170,15 +170,21 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
       struct node* sender = node;
       long receiver_node_id = ((struct route_hop*)array_get(payment->route->route_hops, 0))->to_node_id;
 
-      long channel_id;
+      struct edge* edge;
       for(long i = 0; i < node->open_edges->size; i++){
-        struct edge* edge = array_get(node->open_edges, i);
+        edge = array_get(node->open_edges, i);
         if(edge->from_node_id == sender->id && edge->to_node_id == receiver_node_id){
-          channel_id = edge->channel_id;
           break;
         }
       }
-      printf("%ld->%ld err=NOBALANCE amount=%ld, channel_id=%ld)\n", sender->id, receiver_node_id, payment->amount, channel_id);
+      
+      struct channel_update* update;
+      update = malloc(sizeof(struct channel_update));
+      update->edge = edge;
+      update->htlc_maximum_msat = payment->amount;
+      update->timestamp = current_time;
+      array_insert(channel_updates, update);
+      printf("%ld->%ld err=NOBALANCE, amount=%ld, channel_id=%ld\n", update->edge->from_node_id, update->edge->to_node_id, update->htlc_maximum_msat, update->timestamp);
     }
 
     // struct channel_update update = {};
@@ -537,7 +543,7 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network) {
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct array* channel_updates) {
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
   struct edge* next_edge;
@@ -559,7 +565,7 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     next_edge->balance += first_hop->amount_to_forward;
   }
 
-  process_fail_result(node, payment, simulation->current_time);
+  process_fail_result(node, payment, simulation->current_time, channel_updates);
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);

@@ -38,6 +38,6 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
 
 void forward_fail(struct event* event, struct simulation* simulation, struct network* network);
 
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network);
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct array* channel_updates);
 
 #endif

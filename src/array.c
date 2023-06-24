@@ -29,7 +29,6 @@ struct array* array_initialize(long size) {
   return a;
 }
 
-
 struct array* array_insert(struct array* a, void* data) {
   if(a->index >= a->size)
     a = resize_array(a);

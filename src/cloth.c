@@ -26,8 +26,8 @@
 
 
 /* write the final values of nodes, channels, edges and payments in csv files */
-void write_output(struct network* network, struct array* payments, char output_dir_name[]) {
-  FILE* csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
+void write_output(struct network* network, struct array* payments, char output_dir_name[], struct array* channel_updates) {
+  FILE* csv_channel_update_output, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
   long i,j, *id;
   struct channel* channel;
   struct edge* edge;
@@ -58,6 +58,19 @@ void write_output(struct network* network, struct array* payments, char output_d
     fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
   }
   fclose(csv_channel_output);
+
+  strcpy(output_filename, output_dir_name);
+  strcat(output_filename, "channel_update_output.csv");
+  csv_channel_update_output = fopen(output_filename, "w");
+  if(csv_channel_update_output  == NULL) {
+    printf("ERROR cannot open edge_output.csv\n");
+    exit(-1);
+  }
+  struct channel_update* update;
+  for(i = 0; i < array_len(channel_updates); i++){
+    update = array_get(channel_updates, i);
+    fprintf(csv_channel_update_output, "%ld,%ld,%ld"0, 0, 0);
+  }
 
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "edges_output.csv");
@@ -300,6 +313,7 @@ int main(int argc, char *argv[]) {
   struct array* payments;
   struct simulation* simulation;
   char output_dir_name[256];
+  struct array* channel_updates = array_initialize(1000);
 
   if(argc != 2) {
     fprintf(stderr, "ERROR cloth.c: please specify the output directory\n");
@@ -359,7 +373,7 @@ int main(int argc, char *argv[]) {
       forward_fail(event, simulation, network);
       break;
     case RECEIVEFAIL:
-      receive_fail(event, simulation, network);
+      receive_fail(event, simulation, network, channel_updates);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);
@@ -377,7 +391,7 @@ int main(int argc, char *argv[]) {
   time_spent = (double) (end - begin)/CLOCKS_PER_SEC;
   printf("Time consumed by simulation events: %lf s\n", time_spent);
 
-  write_output(network, payments, output_dir_name);
+  write_output(network, payments, output_dir_name, channel_updates);
 
   free(simulation);
 

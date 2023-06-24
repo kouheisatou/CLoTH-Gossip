@@ -1,17 +1,9 @@
 #include "network.h"
 
 struct channel_update {
-  long channel_id;
-
   uint64_t timestamp;
 
-  /***
-   * payment direction
-   *
-   * node1 -> node2 : 0
-   * node2 -> node1 : 1
-   */
-  short direction;
+  struct edge* edge;
 
   /***
    * amount of millisatoshi on sending payment
