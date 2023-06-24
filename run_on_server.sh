@@ -1,0 +1,3 @@
+sshpass -p "$1" ssh kohei@10.18.204.101 'rm -rf /home/kohei/git/LightningGossipSimulator/'
+sshpass -p "$1" rsync -r -v -e ssh /Users/kohei/CLionProjects/LightningGossipSimulator/ kohei@10.18.204.101:/home/kohei/git/LightningGossipSimulator/
+sshpass -p "$1" ssh kohei@10.18.204.101 'cd /home/kohei/git/LightningGossipSimulator && make build && ./run-simulation.sh 39 ~/log/LightningGossipSimulatorOutput/'
