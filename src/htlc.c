@@ -178,7 +178,7 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
           break;
         }
       }
-      printf("%d->%d err=NOBALANCE amount=%ld, channel_id=%ld)\n", sender->id, receiver_node_id, payment->amount, channel_id);
+      printf("%ld->%ld err=NOBALANCE amount=%ld, channel_id=%ld)\n", sender->id, receiver_node_id, payment->amount, channel_id);
     }
 
     // struct channel_update update = {};
