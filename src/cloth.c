@@ -28,7 +28,7 @@
 
 /* write the final values of nodes, channels, edges and payments in csv files */
 void write_output(struct network* network, struct array* payments, char output_dir_name[], struct array* channel_updates) {
-  FILE* csv_channel_update_log, *csv_channel_annoucement_log, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
+  FILE* csv_channel_update_log, *csv_channel_announcement_log, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
   long i,j, *id;
   struct channel* channel;
   struct edge* edge;
@@ -79,18 +79,18 @@ void write_output(struct network* network, struct array* payments, char output_d
   fclose(csv_channel_update_log);
 
   strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "channel_annoucement_log.csv");
-  csv_channel_annoucement_log = fopen(output_filename, "w");
-  if(csv_channel_annoucement_log  == NULL) {
+  strcat(output_filename, "channel_announcement_log.csv");
+  csv_channel_announcement_log = fopen(output_filename, "w");
+  if(csv_channel_announcement_log  == NULL) {
     printf("ERROR cannot open channel_update_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_channel_annoucement_log, "node_sig_1,node_sig2,bitcoin_sig_1,bitcoin_sig_2,features,chain_hash,channel_id,node_id_1,node_id_2,bitcoin_key_1,bitcoin_key_2\n");
+  fprintf(csv_channel_announcement_log, "node_sig_1,node_sig2,bitcoin_sig_1,bitcoin_sig_2,features,chain_hash,channel_id,node_id_1,node_id_2,bitcoin_key_1,bitcoin_key_2\n");
   for(i=0; i<array_len(network->channels); i++) {
     channel = array_get(network->channels, i);
-    fprintf(csv_channel_annoucement_log, "null,null,null,null,null,null,%ld,%ld,%ld,null,null\n", channel->id, channel->node1, channel->node2);
+    fprintf(csv_channel_announcement_log, "null,null,null,null,null,null,%ld,%ld,%ld,null,null\n", channel->id, channel->node1, channel->node2);
   }
-  fclose(csv_channel_annoucement_log);
+  fclose(csv_channel_announcement_log);
 
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "channels_output.csv");
