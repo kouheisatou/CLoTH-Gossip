@@ -29,8 +29,8 @@
  * the edge is DIRECTION_NODE1_TO_NODE2
  */
 typedef enum{
-  DIRECTION_NODE1_TO_NODE2, 
-  DIRECTION_NODE2_TO_NODE1
+  DIRECTION_NODE1_TO_NODE2 = 0, 
+  DIRECTION_NODE2_TO_NODE1 = 1
 } direction;
 
 /* a policy that must be respected when forwarding a payment through an edge (see edge below) */

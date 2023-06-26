@@ -57,23 +57,17 @@ void write_output(struct network* network, struct array* payments, char output_d
   fprintf(csv_channel_update_log, "sig,chainHash,channel_id,timestamp,message_flags,channel_flags,time_lock_delta,htlc_minimum_msat,base_fee,fee_late,htlc_maximum_msat\n");
   for(i = 0; i < array_len(channel_updates); i++){
     update = array_get(channel_updates, i);
-    int direction;
-    if(update->edge->direction == DIRECTION_NODE1_TO_NODE2){
-      direction = 0;
-    }else if(update->edge->direction == DIRECTION_NODE2_TO_NODE1){
-      direction = 1;
-    }
     fprintf(
       csv_channel_update_log,
       "null,null,%ld,%ld,null,%d,%d,%ld,%ld,%ld,%ld\n", 
-      (long)update->edge->channel_id,
-      update->timestamp, 
-      direction,
-      (int)update->edge->policy.timelock,
-      (long)update->edge->policy.min_htlc,
-      (long)update->edge->policy.fee_base,
-      (long)update->edge->policy.fee_proportional,
-      (long)update->htlc_maximum_msat
+      (long)update->channel_id,
+      (long)update->timestamp, 
+      (int)update->direction,
+      (int)update->timelock,
+      (long)update->min_htlc,
+      (long)update->fee_base,
+      (long)update->fee_proportional,
+      (long)update->max_htlc
     );
   }
   fclose(csv_channel_update_log);

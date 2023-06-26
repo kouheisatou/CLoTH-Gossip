@@ -180,11 +180,15 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
       
       struct channel_update* update;
       update = malloc(sizeof(struct channel_update));
-      update->edge = edge;
-      update->htlc_maximum_msat = payment->amount;
+      update->channel_id = edge->channel_id;
       update->timestamp = current_time;
+      update->direction = edge->direction;
+      update->timelock = edge->policy.timelock;
+      update->min_htlc = edge->policy.min_htlc;
+      update->fee_base = edge->policy.fee_base;
+      update->fee_proportional = edge->policy.fee_proportional;
+      update->max_htlc = payment->amount;
       array_insert(channel_updates, update);
-      printf("%ld->%ld err=NOBALANCE, amount=%ld, channel_id=%ld\n", update->edge->from_node_id, update->edge->to_node_id, update->htlc_maximum_msat, update->timestamp);
     }
 
     // struct channel_update update = {};
