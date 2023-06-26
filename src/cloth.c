@@ -344,16 +344,16 @@ int main(int argc, char *argv[]) {
   char output_dir_name[256];
   struct array* channel_updates = array_initialize(1000);
 
-  if(argc < 2) {
-    fprintf(stderr, "ERROR cloth.c: please specify the output directory\n");
+  if(argc != 3) {
+    fprintf(stderr, "usage : cloth <output_dir> <threads_num>\n");
     return -1;
   }
   strcpy(output_dir_name, argv[1]);
-
-  if(argc == 2){
-    n_threads = atoi(argv[2]);
-  }else{
-    n_threads = 1;
+  
+  n_threads = atoi(argv[2]);
+  if(n_threads == 0){
+    fprintf(stderr, "usage : cloth <output_dir> <threads_num>\n");
+    return -1;
   }
   printf("%d threads available.\n", n_threads);
 
