@@ -65,14 +65,14 @@ void write_output(struct network* network, struct array* payments, char output_d
     }
     fprintf(
       csv_channel_update_log,
-      "null,null,%ld,%d,null,%d,%d,%ld,%ld,%f,%ld\n", 
+      "null,null,%ld,%ld,null,%d,%d,%ld,%ld,%ld,%ld\n", 
       (long)update->edge->channel_id,
       update->timestamp, 
       direction,
       (int)update->edge->policy.timelock,
       (long)update->edge->policy.min_htlc,
       (long)update->edge->policy.fee_base,
-      (float)update->edge->policy.fee_proportional,
+      (long)update->edge->policy.fee_proportional,
       (long)update->htlc_maximum_msat
     );
   }
