@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <math.h>
+#include "../include/cloth.h"
 #include "../include/payments.h"
 #include "../include/htlc.h"
 #include "../include/heap.h"
@@ -41,9 +42,9 @@ void initialize_dijkstra(long n_nodes, long n_edges, struct array* payments) {
   int i;
   struct payment *payment;
 
-  distance = malloc(sizeof(struct distance*)*N_THREADS);
-  distance_heap = malloc(sizeof(struct heap*)*N_THREADS);
-  for(i=0; i<N_THREADS; i++) {
+  distance = malloc(sizeof(struct distance*)*n_threads);
+  distance_heap = malloc(sizeof(struct heap*)*n_threads);
+  for(i=0; i<n_threads; i++) {
     distance[i] = malloc(sizeof(struct distance)*n_nodes);
     distance_heap[i] = heap_initialize(n_edges);
   }
@@ -90,10 +91,10 @@ void* dijkstra_thread(void*arg) {
 /* run dijkstra threads to find the initial paths of the payments (before the simulation starts) */
 void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time) {
   long i;
-  pthread_t tid[N_THREADS];
+  pthread_t tid[n_threads];
   struct thread_args *thread_args;
 
-  for(i=0; i<N_THREADS; i++) {
+  for(i=0; i<n_threads; i++) {
     thread_args = (struct thread_args*) malloc(sizeof(struct thread_args));
     thread_args->network = network;
     thread_args->payments = payments;
@@ -102,7 +103,7 @@ void run_dijkstra_threads(struct network*  network, struct array* payments, uint
     pthread_create(&(tid[i]), NULL, dijkstra_thread, (void*) thread_args);
    }
 
-  for(i=0; i<N_THREADS; i++)
+  for(i=0; i<n_threads; i++)
     pthread_join(tid[i], NULL);
 }
 

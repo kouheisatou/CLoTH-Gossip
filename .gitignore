@@ -53,7 +53,10 @@ dkms.conf
 
 /out/
 cloth
-payments.csv
 /.idea/
 /.vscode/
 *.DS_Store
+channels.csv
+edges.csv
+nodes.csv
+payments.csv

@@ -25,6 +25,7 @@
    additionally, it contains the the initialization functions,
    a function that reads the input and a function that writes the output values in csv files */
 
+int n_threads;
 
 /* write the final values of nodes, channels, edges and payments in csv files */
 void write_output(struct network* network, struct array* payments, char output_dir_name[], struct array* channel_updates) {
@@ -343,11 +344,18 @@ int main(int argc, char *argv[]) {
   char output_dir_name[256];
   struct array* channel_updates = array_initialize(1000);
 
-  if(argc != 2) {
+  if(argc < 2) {
     fprintf(stderr, "ERROR cloth.c: please specify the output directory\n");
     return -1;
   }
   strcpy(output_dir_name, argv[1]);
+
+  if(argc == 2){
+    n_threads = atoi(argv[2]);
+  }else{
+    n_threads = 1;
+  }
+  printf("%d threads available.\n", n_threads);
 
   read_input(&net_params, &pay_params);
 

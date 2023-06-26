@@ -6,6 +6,7 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
+extern int n_threads;
 
 struct network_params{
   long n_nodes;

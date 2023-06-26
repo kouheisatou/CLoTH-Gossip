@@ -1,9 +1,9 @@
-if [ $# -lt 2 ]
+if [ $# -lt 3 ]
 then
-    echo "usage: $0 <seed> <output-directory>"
+    echo "usage: $0 <seed> <output-directory> <threads_num>"
     exit
 fi
 
-GSL_RNG_SEED=$1  ./cloth $2
+GSL_RNG_SEED=$1  ./cloth $2 $3
 
 python batch-means.py $2
