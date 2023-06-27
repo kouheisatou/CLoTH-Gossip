@@ -58,12 +58,29 @@ void write_output(struct network* network, struct array* payments, char output_d
   fprintf(csv_channel_update_log, "sig,chainHash,channel_id,timestamp,message_flags,channel_flags,time_lock_delta,htlc_minimum_msat,base_fee,fee_late,htlc_maximum_msat\n");
   for(i = 0; i < array_len(channel_updates); i++){
     update = array_get(channel_updates, i);
+
+    // search channel by channel id of channel_update
+    struct channel* c = NULL;
+    for(j = 0; j < array_len(network->channels); j++){
+      c = array_get(network->channels, j);
+      if(update->channel_id == c->id){
+        break;
+      }
+    }
+    if(c == NULL) continue;
+    int direction = -1;
+    if(update->from_node_id == c->node1 && update->to_node_id == c->node2){
+      direction = 0;
+    }else if(update->from_node_id == c->node2 && update->to_node_id == c->node1){
+      direction = 1;
+    }
+
     fprintf(
       csv_channel_update_log,
       "null,null,%ld,%ld,null,%d,%d,%ld,%ld,%ld,%ld\n", 
       (long)update->channel_id,
       (long)update->timestamp, 
-      (int)update->direction,
+      direction,
       (int)update->timelock,
       (long)update->min_htlc,
       (long)update->fee_base,

@@ -182,7 +182,8 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
       update = malloc(sizeof(struct channel_update));
       update->channel_id = edge->channel_id;
       update->timestamp = current_time;
-      update->direction = edge->direction;
+      update->from_node_id = edge->from_node_id;
+      update->to_node_id = edge->to_node_id;
       update->timelock = edge->policy.timelock;
       update->min_htlc = edge->policy.min_htlc;
       update->fee_base = edge->policy.fee_base;

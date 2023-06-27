@@ -308,7 +308,7 @@ struct array* get_best_edges(long to_node_id, uint64_t amount, long source_node_
     if(!local_node){
       modified_policy = best_edge->policy;
       modified_policy.timelock = max_timelock;
-      new_best_edge = new_edge(best_edge->id, best_edge->channel_id, best_edge->counter_edge_id, best_edge->from_node_id, best_edge->to_node_id, best_edge->balance, modified_policy, best_edge->direction);
+      new_best_edge = new_edge(best_edge->id, best_edge->channel_id, best_edge->counter_edge_id, best_edge->from_node_id, best_edge->to_node_id, best_edge->balance, modified_policy);
     }
     else {
       new_best_edge = best_edge;
