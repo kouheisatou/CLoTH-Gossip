@@ -60,3 +60,4 @@ channels.csv
 edges.csv
 nodes.csv
 payments.csv
+/cmake-build-debug/
