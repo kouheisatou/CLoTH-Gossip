@@ -51,13 +51,8 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-/out/
 cloth
 /.idea/
 /.vscode/
 *.DS_Store
-channels.csv
-edges.csv
-nodes.csv
-payments.csv
 /cmake-build-debug/

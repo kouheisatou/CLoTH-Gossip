@@ -5,6 +5,16 @@ set(CMAKE_C_STANDARD 11)
 
 include_directories(include)
 
+file(COPY cloth_input.txt DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY channels_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY channels_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY edges_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY edges_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY nodes_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY nodes_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY payments.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY payments_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(CLoTH_Gossip
         include/array.h
         include/cloth.h
