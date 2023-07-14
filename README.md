@@ -34,7 +34,7 @@ pip install scipy
 Build CLoTH:
 
 ```sh
-make build
+cmake .
 ```
 
 ## Run

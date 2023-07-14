@@ -5,15 +5,16 @@ set(CMAKE_C_STANDARD 11)
 
 include_directories(include)
 
-file(COPY cloth_input.txt DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY channels_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY channels_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY edges_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY edges_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY nodes_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY nodes_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY payments.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY payments_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/cloth_input.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/channels_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/channels_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/edges_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/edges_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/nodes_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/nodes_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/payments.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY inputs/payments_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(MAKE_DIRECTORY result/)
 
 add_executable(CLoTH_Gossip
         include/array.h
