@@ -81,7 +81,7 @@ struct array *generate_payments(struct payments_params pay_params) {
     FILE *payments_file;
 
     if (!(pay_params.payments_from_file))
-        strcpy(payments_filename, "inputs/payments.csv");
+        strcpy(payments_filename, "payments.csv");
     else
         strcpy(payments_filename, pay_params.payments_filename);
 
