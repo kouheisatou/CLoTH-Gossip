@@ -40,4 +40,4 @@ add_executable(CLoTH_Gossip
         src/utils.c)
 
 find_package(GSL REQUIRED)
-target_link_libraries(CLoTH_Gossip GSL::gsl GSL::gslcblas)
+target_link_libraries(CLoTH_Gossip GSL::gsl GSL::gslcblas m)
