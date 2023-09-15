@@ -28,8 +28,7 @@
 int n_threads;
 
 /* write the final values of nodes, channels, edges and payments in csv files */
-void
-write_output(struct network *network, struct array *payments, char output_dir_name[], struct array *channel_updates) {
+void write_output(struct network *network, struct array *payments, char output_dir_name[], struct array *channel_updates) {
     FILE *describegraph_json, *csv_channel_update_log, *csv_channel_announcement_log, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
     long i, j, *id;
     struct channel *channel;

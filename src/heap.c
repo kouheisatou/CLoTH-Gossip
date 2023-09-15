@@ -4,150 +4,150 @@
 #include "../include/heap.h"
 
 long get_parent(long i) {
-  return (i-1)/2;
+    return (i - 1) / 2;
 }
 
 long get_left_child(long i) {
-  return 2*i+1;
+    return 2 * i + 1;
 }
 
 
 long get_right_child(long i) {
-  return 2*i+2;
+    return 2 * i + 2;
 }
 
-void swap(void** a, void** b) {
-  void* tmp;
-  tmp=*a;
-  *a=*b;
-  *b=tmp;
+void swap(void **a, void **b) {
+    void *tmp;
+    tmp = *a;
+    *a = *b;
+    *b = tmp;
 }
 
-struct heap* resize_heap(struct heap* h) {
-  struct heap* new;
-  long i;
-  new=malloc(sizeof(struct heap));
-  new->size = h->size*2;
-  new->index = h->index;
-  new->data = malloc(new->size*sizeof(void*));
-  for(i=0; i<new->index; i++)
-    new->data[i]=h->data[i];
-  return new;
+struct heap *resize_heap(struct heap *h) {
+    struct heap *new;
+    long i;
+    new = malloc(sizeof(struct heap));
+    new->size = h->size * 2;
+    new->index = h->index;
+    new->data = malloc(new->size * sizeof(void *));
+    for (i = 0; i < new->index; i++)
+        new->data[i] = h->data[i];
+    return new;
 }
 
-void heapify(struct heap* h, long i, int(*compare)() ){
-  long left_child, right_child, smallest;
-  int comp_res;
+void heapify(struct heap *h, long i, int(*compare)()) {
+    long left_child, right_child, smallest;
+    int comp_res;
 
-  smallest=i;
-  left_child = get_left_child(smallest);
-  right_child = get_right_child(smallest);
+    smallest = i;
+    left_child = get_left_child(smallest);
+    right_child = get_right_child(smallest);
 
-  comp_res = left_child < h->index ? (*compare)(h->data[smallest], h->data[left_child]) : -1;
-  if(comp_res>=0)
-    smallest=left_child;
+    comp_res = left_child < h->index ? (*compare)(h->data[smallest], h->data[left_child]) : -1;
+    if (comp_res >= 0)
+        smallest = left_child;
 
-  comp_res = right_child < h->index ? (*compare)(h->data[smallest], h->data[right_child]) : -1;
-  if(comp_res>=0)
-    smallest =right_child;
-
-
-  if(smallest!=i) {
-    swap(&(h->data[i]),&(h->data[smallest]));
-    heapify(h, smallest, compare);
-  }
-}
+    comp_res = right_child < h->index ? (*compare)(h->data[smallest], h->data[right_child]) : -1;
+    if (comp_res >= 0)
+        smallest = right_child;
 
 
-struct heap* heap_initialize(long size) {
-  struct heap *h;
-  h=malloc(sizeof(struct heap));
-  h->data = malloc(size*sizeof(void*));
-  h->size = size;
-  h->index = 0;
-  return h;
+    if (smallest != i) {
+        swap(&(h->data[i]), &(h->data[smallest]));
+        heapify(h, smallest, compare);
+    }
 }
 
 
-struct heap* heap_insert(struct heap *h, void* data, int(*compare)()) {
-  long i, parent;
-  int comp_res;
+struct heap *heap_initialize(long size) {
+    struct heap *h;
+    h = malloc(sizeof(struct heap));
+    h->data = malloc(size * sizeof(void *));
+    h->size = size;
+    h->index = 0;
+    return h;
+}
 
-  if(h->index >= h->size) {
-      h = resize_heap(h);
+
+struct heap *heap_insert(struct heap *h, void *data, int(*compare)()) {
+    long i, parent;
+    int comp_res;
+
+    if (h->index >= h->size) {
+        h = resize_heap(h);
     }
 
-  i=h->index;
-  (h->index)++;
-  h->data[i]=data;
-
-  parent = get_parent(i);
-  while(i>0) {
-    comp_res=(*compare)(h->data[i], h->data[parent]);
-    if(comp_res>0) break;
-    swap(&(h->data[i]),&(h->data[parent]));
-    i=parent;
-    parent=get_parent(i);
-  }
-
-  return h;
-}
-
-
-struct heap* heap_insert_or_update(struct heap *h, void* data, int(*compare)(), int(*is_key_equal)()) {
-  long i, parent;
-  int comp_res, present;
-
-  present = 0;
-  for(i=0; i<h->index; i++){
-    if(is_key_equal(h->data[i], data)){
-      present = 1;
-      break;
-    }
-  }
-
-  if(!present){
-    if(h->index>=h->size) {
-      h = resize_heap(h);
-    }
-    i=h->index;
+    i = h->index;
     (h->index)++;
-    h->data[i]=data;
-  }
+    h->data[i] = data;
 
-  parent = get_parent(i);
-  while(i>0) {
-    comp_res=(*compare)(h->data[i], h->data[parent]);
-    if(comp_res>0) break;
-    swap(&(h->data[i]),&(h->data[parent]));
-    i=parent;
-    parent=get_parent(i);
-  }
+    parent = get_parent(i);
+    while (i > 0) {
+        comp_res = (*compare)(h->data[i], h->data[parent]);
+        if (comp_res > 0) break;
+        swap(&(h->data[i]), &(h->data[parent]));
+        i = parent;
+        parent = get_parent(i);
+    }
 
-  return h;
+    return h;
 }
 
-void* heap_pop(struct heap* h, int(*compare)()) {
-  void* min;
 
-  if(h->index==0) return NULL;
+struct heap *heap_insert_or_update(struct heap *h, void *data, int(*compare)(), int(*is_key_equal)()) {
+    long i, parent;
+    int comp_res, present;
 
-  min = h->data[0];
-  (h->index)--;
-  h->data[0]=h->data[h->index];
+    present = 0;
+    for (i = 0; i < h->index; i++) {
+        if (is_key_equal(h->data[i], data)) {
+            present = 1;
+            break;
+        }
+    }
 
-  heapify(h, 0, compare);
+    if (!present) {
+        if (h->index >= h->size) {
+            h = resize_heap(h);
+        }
+        i = h->index;
+        (h->index)++;
+        h->data[i] = data;
+    }
 
-  return min;
+    parent = get_parent(i);
+    while (i > 0) {
+        comp_res = (*compare)(h->data[i], h->data[parent]);
+        if (comp_res > 0) break;
+        swap(&(h->data[i]), &(h->data[parent]));
+        i = parent;
+        parent = get_parent(i);
+    }
+
+    return h;
 }
 
-long heap_len(struct heap*h){
-  return h->index;
+void *heap_pop(struct heap *h, int(*compare)()) {
+    void *min;
+
+    if (h->index == 0) return NULL;
+
+    min = h->data[0];
+    (h->index)--;
+    h->data[0] = h->data[h->index];
+
+    heapify(h, 0, compare);
+
+    return min;
+}
+
+long heap_len(struct heap *h) {
+    return h->index;
 }
 
 void heap_free(struct heap *h) {
-  free(h->data);
-  free(h);
+    free(h->data);
+    free(h);
 }
 
 /*

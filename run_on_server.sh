@@ -4,4 +4,4 @@ if [[ "$#" -ne 4 ]]; then
 fi
 
 sshpass -p "$3" rsync -r --delete --checksum -v -e ssh ./ "$2@$1:$4"
-sshpass -p "$3" ssh "$2@$1" 'mkdir -p ~/log/LightningGossipSimulatorOutput/; cd '"$4"'; make build; ./run-simulation.sh 39 ~/log/LightningGossipSimulatorOutput/ $(nproc)'
+sshpass -p "$3" ssh "$2@$1" 'mkdir -p ~/log/CLoTH_Gossip/; cd '"$4"'; cmake .; make; GSL_RNG_SEED=39 ./CLoTH_Gossip ~/log/CLoTH_Gossip/ $(nproc)'
