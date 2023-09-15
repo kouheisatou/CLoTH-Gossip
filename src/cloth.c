@@ -49,7 +49,7 @@ void write_output(struct network *network, struct array *payments, char output_d
 
 
     strcpy(output_filename, output_dir_name);
-    strcat(output_filename, "descibegraph.json");
+    strcat(output_filename, "describegraph.json");
     describegraph_json = fopen(output_filename, "w");
     if (describegraph_json == NULL) {
         printf("ERROR cannot open channel_update_output.csv\n");
@@ -70,7 +70,7 @@ void write_output(struct network *network, struct array *payments, char output_d
                                     "\"channel_id\": \"%ld\","
                                     "\"node1_pub\": \"%ld\","
                                     "\"node2_pub\": \"%ld\","
-                                    "\"capacity\": \"%llu\","
+                                    "\"capacity\": \"%llu\""
                                     "}",
                 c->id, c->node1, c->node2, c->capacity);
         if (i != array_len(network->channels) - 1) {
