@@ -14,6 +14,7 @@ file(COPY nodes_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY nodes_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY payments.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY payments_template.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/result)
 
 add_executable(CLoTH_Gossip
         include/array.h
