@@ -28,7 +28,8 @@
 int n_threads;
 
 /* write the final values of nodes, channels, edges and payments in csv files */
-void write_output(struct network *network, struct array *payments, char output_dir_name[], struct array *channel_updates) {
+void
+write_output(struct network *network, struct array *payments, char output_dir_name[], struct array *channel_updates) {
     FILE *describegraph_json, *csv_channel_update_log, *csv_channel_announcement_log, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
     long i, j, *id;
     struct channel *channel;
@@ -46,6 +47,24 @@ void write_output(struct network *network, struct array *payments, char output_d
         printf("cloth.c: Cannot find the output directory. The output will be stored in the current directory.\n");
         strcpy(output_dir_name, "./");
     }
+
+
+    strcpy(output_filename, output_dir_name);
+    strcat(output_filename, "cloth_input.txt");
+    FILE *cloth_input_result;
+    FILE *cloth_input_source;
+    cloth_input_result = fopen(output_filename, "w");
+    cloth_input_source = fopen("cloth_input.txt", "r");
+    if (cloth_input_result == NULL || cloth_input_source == NULL) {
+        printf("ERROR cannot open cloth_input.txt\n");
+        exit(-1);
+    }
+    int c;
+    while ((c = fgetc(cloth_input_source)) != EOF) {
+        if (fputc(c, cloth_input_result) == EOF) break;
+    }
+    fclose(cloth_input_result);
+    fclose(cloth_input_source);
 
 
     strcpy(output_filename, output_dir_name);
@@ -78,6 +97,7 @@ void write_output(struct network *network, struct array *payments, char output_d
         }
     }
     fprintf(describegraph_json, "]}");
+    fclose(describegraph_json);
 
 
     strcpy(output_filename, output_dir_name);
