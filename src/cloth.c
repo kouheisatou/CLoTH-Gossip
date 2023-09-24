@@ -28,8 +28,7 @@
 int n_threads;
 
 /* write the final values of nodes, channels, edges and payments in csv files */
-void
-write_output(struct network *network, struct array *payments, char output_dir_name[], struct array *channel_updates) {
+void write_output(struct network *network, struct array *payments, char output_dir_name[], struct array *channel_updates) {
     FILE *describegraph_json, *csv_channel_update_log, *csv_channel_announcement_log, *csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
     long i, j, *id;
     struct channel *channel;
@@ -68,7 +67,7 @@ write_output(struct network *network, struct array *payments, char output_dir_na
 
 
     strcpy(output_filename, output_dir_name);
-    strcat(output_filename, "descibegraph.json");
+    strcat(output_filename, "describegraph.json");
     describegraph_json = fopen(output_filename, "w");
     if (describegraph_json == NULL) {
         printf("ERROR cannot open channel_update_output.csv\n");
@@ -89,7 +88,7 @@ write_output(struct network *network, struct array *payments, char output_dir_na
                                     "\"channel_id\": \"%ld\","
                                     "\"node1_pub\": \"%ld\","
                                     "\"node2_pub\": \"%ld\","
-                                    "\"capacity\": \"%llu\","
+                                    "\"capacity\": \"%llu\""
                                     "}",
                 c->id, c->node1, c->node2, c->capacity);
         if (i != array_len(network->channels) - 1) {
