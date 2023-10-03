@@ -463,7 +463,7 @@ int main(int argc, char *argv[]) {
                 forward_fail(event, simulation, network);
                 break;
             case RECEIVEFAIL:
-                receive_fail(event, simulation, network, channel_updates);
+                channel_updates = receive_fail(event, simulation, network, channel_updates);
                 break;
             case OPENCHANNEL:
                 open_channel(network, simulation->random_generator);
