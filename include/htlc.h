@@ -68,7 +68,7 @@ void forward_fail(
         struct network *network
 );
 
-void receive_fail(
+struct array* receive_fail(
         struct event *event,
         struct simulation *simulation,
         struct network *network,

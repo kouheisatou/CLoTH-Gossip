@@ -551,7 +551,7 @@ void forward_fail(struct event *event, struct simulation *simulation, struct net
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-void receive_fail(
+struct array* receive_fail(
         struct event *event,
         struct simulation *simulation,
         struct network *network,
@@ -577,20 +577,6 @@ void receive_fail(
             exit(-1);
         }
         next_edge->balance += first_hop->amount_to_forward;
-
-        printf("channel_update\t%ld\t%ld\t%ld\t%ld\n", heap_len(simulation->events), next_edge->channel_id, next_edge->from_node_id, next_edge->to_node_id);
-        struct channel_update *update;
-        update = malloc(sizeof(struct channel_update));
-        update->channel_id = next_edge->channel_id;
-        update->timestamp = payment->start_time;
-        update->from_node_id = next_edge->from_node_id;
-        update->to_node_id = next_edge->to_node_id;
-        update->timelock = next_edge->policy.timelock;
-        update->min_htlc = next_edge->policy.min_htlc;
-        update->fee_base = next_edge->policy.fee_base;
-        update->fee_proportional = next_edge->policy.fee_proportional;
-        update->max_htlc = payment->amount;
-        array_insert(channel_updates, update);
     }
 
     process_fail_result(node, payment, simulation->current_time);
@@ -598,4 +584,21 @@ void receive_fail(
     next_event_time = simulation->current_time;
     next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    struct edge* error_edge = array_get(network->edges, error_hop->edge_id);
+    printf("channel_update\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\n", channel_updates->index, channel_updates->size, heap_len(simulation->events), error_edge->channel_id, error_edge->from_node_id, error_edge->to_node_id);
+    struct channel_update *update;
+    update = malloc(sizeof(struct channel_update));
+    update->channel_id = error_edge->channel_id;
+    update->timestamp = payment->start_time;
+    update->from_node_id = error_edge->from_node_id;
+    update->to_node_id = error_edge->to_node_id;
+    update->timelock = error_edge->policy.timelock;
+    update->min_htlc = error_edge->policy.min_htlc;
+    update->fee_base = error_edge->policy.fee_base;
+    update->fee_proportional = error_edge->policy.fee_proportional;
+    update->max_htlc = payment->amount;
+    channel_updates = array_insert(channel_updates, update);
+
+    return channel_updates;
 }

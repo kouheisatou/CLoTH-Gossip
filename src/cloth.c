@@ -111,23 +111,13 @@ void write_output(struct network *network, struct array *payments, char output_d
             "sig,chainHash,channel_id,timestamp,message_flags,channel_flags,time_lock_delta,htlc_minimum_msat,base_fee,fee_late,htlc_maximum_msat\n");
     for (i = 0; i < array_len(channel_updates); i++) {
         update = array_get(channel_updates, i);
-
-        // search channel by channel id of channel_update
-        struct channel *c = NULL;
-        for (j = 0; j < array_len(network->channels); j++) {
-            c = array_get(network->channels, j);
-            if (update->channel_id == c->id) {
-                break;
-            }
-        }
-        if (c == NULL) continue;
+        channel = array_get(network->channels, update->channel_id);
         int direction = -1;
-        if (update->from_node_id == c->node1 && update->to_node_id == c->node2) {
+        if (update->from_node_id == channel->node1 && update->to_node_id == channel->node2) {
             direction = 0;
-        } else if (update->from_node_id == c->node2 && update->to_node_id == c->node1) {
+        } else if (update->from_node_id == channel->node2 && update->to_node_id == channel->node1) {
             direction = 1;
         }
-
         fprintf(
                 csv_channel_update_log,
                 "null,null,%ld,%ld,null,%d,%d,%ld,%ld,%ld,%ld\n",
@@ -461,30 +451,39 @@ int main(int argc, char *argv[]) {
         simulation->current_time = event->time;
         switch (event->type) {
             case FINDPATH:
+                puts("find_path");
                 find_path(event, simulation, network, &payments, pay_params.mpp);
                 break;
             case SENDPAYMENT:
+                puts("send_payment");
                 send_payment(event, simulation, network);
                 break;
             case FORWARDPAYMENT:
+                puts("forward_payment");
                 forward_payment(event, simulation, network);
                 break;
             case RECEIVEPAYMENT:
+                puts("receive_payment");
                 receive_payment(event, simulation, network);
                 break;
             case FORWARDSUCCESS:
+                puts("forward_success");
                 forward_success(event, simulation, network);
                 break;
             case RECEIVESUCCESS:
+                puts("receive_success");
                 receive_success(event, simulation, network);
                 break;
             case FORWARDFAIL:
+                puts("forward_fail");
                 forward_fail(event, simulation, network);
                 break;
             case RECEIVEFAIL:
-                receive_fail(event, simulation, network, channel_updates);
+                puts("receive_fail");
+                channel_updates = receive_fail(event, simulation, network, channel_updates);
                 break;
             case OPENCHANNEL:
+                puts("open_channel");
                 open_channel(network, simulation->random_generator);
                 break;
             default:
