@@ -342,9 +342,15 @@ double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock) {
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array *
-dijkstra(long source, long target, uint64_t amount, struct network *network, uint64_t current_time, long p,
-         enum pathfind_error *error) {
+struct array *dijkstra(
+        long source,
+        long target,
+        uint64_t amount,
+        struct network *network,
+        uint64_t current_time,
+        long p,
+        enum pathfind_error *error
+) {
     struct distance *d = NULL, to_node_dist;
     long i, best_node_id, j, from_node_id, curr;
     struct node *source_node, *best_node;

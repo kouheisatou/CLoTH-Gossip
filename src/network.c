@@ -33,8 +33,7 @@ struct channel *new_channel(long id, long direction1, long direction2, long node
 }
 
 
-struct edge *
-new_edge(
+struct edge *new_edge(
         long id,
         long channel_id,
         long counter_edge_id,
@@ -290,8 +289,11 @@ struct network *generate_random_network(struct network_params net_params, gsl_rn
 
 
 /* generate a payment-channel network from input files */
-struct network *
-generate_network_from_files(char nodes_filename[256], char channels_filename[256], char edges_filename[256]) {
+struct network *generate_network_from_files(
+        char nodes_filename[256],
+        char channels_filename[256],
+        char edges_filename[256]
+) {
     char row[2048];
     struct node *node;
     long id, direction1, direction2, node_id1, node_id2, channel_id, other_direction;

@@ -87,8 +87,13 @@ struct route_hop *get_route_hop(long node_id, struct array *route_hops, int is_s
 
 /* set the result of a node pair as success: it means that a payment was successfully forwarded in an edge connecting the two nodes of the node pair.
  This information is used by the sender node to find a route that maximizes the possibilities of successfully sending a payment */
-void set_node_pair_result_success(struct element **results, long from_node_id, long to_node_id, uint64_t success_amount,
-                                  uint64_t success_time) {
+void set_node_pair_result_success(
+        struct element **results,
+        long from_node_id,
+        long to_node_id,
+        uint64_t success_amount,
+        uint64_t success_time
+) {
     struct node_pair_result *result;
 
     result = get_by_key(results[from_node_id], to_node_id, is_equal_key_result);
@@ -112,8 +117,13 @@ void set_node_pair_result_success(struct element **results, long from_node_id, l
 
 /* set the result of a node pair as success: it means that a payment failed when passing through  an edge connecting the two nodes of the node pair.
    This information is used by the sender node to find a route that maximizes the possibilities of successfully sending a payment */
-void set_node_pair_result_fail(struct element **results, long from_node_id, long to_node_id, uint64_t fail_amount,
-                               uint64_t fail_time) {
+void set_node_pair_result_fail(
+        struct element **results,
+        long from_node_id,
+        long to_node_id,
+        uint64_t fail_amount,
+        uint64_t fail_time
+) {
     struct node_pair_result *result;
 
     result = get_by_key(results[from_node_id], to_node_id, is_equal_key_result);
