@@ -90,10 +90,12 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-void construct_groups(struct network* network, gsl_rng* random_generator);
+void construct_groups_randomly(struct network* network, gsl_rng* random_generator);
 
 long calc_group_capacity(struct group* group);
 
 struct edge *get_edge_of(struct node *from_node, struct node *to_node);
+
+void construct_groups_close_capacity(struct network* network, gsl_rng *random_generator);
 
 #endif
