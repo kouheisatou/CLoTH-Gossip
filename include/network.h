@@ -59,6 +59,12 @@ struct edge {
 };
 
 
+struct group {
+    long id;
+    struct array* member;
+};
+
+
 struct graph_channel {
   long node1_id;
   long node2_id;
@@ -69,6 +75,7 @@ struct network {
   struct array* nodes;
   struct array* channels;
   struct array* edges;
+  struct array* groups;
   gsl_ran_discrete_t* faulty_node_prob; //the probability that a nodes in the network has a fault and goes offline
 };
 
@@ -83,5 +90,10 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
+void construct_groups(struct network* network, gsl_rng* random_generator);
+
+long calc_group_capacity(struct group* group);
+
+struct edge *get_edge_of(struct node *from_node, struct node *to_node);
 
 #endif

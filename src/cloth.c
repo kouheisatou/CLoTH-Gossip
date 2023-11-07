@@ -27,7 +27,7 @@
 
 /* write the final values of nodes, channels, edges and payments in csv files */
 void write_output(struct network* network, struct array* payments, char output_dir_name[]) {
-  FILE* csv_channel_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
+  FILE* csv_channel_output, *csv_group_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
   long i,j, *id;
   struct channel* channel;
   struct edge* edge;
@@ -58,6 +58,29 @@ void write_output(struct network* network, struct array* payments, char output_d
     fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
   }
   fclose(csv_channel_output);
+
+  strcpy(output_filename, output_dir_name);
+  strcat(output_filename, "groups_output.csv");
+  csv_group_output = fopen(output_filename, "w");
+  if(csv_group_output  == NULL) {
+    printf("ERROR cannot open groups_output.csv\n");
+    exit(-1);
+  }
+  fprintf(csv_group_output, "id,capacity,member\n");
+  for(i=0; i<array_len(network->groups); i++) {
+    struct group *group = array_get(network->groups, i);
+    fprintf(csv_group_output, "%ld,%ld,", group->id, calc_group_capacity(group));
+    for(j=0; j< array_len(group->member); j++){
+        struct node *member_node = array_get(group->member, j);
+        fprintf(csv_group_output, "%ld", member_node->id);
+        if(j != array_len(group->member) -1){
+            fprintf(csv_group_output, "-");
+        }else{
+            fprintf(csv_group_output, "\n");
+        }
+    }
+  }
+  fclose(csv_group_output);
 
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "edges_output.csv");
@@ -314,6 +337,7 @@ int main(int argc, char *argv[]) {
   simulation->random_generator = initialize_random_generator();
   printf("NETWORK INITIALIZATION\n");
   network = initialize_network(net_params, simulation->random_generator);
+    exit(1);
   n_nodes = array_len(network->nodes);
   n_edges = array_len(network->edges);
   printf("PAYMENTS INITIALIZATION\n");
