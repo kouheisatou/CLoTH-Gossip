@@ -66,19 +66,26 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,capacity,member\n");
+  fprintf(csv_group_output, "id,member,max_edge_balance,group_capacity,accuracy\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
-    fprintf(csv_group_output, "%ld,%ld,", group->id, calc_group_capacity(group));
+    fprintf(csv_group_output, "%ld,", group->id);
+    long max_edge_balance = 0;
     for(j=0; j< array_len(group->member); j++){
         struct node *member_node = array_get(group->member, j);
         fprintf(csv_group_output, "%ld", member_node->id);
-        if(j != array_len(group->member) -1){
-            fprintf(csv_group_output, "-");
+        if(j + 1 < array_len(group->member)){
+            edge = get_edge_of(array_get(group->member, j), array_get(group->member, j+1));
+            fprintf(csv_group_output, "-(%ld)-", (long)edge->balance);
+            if(max_edge_balance < (long)edge->balance){
+                max_edge_balance = (long)edge->balance;
+            }
         }else{
-            fprintf(csv_group_output, "\n");
+            fprintf(csv_group_output, ",");
         }
     }
+    long capacity = calc_group_capacity(group);
+    fprintf(csv_group_output, "%ld,%ld,%f\n", max_edge_balance, capacity, (float) capacity / (float) max_edge_balance);
   }
   fclose(csv_group_output);
 
