@@ -349,7 +349,9 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
     for(j=0; j<n_nodes; j++)
       node->results[j] = NULL;
   }
-    construct_groups_close_capacity(network, random_generator);
+
+    construct_loop_group(network);
+//    construct_groups_close_capacity(network, random_generator);
 //    construct_groups_randomly(network, random_generator);
 
   return  network;
@@ -592,4 +594,77 @@ struct edge *get_edge_of(struct node *from_node, struct node *to_node) {
         }
     }
     return NULL;
+}
+
+void construct_loop_group(struct network *network) {
+
+    // group construction policy
+    int group_size_minimum_limit = 5;
+    int group_size_maximum_limit = 10;
+
+    network->groups = array_initialize(1000);
+    long group_seq = 0L;
+
+    for (long i = 0; i < array_len(network->nodes); i++) {
+
+        // show progress
+        float progress = (float)i / (float)array_len(network->nodes);
+        printf("\r%ld%% ", (long)(100 * progress));
+        for(int j = 0; j < 100; j++){
+            if(j <= (long)(100 * progress)){
+                printf("|");
+            }else{
+                printf(".");
+            }
+        }
+
+        struct group* group = malloc(sizeof (struct group));
+        group->id = group_seq++;
+        group->member = array_initialize(100);
+
+        struct node* current_node = array_get(network->nodes, i);
+
+        // while until returned
+        search_loop(group, current_node, network, group_size_minimum_limit, group_size_maximum_limit, &group_seq);
+    }
+    printf("\n");
+}
+
+void search_loop(struct group* group, struct node* current_node, struct network* network, int group_size_minimum_limit, int group_size_maximum_limit, long* group_seq) {
+
+    group->member = array_insert(group->member, current_node);
+
+    for(int i = 0; i < array_len(current_node->open_edges); i++){
+
+        struct edge* edge = array_get(current_node->open_edges, i);
+        struct node* neighbor_node = array_get(network->nodes, edge->to_node_id);
+        struct edge* edge_from_current_node = get_edge_of(current_node, neighbor_node);
+        if(edge->id == edge_from_current_node->id) continue;
+
+        struct group* copy = malloc(sizeof (struct group));
+        copy->id = (*group_seq)++;
+        copy->member = array_initialize(100);
+        for(int j = 0; j < array_len(group->member); j++){
+            copy->member = array_insert(copy->member, array_get(group->member, j));
+        }
+
+        struct node* start_node = array_get(copy->member, 0);
+
+        printf("%ld,%ld,\n", start_node->id, neighbor_node->id);
+
+        if(current_node->id != start_node->id || array_len(copy->member) == 1){
+            if(array_len(copy->member) <= group_size_maximum_limit) {
+                search_loop(copy, neighbor_node, network, group_size_minimum_limit, group_size_maximum_limit, group_seq);
+            }
+        } else {
+            if(array_len(copy->member) >= group_size_minimum_limit) {
+                network->groups = array_insert(network->groups, copy);
+
+                for(int k = 0; k < array_len(copy->member); k++){
+                    printf("%ld-", ((struct node*)(array_get(copy->member, k)))->id);
+                }
+                puts("");
+            }
+        }
+    }
 }

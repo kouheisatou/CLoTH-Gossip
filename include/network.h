@@ -98,4 +98,8 @@ struct edge *get_edge_of(struct node *from_node, struct node *to_node);
 
 void construct_groups_close_capacity(struct network* network, gsl_rng *random_generator);
 
+void construct_loop_group(struct network *network);
+
+void search_loop(struct group* group, struct node* current_node, struct network* network, int group_size_minimum_limit, int group_size_maximum_limit, long* group_seq);
+
 #endif
