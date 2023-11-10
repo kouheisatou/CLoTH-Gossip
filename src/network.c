@@ -350,8 +350,8 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
       node->results[j] = NULL;
   }
 
-    construct_loop_group(network);
-//    construct_groups_close_capacity(network, random_generator);
+//    construct_loop_group(network);
+    construct_groups_close_capacity(network, random_generator);
 //    construct_groups_randomly(network, random_generator);
 
   return  network;
@@ -534,7 +534,7 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
                 // select next node whose capacity is closest to inbound edge
                 struct node *prev_node = array_get(group->member, array_len(group->member) - 2);
                 struct edge *prev_edge = get_edge_of(prev_node, current_node);
-                long min_sq_diff = INT64_MAX;
+                long min_balance_diff = INT64_MAX;
                 struct edge *closest_edge;
                 for (int l = 0; l < array_len(current_node->open_edges); l++) {
                     struct edge *edge = array_get(current_node->open_edges, l);
@@ -549,10 +549,10 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
                     }
                     if (duplicated) continue;
 
-                    // select minimum square difference edge
-                    long sq_diff = (long) powl(edge->balance - prev_edge->balance, 2);
-                    if (sq_diff < min_sq_diff) {
-                        min_sq_diff = sq_diff;
+                    // select highest diff edge
+                    long balance_diff = (long) (prev_edge->balance - edge->balance);
+                    if (balance_diff < min_balance_diff) {
+                        min_balance_diff = balance_diff;
                         closest_edge = edge;
                     }
                 }
