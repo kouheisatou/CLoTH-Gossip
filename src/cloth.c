@@ -66,20 +66,19 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,member,max_edge_balance,group_capacity,accuracy\n");
+  fprintf(csv_group_output, "id,edges,max_edge_balance,group_capacity,accuracy\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
     long max_edge_balance = 0;
-    for(j=0; j< array_len(group->member); j++){
-        struct node *member_node = array_get(group->member, j);
-        fprintf(csv_group_output, "%ld", member_node->id);
-        if(j + 1 < array_len(group->member)){
-            edge = get_edge_of(array_get(group->member, j), array_get(group->member, j+1));
-            fprintf(csv_group_output, "-(%ld)-", (long)edge->balance);
-            if(max_edge_balance < (long)edge->balance){
-                max_edge_balance = (long)edge->balance;
-            }
+    for(j=0; j< array_len(group->edges); j++){
+        edge = array_get(group->edges, j);
+        fprintf(csv_group_output, "%ld", edge->id);
+        if(max_edge_balance < edge->balance){
+            max_edge_balance = (long)edge->balance;
+        }
+        if(j < array_len(group->edges) -1){
+            fprintf(csv_group_output, "-");
         }else{
             fprintf(csv_group_output, ",");
         }
@@ -90,25 +89,25 @@ void write_output(struct network* network, struct array* payments, char output_d
   fclose(csv_group_output);
 
   // calc cover proportion
-  long n_nodes = array_len(network->nodes);
-  int group_member_distribution[n_nodes];
-  for(i = 0; i < n_nodes; i++){
+  long n_edges = array_len(network->edges);
+  int group_member_distribution[n_edges];
+  for(i = 0; i < n_edges; i++){
       group_member_distribution[i] = 0;
   }
   for(i = 0; i < array_len(network->groups); i++){
       struct group* group = array_get(network->groups, i);
-      for(j = 0; j < array_len(group->member); j++){
-          node = array_get(group->member, j);
-          group_member_distribution[node->id]++;
+      for(j = 0; j < array_len(group->edges); j++){
+          edge = array_get(group->edges, j);
+          group_member_distribution[edge->id]++;
       }
   }
   long group_member_count = 0L;
-  for(i = 0; i < n_nodes; i++){
+  for(i = 0; i < n_edges; i++){
       if(group_member_distribution[i] != 0){
           group_member_count++;
       }
   }
-  printf("group_cover_proportion=%f\n", (float)group_member_count / (float)n_nodes);
+  printf("group_cover_proportion=%f\n", (float)group_member_count / (float)n_edges);
 
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "edges_output.csv");

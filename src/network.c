@@ -350,8 +350,6 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
       node->results[j] = NULL;
   }
 
-//    construct_loop_group(network);
-//    construct_groups_close_capacity(network, random_generator);
 //    construct_groups_randomly(network, random_generator);
     construct_non_duplication_group(network, random_generator);
 
@@ -375,9 +373,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
 void construct_groups_randomly(struct network *network, gsl_rng *random_generator) {
 
     // group construction policy
-    int group_size_mean = 10;
-    int group_size_variance = 5;
-    int group_size_minimum_limit = 5;
+    int group_size = 5;
 
     network->groups = array_initialize(1000);
     long group_seq = 0L;
@@ -399,27 +395,20 @@ void construct_groups_randomly(struct network *network, gsl_rng *random_generato
 
         for (int j = 0; j < array_len(start_node->open_edges); j++) {
 
-            // set group size randomly (lager than group_size_minimum_limit)
-            int group_size;
-            do {
-                group_size = group_size_mean + (int) (gsl_ran_ugaussian(random_generator) * group_size_variance);
-            } while (group_size < group_size_minimum_limit);
-
             // init group struct
             struct group *group = malloc(sizeof(struct group));
             group->id = group_seq++;
-            group->member = array_initialize(group_size);
-            group->member = array_insert(group->member, start_node);
+            group->edges = array_initialize(group_size);
 
             // initialize prev node stock
-            struct edge *edge_from_start_node = array_get(start_node->open_edges, j);
-            struct node *current_node = array_get(network->nodes, edge_from_start_node->to_node_id);
+            struct edge *current_edge = array_get(start_node->open_edges, j);
+            struct node *current_node = array_get(network->nodes, current_edge->to_node_id);
 
             // join nodes to group
             for (int k = 0; k < group_size; k++) {
 
-                // add prev node as group member
-                group->member = array_insert(group->member, current_node);
+                // add prev node as group edges
+                group->edges = array_insert(group->edges, current_edge);
 
                 // if nodes have no edge, end group
                 if(array_len(current_node->open_edges) == 0) break;
@@ -428,9 +417,9 @@ void construct_groups_randomly(struct network *network, gsl_rng *random_generato
                 int duplicated_count = 0;
                 for(int l = 0; l < array_len(current_node->open_edges); l++) {
                     struct edge* edge = array_get(current_node->open_edges, l);
-                    for(int m = 0; m < array_len(group->member); m++){
-                        struct node* group_member_node = array_get(group->member, m);
-                        if(edge->to_node_id == group_member_node->id){
+                    for(int m = 0; m < array_len(group->edges); m++){
+                        struct edge* group_member_edge = array_get(group->edges, m);
+                        if(edge->id == group_member_edge->id){
                             duplicated_count++;
                         }
                     }
@@ -438,156 +427,28 @@ void construct_groups_randomly(struct network *network, gsl_rng *random_generato
                 if(duplicated_count == array_len(current_node->open_edges)) break;
 
                 // select next node randomly
-                struct node *next_node;
+                struct edge *next_edge;
                 char duplicated;
                 do {
                     duplicated = 0;
-                    struct edge *edge = array_get(current_node->open_edges, (int)gsl_ran_flat(random_generator, 0, (double)array_len(current_node->open_edges)));
-                    next_node = array_get(network->nodes, edge->to_node_id);
+                    next_edge = array_get(current_node->open_edges, (int)gsl_ran_flat(random_generator, 0, (double)array_len(current_node->open_edges)));
 
                     // if next_node already exists in group
-                    for(int l = 0; l < array_len(group->member); l++){
-                        struct node *n = array_get(group->member, l);
-                        if(next_node->id == n->id){
+                    for(int l = 0; l < array_len(group->edges); l++){
+                        struct edge *e = array_get(group->edges, l);
+                        if(next_edge->id == e->id){
                             duplicated = 1;
                         }
                     }
 
                 }while(duplicated);
 
-                current_node = next_node;
+                current_edge = next_edge;
+                current_node = array_get(network->nodes, next_edge->to_node_id);
             }
 
             // apply group to network
-            if(array_len(group->member) >= group_size_minimum_limit) {
-                network->groups = array_insert(network->groups, group);
-            }
-        }
-    }
-    printf("\n");
-}
-
-void construct_groups_close_capacity(struct network *network, gsl_rng *random_generator) {
-
-    // group construction policy
-    int group_size_mean = 10;
-    int group_size_variance = 5;
-    int group_size_minimum_limit = 5;
-    float abort_threshold = 0.8f;
-
-    network->groups = array_initialize(1000);
-    long group_seq = 0L;
-
-    for (long i = 0; i < array_len(network->nodes); i++) {
-
-        // show progress
-        float progress = (float)i / (float)array_len(network->nodes);
-        printf("\r%ld%% ", (long)(100 * progress));
-        for(int j = 0; j < 100; j++){
-            if(j <= (long)(100 * progress)){
-                printf("|");
-            }else{
-                printf(".");
-            }
-        }
-
-        struct node* start_node = array_get(network->nodes, i);
-
-        for (int j = 0; j < array_len(start_node->open_edges); j++) {
-
-            // set group size randomly (lager than group_size_minimum_limit)
-            int group_size;
-            do {
-                group_size = group_size_mean + (int) (gsl_ran_ugaussian(random_generator) * group_size_variance);
-            } while (group_size < group_size_minimum_limit);
-
-            // init group struct
-            struct group *group = malloc(sizeof(struct group));
-            group->id = group_seq++;
-            group->member = array_initialize(group_size);
-            group->member = array_insert(group->member, start_node);
-
-            // initialize prev node stock
-            struct edge *edge_from_start_node = array_get(start_node->open_edges, j);
-            struct node *current_node = array_get(network->nodes, edge_from_start_node->to_node_id);
-
-            // join nodes to group
-            for (int k = 0; array_len(group->member) <= group_size; k++) {
-
-                // add prev node as group member
-                group->member = array_insert(group->member, current_node);
-
-                // if nodes have no edge, end group
-                if (array_len(current_node->open_edges) == 0) break;
-
-                // if current_node don't have alternative edge, end group
-                int duplicated_count = 0;
-                for (int l = 0; l < array_len(current_node->open_edges); l++) {
-                    struct edge *edge = array_get(current_node->open_edges, l);
-                    for (int m = 0; m < array_len(group->member); m++) {
-                        struct node *group_member_node = array_get(group->member, m);
-                        if (edge->to_node_id == group_member_node->id) {
-                            duplicated_count++;
-                        }
-                    }
-                }
-                if (duplicated_count == array_len(current_node->open_edges)) break;
-
-                // select next node whose capacity is closest to inbound edge
-                struct node *prev_node = array_get(group->member, array_len(group->member) - 2);
-                struct edge *prev_edge = get_edge_of(prev_node, current_node);
-                long min_sq_diff = INT64_MAX;
-                struct edge *closest_edge;
-                for (int l = 0; l < array_len(current_node->open_edges); l++) {
-                    struct edge *edge = array_get(current_node->open_edges, l);
-
-                    // if next_node already exists in group
-                    int duplicated = 0;
-                    for (int m = 0; m < array_len(group->member); m++) {
-                        struct node *n = array_get(group->member, m);
-                        if (edge->to_node_id == n->id) {
-                            duplicated = 1;
-                        }
-                    }
-                    if (duplicated) continue;
-
-                    // select minimum square difference edge
-                    long sq_diff = (long) powl(edge->balance - prev_edge->balance, 2);
-                    if (sq_diff < min_sq_diff) {
-                        min_sq_diff = sq_diff;
-                        closest_edge = edge;
-                    }
-                }
-
-                if((float)closest_edge->balance / (float)prev_edge->balance < (1.0f-abort_threshold) || (float)closest_edge->balance / (float)prev_edge->balance > (1.0f+abort_threshold)) {
-                    break;
-                }
-
-                current_node = array_get(network->nodes, closest_edge->to_node_id);
-            }
-
-            // apply group to network
-            if (array_len(group->member) >= group_size_minimum_limit) {
-                network->groups = array_insert(network->groups, group);
-/*
-                printf("%ld,", group->id);
-                long max_edge_balance = 0;
-                for(int l =0; l< array_len(group->member); l++){
-                    struct node *member_node = array_get(group->member, l);
-                    printf("%ld", member_node->id);
-                    if(l + 1 < array_len(group->member)){
-                        struct edge* e = get_edge_of(array_get(group->member, l), array_get(group->member, l + 1));
-                        printf("-(%ld)-", (long)e->balance);
-                        if(max_edge_balance < (long)e->balance){
-                            max_edge_balance = (long)e->balance;
-                        }
-                    }else{
-                        printf(",");
-                    }
-                }
-                long capacity = calc_group_capacity(group);
-                printf("%ld,%ld,%f\n", max_edge_balance, capacity, (float) capacity / (float) max_edge_balance);*/
-            }
+            network->groups = array_insert(network->groups, group);
         }
     }
     printf("\n");
@@ -595,110 +456,19 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
 
 long calc_group_capacity(struct group *group) {
     long min = INT64_MAX;
-    for (int i = 0; i < array_len(group->member); i++) {
-        // if next node exists
-        if (i + 1 <= array_len(group->member) - 1) {
-            struct node *from_node = array_get(group->member, i);
-            struct node *to_node = array_get(group->member, i + 1);
-            struct edge *edge = get_edge_of(from_node, to_node);
-
-            if (edge->balance < min) {
-                min = (long) edge->balance;
-            }
+    for (int i = 0; i < array_len(group->edges); i++) {
+        struct edge* edge = array_get(group->edges, i);
+        if(edge->balance < min) {
+            min = (long) edge->balance;
         }
     }
     return min;
 }
 
-struct edge *get_edge_of(struct node *from_node, struct node *to_node) {
-    for (int i = 0; i < array_len(from_node->open_edges); i++) {
-        struct edge *edge = array_get(from_node->open_edges, i);
-        if (edge->to_node_id == to_node->id) {
-            return edge;
-        }
-    }
-    return NULL;
-}
-
-void construct_loop_group(struct network *network) {
-
-    // group construction policy
-    int group_size_minimum_limit = 5;
-    int group_size_maximum_limit = 10;
-
-    network->groups = array_initialize(1000);
-    long group_seq = 0L;
-
-    for (long i = 0; i < array_len(network->nodes); i++) {
-
-        // show progress
-        float progress = (float)i / (float)array_len(network->nodes);
-        printf("\r%ld%% ", (long)(100 * progress));
-        for(int j = 0; j < 100; j++){
-            if(j <= (long)(100 * progress)){
-                printf("|");
-            }else{
-                printf(".");
-            }
-        }
-
-        struct group* group = malloc(sizeof (struct group));
-        group->id = group_seq++;
-        group->member = array_initialize(100);
-
-        struct node* current_node = array_get(network->nodes, i);
-
-        // while until returned
-        search_loop(group, current_node, network, group_size_minimum_limit, group_size_maximum_limit, &group_seq);
-    }
-    printf("\n");
-}
-
-void search_loop(struct group* group, struct node* current_node, struct network* network, int group_size_minimum_limit, int group_size_maximum_limit, long* group_seq) {
-
-    group->member = array_insert(group->member, current_node);
-
-    for(int i = 0; i < array_len(current_node->open_edges); i++){
-
-        struct edge* edge = array_get(current_node->open_edges, i);
-        struct node* neighbor_node = array_get(network->nodes, edge->to_node_id);
-        struct edge* edge_from_current_node = get_edge_of(current_node, neighbor_node);
-        if(edge->id == edge_from_current_node->id) continue;
-
-        struct group* copy = malloc(sizeof (struct group));
-        copy->id = (*group_seq)++;
-        copy->member = array_initialize(100);
-        for(int j = 0; j < array_len(group->member); j++){
-            copy->member = array_insert(copy->member, array_get(group->member, j));
-        }
-
-        struct node* start_node = array_get(copy->member, 0);
-
-        printf("%ld,%ld,\n", start_node->id, neighbor_node->id);
-
-        if(current_node->id != start_node->id || array_len(copy->member) == 1){
-            if(array_len(copy->member) <= group_size_maximum_limit) {
-                search_loop(copy, neighbor_node, network, group_size_minimum_limit, group_size_maximum_limit, group_seq);
-            }
-        } else {
-            if(array_len(copy->member) >= group_size_minimum_limit) {
-                network->groups = array_insert(network->groups, copy);
-
-                for(int k = 0; k < array_len(copy->member); k++){
-                    printf("%ld-", ((struct node*)(array_get(copy->member, k)))->id);
-                }
-                puts("");
-            }
-        }
-    }
-}
-
 void construct_non_duplication_group(struct network *network, gsl_rng *random_generator) {
 
     // group construction policy
-    int group_size_mean = 6;
-    int group_size_variance = 2;
-    int group_size_minimum_limit = 5;
+    int group_size = 5;
 
     network->groups = array_initialize(1000);
     long group_seq = 0L;
@@ -711,15 +481,9 @@ void construct_non_duplication_group(struct network *network, gsl_rng *random_ge
         is_already_member[i] = 0;
     }
 
-    // set group size randomly (lager than group_size_minimum_limit)
-    int group_size;
-    do {
-        group_size = group_size_mean + (int) (gsl_ran_ugaussian(random_generator) * group_size_variance);
-    } while (group_size < group_size_minimum_limit);
-
     for (long i = 0; i < n_nodes; i++) {
 
-        // if the node is already a member of another group, skip
+        // if the node is already a member of other group, skip
         struct node* current_node = array_get(network->nodes, i);
 
         // show progress
@@ -736,11 +500,9 @@ void construct_non_duplication_group(struct network *network, gsl_rng *random_ge
         // init group
         struct group* group = malloc(sizeof(struct group));
         group->id = group_seq;
-        group->member = array_initialize(group_size);
+        group->edges = array_initialize(group_size);
 
-        while (1){
-            group->member = array_insert(group->member, current_node);
-            if(array_len(group->member) >= group_size) break;
+        while (array_len(group->edges) < group_size){
 
             // add edge that is not a member of other group to group
             char no_alternative_edge = 1;
@@ -749,6 +511,7 @@ void construct_non_duplication_group(struct network *network, gsl_rng *random_ge
             for(int j = loop_start_index + 1; j % n_neighbor != loop_start_index; j++){
                 struct edge* edge = array_get(current_node->open_edges, j % n_neighbor);
                 if(is_already_member[edge->id] == 0){
+                    group->edges = array_insert(group->edges, edge);
                     current_node = array_get(network->nodes, edge->to_node_id);
                     no_alternative_edge = 0;
                     break;
@@ -759,35 +522,14 @@ void construct_non_duplication_group(struct network *network, gsl_rng *random_ge
         }
 
         // apply group to network
-        if(array_len(group->member) >= group_size_minimum_limit){
+        if(array_len(group->edges) == group_size) {
             network->groups = array_insert(network->groups, group);
             group_seq++;
-            for(int j = 0; j < array_len(group->member); j++){
-                if(j + 1 < array_len(group->member)) {
-                    struct edge *edge = get_edge_of(array_get(group->member, j), array_get(group->member, j+1));
-                    is_already_member[edge->id]++;
-                }
+            for (int j = 0; j < array_len(group->edges); j++) {
+                struct edge *edge = array_get(group->edges, j);
+                is_already_member[edge->id]++;
             }
         }
     }
     printf("\n");
-
-    for(long i = 0; i < array_len(network->edges); i++){
-        struct edge* edge = array_get(network->edges, i);
-        printf("%d",is_already_member[edge->id]);
-        if(is_already_member[edge->id]) continue;
-
-        struct node* from_node = array_get(network->nodes, edge->from_node_id);
-        for(int j = 0; j < array_len(from_node->open_edges); j++){
-            printf("%ld", ((struct edge*)(array_get(from_node->open_edges, j)))->to_node_id);
-            if(j < array_len(from_node->open_edges)) printf("-");
-        }
-        printf("\t");
-        struct node* to_node = array_get(network->nodes, edge->to_node_id);
-        for(int j = 0; j < array_len(to_node->open_edges); j++){
-            printf("%ld", ((struct edge*)(array_get(to_node->open_edges, j)))->to_node_id);
-            if(j < array_len(to_node->open_edges)) printf("-");
-        }
-        printf("\n");
-    }
 }
