@@ -89,6 +89,27 @@ void write_output(struct network* network, struct array* payments, char output_d
   }
   fclose(csv_group_output);
 
+  // calc cover proportion
+  long n_nodes = array_len(network->nodes);
+  int group_member_distribution[n_nodes];
+  for(i = 0; i < n_nodes; i++){
+      group_member_distribution[i] = 0;
+  }
+  for(i = 0; i < array_len(network->groups); i++){
+      struct group* group = array_get(network->groups, i);
+      for(j = 0; j < array_len(group->member); j++){
+          node = array_get(group->member, j);
+          group_member_distribution[node->id]++;
+      }
+  }
+  long group_member_count = 0L;
+  for(i = 0; i < n_nodes; i++){
+      if(group_member_distribution[i] != 0){
+          group_member_count++;
+      }
+  }
+  printf("group_cover_proportion=%f\n", (float)group_member_count / (float)n_nodes);
+
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "edges_output.csv");
   csv_edge_output = fopen(output_filename, "w");
