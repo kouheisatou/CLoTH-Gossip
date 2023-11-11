@@ -472,6 +472,7 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
     int group_size_mean = 10;
     int group_size_variance = 5;
     int group_size_minimum_limit = 5;
+    float abort_threshold = 0.8f;
 
     network->groups = array_initialize(1000);
     long group_seq = 0L;
@@ -534,7 +535,7 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
                 // select next node whose capacity is closest to inbound edge
                 struct node *prev_node = array_get(group->member, array_len(group->member) - 2);
                 struct edge *prev_edge = get_edge_of(prev_node, current_node);
-                long min_balance_diff = INT64_MAX;
+                long min_sq_diff = INT64_MAX;
                 struct edge *closest_edge;
                 for (int l = 0; l < array_len(current_node->open_edges); l++) {
                     struct edge *edge = array_get(current_node->open_edges, l);
@@ -549,12 +550,16 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
                     }
                     if (duplicated) continue;
 
-                    // select highest diff edge
-                    long balance_diff = (long) (prev_edge->balance - edge->balance);
-                    if (balance_diff < min_balance_diff) {
-                        min_balance_diff = balance_diff;
+                    // select minimum square difference edge
+                    long sq_diff = (long) powl(edge->balance - prev_edge->balance, 2);
+                    if (sq_diff < min_sq_diff) {
+                        min_sq_diff = sq_diff;
                         closest_edge = edge;
                     }
+                }
+
+                if((float)closest_edge->balance / (float)prev_edge->balance < (1.0f-abort_threshold) || (float)closest_edge->balance / (float)prev_edge->balance > (1.0f+abort_threshold)) {
+                    break;
                 }
 
                 current_node = array_get(network->nodes, closest_edge->to_node_id);
@@ -563,6 +568,24 @@ void construct_groups_close_capacity(struct network *network, gsl_rng *random_ge
             // apply group to network
             if (array_len(group->member) >= group_size_minimum_limit) {
                 network->groups = array_insert(network->groups, group);
+/*
+                printf("%ld,", group->id);
+                long max_edge_balance = 0;
+                for(int l =0; l< array_len(group->member); l++){
+                    struct node *member_node = array_get(group->member, l);
+                    printf("%ld", member_node->id);
+                    if(l + 1 < array_len(group->member)){
+                        struct edge* e = get_edge_of(array_get(group->member, l), array_get(group->member, l + 1));
+                        printf("-(%ld)-", (long)e->balance);
+                        if(max_edge_balance < (long)e->balance){
+                            max_edge_balance = (long)e->balance;
+                        }
+                    }else{
+                        printf(",");
+                    }
+                }
+                long capacity = calc_group_capacity(group);
+                printf("%ld,%ld,%f\n", max_edge_balance, capacity, (float) capacity / (float) max_edge_balance);*/
             }
         }
     }
