@@ -351,7 +351,8 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
   }
 
 //    construct_groups_randomly(network, random_generator);
-    construct_non_duplication_group(network, random_generator);
+//    construct_non_duplication_group(network, random_generator);
+    construct_separated_group(network);
 
   return  network;
 }
@@ -528,6 +529,100 @@ void construct_non_duplication_group(struct network *network, gsl_rng *random_ge
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
                 is_already_member[edge->id]++;
+            }
+        }
+    }
+    printf("\n");
+}
+
+void construct_separated_group(struct network* network){
+
+    // group construction policy
+    int group_size = 5;
+    float maximum_delta_ratio = 0.2f;
+
+    long n_edges = array_len(network->edges);
+    network->groups = array_initialize(1000);
+    long group_seq = 0L;
+
+    char is_already_used_edge[n_edges];
+    for(long i = 0; i < n_edges; i++){
+        is_already_used_edge[i] = 0;
+    }
+
+    for(long i = 0; i < n_edges; i++){
+
+        // show progress
+        float progress = (float)i / (float)array_len(network->edges);
+        printf("\r%ld%% ", (long)(100 * progress));
+        for(int j = 0; j < 100; j++){
+            if(j <= (long)(100 * progress)){
+                printf("|");
+            }else{
+                printf(".");
+            }
+        }
+
+        // init group
+        struct group* group = malloc(sizeof(struct group));
+        group->edges = array_initialize(group_size);
+        group->id = group_seq;
+
+        struct edge* current_edge = array_get(network->edges, i);
+        if(is_already_used_edge[current_edge->id]) continue;
+
+        for(int group_index = 0; group_index < group_size; group_index++){
+            group->edges = array_insert(group->edges, current_edge);
+
+            // select edge whose balance is closest to current_edge
+            struct edge* closest_edge;
+            long min_sq_diff = INT64_MAX;
+            long group_capacity = calc_group_capacity(group);
+            for(long k = 0; k < n_edges; k++){
+
+                struct edge* next_edge = array_get(network->edges, k);
+
+                // if next_edge is already in group, skip
+                char is_already_exits_in_group = 0;
+                for(int l = 0; l < array_len(group->edges); l++){
+                    struct edge* group_edge = array_get(group->edges, l);
+                    if(group_edge->id == next_edge->id){
+                        is_already_exits_in_group = 1;
+                        break;
+                    }
+                }
+                if(is_already_exits_in_group) continue;
+
+                // if next_edge is already used by other group, skip
+                if(is_already_used_edge[next_edge->id]) continue;
+
+                // if next_edge is counter_edge of current_edge, skip
+                if(next_edge->id == current_edge->counter_edge_id) continue;
+
+                long sq_diff = (long)powl(group_capacity - next_edge->balance, 2L);
+                if(sq_diff < min_sq_diff){
+
+                    if((float)next_edge->balance / (float)group_capacity < 1.0f - maximum_delta_ratio || 1.0f + maximum_delta_ratio < (float)next_edge->balance / (float)group_capacity){
+                        continue;
+                    }
+
+                    min_sq_diff = sq_diff;
+                    closest_edge = next_edge;
+                }
+            }
+
+            // stock closest_edge as next current_edge
+            current_edge = closest_edge;
+
+        }
+
+        // register group to network
+        if(array_len(group->edges) == group_size) {
+            network->groups = array_insert(network->groups, group);
+            group_seq++;
+            for (int j = 0; j < array_len(group->edges); j++) {
+                struct edge *edge = array_get(group->edges, j);
+                is_already_used_edge[edge->id]++;
             }
         }
     }

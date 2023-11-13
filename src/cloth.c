@@ -364,6 +364,8 @@ int main(int argc, char *argv[]) {
   simulation->random_generator = initialize_random_generator();
   printf("NETWORK INITIALIZATION\n");
   network = initialize_network(net_params, simulation->random_generator);
+//    write_output(network, payments, output_dir_name);
+//    return 0;
   n_nodes = array_len(network->nodes);
   n_edges = array_len(network->edges);
   printf("PAYMENTS INITIALIZATION\n");

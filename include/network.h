@@ -96,4 +96,6 @@ long calc_group_capacity(struct group* group);
 
 void construct_non_duplication_group(struct network *network, gsl_rng *random_generator);
 
+void construct_separated_group(struct network* network);
+
 #endif
