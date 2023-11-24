@@ -571,7 +571,7 @@ void construct_separated_group(struct network* network){
         struct edge* current_edge = array_get(network->edges, i);
         if(is_already_used_edge[current_edge->id]) continue;
 
-        for(int group_index = 0; group_index < group_size; group_index++){
+        while(array_len(group->edges) < group_size) {
             group->edges = array_insert(group->edges, current_edge);
 
             // select edge whose balance is closest to current_edge
@@ -581,6 +581,12 @@ void construct_separated_group(struct network* network){
             for(long k = 0; k < n_edges; k++){
 
                 struct edge* next_edge = array_get(network->edges, k);
+
+                // if next_edge is already used by other group, skip
+                if(is_already_used_edge[next_edge->id]) continue;
+
+                // if next_edge is counter_edge of current_edge, skip
+                if(next_edge->id == current_edge->counter_edge_id) continue;
 
                 // if next_edge is already in group, skip
                 char is_already_exits_in_group = 0;
@@ -593,11 +599,12 @@ void construct_separated_group(struct network* network){
                 }
                 if(is_already_exits_in_group) continue;
 
-                // if next_edge is already used by other group, skip
-                if(is_already_used_edge[next_edge->id]) continue;
-
-                // if next_edge is counter_edge of current_edge, skip
-                if(next_edge->id == current_edge->counter_edge_id) continue;
+                // if next_edge is directory connected to current_edge, skip
+                if (current_edge->to_node_id == next_edge->to_node_id ||
+                    current_edge->to_node_id == next_edge->from_node_id ||
+                    current_edge->from_node_id == next_edge->to_node_id ||
+                    current_edge->from_node_id == next_edge->from_node_id)
+                    continue;
 
                 long sq_diff = (long)powl(group_capacity - next_edge->balance, 2L);
                 if(sq_diff < min_sq_diff){
