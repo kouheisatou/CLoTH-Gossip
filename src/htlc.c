@@ -520,7 +520,7 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
 void receive_fail(struct event* event, struct simulation* simulation, struct network* network) {
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
-  struct edge* next_edge;
+  struct edge* next_edge, *error_edge;
   struct event* next_event;
   struct node* node;
   uint64_t next_event_time;
@@ -538,6 +538,11 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     }
     next_edge->balance += first_hop->amount_to_forward;
   }
+
+    // record channel_update
+    error_edge = array_get(network->edges, error_hop->edge_id);
+    error_edge->htlc_maximum_msat = payment->amount;
+    printf("error at %ld (amount=%ld)\n", error_edge->id, payment->amount);
 
   process_fail_result(node, payment, simulation->current_time);
 
