@@ -66,7 +66,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,max_edge_balance,group_capacity,accuracy\n");
+  fprintf(csv_group_output, "id,edges,min_cap_limit,max_cap_limit,max_edge_balance,group_capacity,accuracy\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
@@ -84,7 +84,7 @@ void write_output(struct network* network, struct array* payments, char output_d
         }
     }
     long capacity = calc_group_capacity(group);
-    fprintf(csv_group_output, "%ld,%ld,%f\n", max_edge_balance, capacity, (float) capacity / (float) max_edge_balance);
+    fprintf(csv_group_output, "%ld,%ld,%ld,%ld,%f\n", group->min_cap_limit, group->max_cap_limit, max_edge_balance, capacity, (float) capacity / (float) max_edge_balance);
   }
   fclose(csv_group_output);
 

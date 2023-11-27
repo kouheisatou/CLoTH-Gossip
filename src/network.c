@@ -352,7 +352,7 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
 
 //    construct_groups_randomly(network, random_generator);
 //    construct_non_duplication_group(network, random_generator);
-    construct_separated_group(network);
+    construct_separated_group(network, random_generator);
 
   return  network;
 }
@@ -535,11 +535,11 @@ void construct_non_duplication_group(struct network *network, gsl_rng *random_ge
     printf("\n");
 }
 
-void construct_separated_group(struct network* network){
+void construct_separated_group(struct network *network, gsl_rng *random_generator){
 
     // group construction policy
     int group_size = 5;
-    float maximum_delta_ratio = 0.2f;
+    float group_allowance = 0.1f;
 
     long n_edges = array_len(network->edges);
     network->groups = array_initialize(1000);
@@ -563,64 +563,55 @@ void construct_separated_group(struct network* network){
             }
         }
 
+        struct edge* first_edge = array_get(network->edges, i);
+        if(is_already_used_edge[first_edge->id]) continue;
+
         // init group
         struct group* group = malloc(sizeof(struct group));
         group->edges = array_initialize(group_size);
+        group->edges = array_insert(group->edges, first_edge);
         group->id = group_seq;
+        group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_allowance);
+        group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_allowance);
 
-        struct edge* current_edge = array_get(network->edges, i);
-        if(is_already_used_edge[current_edge->id]) continue;
+        // select edge whose balance is in group allowance
+        long loop_end_index = (long)(gsl_ran_flat(random_generator, 0, (double)n_edges));
+        for(long k = (loop_end_index + 1) % n_edges; k % n_edges != loop_end_index; k = (k + 1) % n_edges){
 
-        while(array_len(group->edges) < group_size) {
-            group->edges = array_insert(group->edges, current_edge);
+            struct edge* next_edge = array_get(network->edges, k);
 
-            // select edge whose balance is closest to current_edge
-            struct edge* closest_edge;
-            long min_sq_diff = INT64_MAX;
-            long group_capacity = calc_group_capacity(group);
-            for(long k = 0; k < n_edges; k++){
+            // if next_edge is already used by other group, skip
+            if(is_already_used_edge[next_edge->id]) continue;
 
-                struct edge* next_edge = array_get(network->edges, k);
+            // if next_edge is counter_edge of first_edge, skip
+            struct edge *prev_edge = array_get(group->edges, array_len(group->edges) -1);
+            if(next_edge->id == prev_edge->counter_edge_id) continue;
 
-                // if next_edge is already used by other group, skip
-                if(is_already_used_edge[next_edge->id]) continue;
-
-                // if next_edge is counter_edge of current_edge, skip
-                if(next_edge->id == current_edge->counter_edge_id) continue;
-
-                // if next_edge is already in group, skip
-                char is_already_exits_in_group = 0;
-                for(int l = 0; l < array_len(group->edges); l++){
-                    struct edge* group_edge = array_get(group->edges, l);
-                    if(group_edge->id == next_edge->id){
-                        is_already_exits_in_group = 1;
-                        break;
-                    }
-                }
-                if(is_already_exits_in_group) continue;
-
-                // if next_edge is directory connected to current_edge, skip
-                if (current_edge->to_node_id == next_edge->to_node_id ||
-                    current_edge->to_node_id == next_edge->from_node_id ||
-                    current_edge->from_node_id == next_edge->to_node_id ||
-                    current_edge->from_node_id == next_edge->from_node_id)
-                    continue;
-
-                long sq_diff = (long)powl(group_capacity - next_edge->balance, 2L);
-                if(sq_diff < min_sq_diff){
-
-                    if((float)next_edge->balance / (float)group_capacity < 1.0f - maximum_delta_ratio || 1.0f + maximum_delta_ratio < (float)next_edge->balance / (float)group_capacity){
-                        continue;
-                    }
-
-                    min_sq_diff = sq_diff;
-                    closest_edge = next_edge;
+            // if next_edge is already in group, skip
+            char is_already_exits_in_group = 0;
+            for(int l = 0; l < array_len(group->edges); l++){
+                struct edge* group_edge = array_get(group->edges, l);
+                if(group_edge->id == next_edge->id){
+                    is_already_exits_in_group = 1;
+                    break;
                 }
             }
+            if(is_already_exits_in_group) continue;
 
-            // stock closest_edge as next current_edge
-            current_edge = closest_edge;
+            // if next_edge is directory connected to first_edge, skip
+            if (first_edge->to_node_id == next_edge->to_node_id ||
+                first_edge->to_node_id == next_edge->from_node_id ||
+                first_edge->from_node_id == next_edge->to_node_id ||
+                first_edge->from_node_id == next_edge->from_node_id)
+                continue;
 
+            // if next_edge's balance satisfy allowance, add next_edge to group
+            if(group->min_cap_limit <= next_edge->balance && next_edge->balance <= group->max_cap_limit){
+                group->edges = array_insert(group->edges, next_edge);
+
+                // if group member is full, end
+                if(array_len(group->edges) >= group_size) break;
+            }
         }
 
         // register group to network
