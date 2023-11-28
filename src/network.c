@@ -45,6 +45,7 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->balance = balance;
   edge->is_closed = 0;
   edge->tot_flows = 0;
+  edge->group = NULL;
   return edge;
 }
 
@@ -455,84 +456,24 @@ void construct_groups_randomly(struct network *network, gsl_rng *random_generato
     printf("\n");
 }
 
-long calc_group_capacity(struct group *group) {
-    long min = INT64_MAX;
+void update_group_cap(struct group *group, uint64_t current_time) {
+    uint64_t min = UINT64_MAX;
+    uint64_t max = 0;
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
-        if(edge->balance < min) {
-            min = (long) edge->balance;
+        if(edge->balance < min) min = edge->balance;
+        if(edge->balance > max) max = edge->balance;
+    }
+    group->max_cap = max;
+    group->min_cap = min;
+    if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
+        group->is_closed = 1;
+        group->closed_time = current_time;
+        for(int i = 0; i < array_len(group->edges); i++){
+            struct edge* edge = array_get(group->edges, i);
+            edge->group = NULL;
         }
     }
-    return min;
-}
-
-void construct_non_duplication_group(struct network *network, gsl_rng *random_generator) {
-
-    // group construction policy
-    int group_size = 5;
-
-    network->groups = array_initialize(1000);
-    long group_seq = 0L;
-
-    long n_nodes = array_len(network->nodes);
-    long n_edge = array_len(network->edges);
-
-    char is_already_member[n_edge];
-    for(long i = 0; i < n_edge; i++){
-        is_already_member[i] = 0;
-    }
-
-    for (long i = 0; i < n_nodes; i++) {
-
-        // if the node is already a member of other group, skip
-        struct node* current_node = array_get(network->nodes, i);
-
-        // show progress
-        float progress = (float)i / (float)array_len(network->nodes);
-        printf("\r%ld%% ", (long)(100 * progress));
-        for(int j = 0; j < 100; j++){
-            if(j <= (long)(100 * progress)){
-                printf("|");
-            }else{
-                printf(".");
-            }
-        }
-
-        // init group
-        struct group* group = malloc(sizeof(struct group));
-        group->id = group_seq;
-        group->edges = array_initialize(group_size);
-
-        while (array_len(group->edges) < group_size){
-
-            // add edge that is not a member of other group to group
-            char no_alternative_edge = 1;
-            long n_neighbor = array_len(current_node->open_edges);
-            int loop_start_index = (int)gsl_ran_flat(random_generator, 0, (double)n_neighbor);
-            for(int j = loop_start_index + 1; j % n_neighbor != loop_start_index; j++){
-                struct edge* edge = array_get(current_node->open_edges, j % n_neighbor);
-                if(is_already_member[edge->id] == 0){
-                    group->edges = array_insert(group->edges, edge);
-                    current_node = array_get(network->nodes, edge->to_node_id);
-                    no_alternative_edge = 0;
-                    break;
-                }
-            }
-
-            if(no_alternative_edge) break;
-        }
-
-        // apply group to network
-        if(array_len(group->edges) == group_size) {
-            network->groups = array_insert(network->groups, group);
-            group_seq++;
-            for (int j = 0; j < array_len(group->edges); j++) {
-                struct edge *edge = array_get(group->edges, j);
-                is_already_member[edge->id]++;
-            }
-        }
-    }
-    printf("\n");
 }
 
 void construct_separated_group(struct network *network, gsl_rng *random_generator){
@@ -573,6 +514,9 @@ void construct_separated_group(struct network *network, gsl_rng *random_generato
         group->id = group_seq;
         group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_allowance);
         group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_allowance);
+        group->is_closed = 0;
+        group->closed_time = 0;
+        update_group_cap(group, 0);
 
         // select edge whose balance is in group allowance
         long loop_end_index = (long)(gsl_ran_flat(random_generator, 0, (double)n_edges));
@@ -621,6 +565,7 @@ void construct_separated_group(struct network *network, gsl_rng *random_generato
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
                 is_already_used_edge[edge->id]++;
+                edge->group = group;
             }
         }
     }

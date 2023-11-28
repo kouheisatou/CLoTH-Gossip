@@ -136,7 +136,7 @@ void set_node_pair_result_fail(struct element** results, long from_node_id, long
 }
 
 /* process a payment which succeeded */
-void process_success_result(struct node* node, struct payment *payment, uint64_t current_time){
+void process_success_result(struct network* network, struct node* node, struct payment *payment, uint64_t current_time){
   struct route_hop* hop;
   int i;
   struct array* route_hops;
@@ -144,6 +144,13 @@ void process_success_result(struct node* node, struct payment *payment, uint64_t
   for(i=0; i<array_len(route_hops); i++){
     hop = array_get(route_hops, i);
     set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+
+    // if edge's group cap doesn't satisfy group's cap limit, close group
+    struct edge* edge = array_get(network->edges, hop->edge_id);
+    if(edge->group != NULL) update_group_cap(edge->group, current_time);
+    // if counter_edge's group cap doesn't satisfy group's cap limit, close group
+    struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
+    if(counter_edge->group != NULL) update_group_cap(counter_edge->group, current_time);
   }
 }
 
@@ -481,7 +488,7 @@ void receive_success(struct event* event, struct simulation *simulation, struct 
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
-  process_success_result(node, payment, simulation->current_time);
+  process_success_result(network, node, payment, simulation->current_time);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */

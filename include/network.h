@@ -56,6 +56,7 @@ struct edge {
   uint64_t balance;
   unsigned int is_closed;
   uint64_t tot_flows;
+  struct group* group;
 };
 
 
@@ -64,6 +65,10 @@ struct group {
     struct array* edges;
     uint64_t max_cap_limit;
     uint64_t min_cap_limit;
+    uint64_t max_cap;
+    uint64_t min_cap;
+    uint64_t closed_time;
+    char is_closed;
 };
 
 
@@ -94,7 +99,7 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
 
 void construct_groups_randomly(struct network* network, gsl_rng* random_generator);
 
-long calc_group_capacity(struct group* group);
+void update_group_cap(struct group* group, uint64_t current_time);
 
 void construct_non_duplication_group(struct network *network, gsl_rng *random_generator);
 

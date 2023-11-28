@@ -66,25 +66,20 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,min_cap_limit,max_cap_limit,max_edge_balance,group_capacity,accuracy\n");
+  fprintf(csv_group_output, "id,edges,is_closed,closed_time,min_cap_limit,max_cap_limit,max_edge_balance,group_capacity,accuracy\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
-    long max_edge_balance = 0;
     for(j=0; j< array_len(group->edges); j++){
         edge = array_get(group->edges, j);
         fprintf(csv_group_output, "%ld", edge->id);
-        if(max_edge_balance < edge->balance){
-            max_edge_balance = (long)edge->balance;
-        }
         if(j < array_len(group->edges) -1){
             fprintf(csv_group_output, "-");
         }else{
             fprintf(csv_group_output, ",");
         }
     }
-    long capacity = calc_group_capacity(group);
-    fprintf(csv_group_output, "%ld,%ld,%ld,%ld,%f\n", group->min_cap_limit, group->max_cap_limit, max_edge_balance, capacity, (float) capacity / (float) max_edge_balance);
+    fprintf(csv_group_output, "%d,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->closed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, (float) group->min_cap / (float) group->max_cap);
   }
   fclose(csv_group_output);
 
@@ -96,9 +91,11 @@ void write_output(struct network* network, struct array* payments, char output_d
   }
   for(i = 0; i < array_len(network->groups); i++){
       struct group* group = array_get(network->groups, i);
-      for(j = 0; j < array_len(group->edges); j++){
-          edge = array_get(group->edges, j);
-          group_member_distribution[edge->id]++;
+      if(!group->is_closed) {
+          for (j = 0; j < array_len(group->edges); j++) {
+              edge = array_get(group->edges, j);
+              group_member_distribution[edge->id]++;
+          }
       }
   }
   long group_member_count = 0L;
@@ -116,10 +113,15 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,group\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
-    fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld\n", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
+    fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
+    if(edge->group == NULL){
+        fprintf(csv_edge_output, "NULL\n");
+    }else{
+        fprintf(csv_edge_output, "%ld\n", edge->group->id);
+    }
   }
   fclose(csv_edge_output);
 
