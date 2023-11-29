@@ -34,7 +34,7 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
 
 void forward_success(struct event* event, struct simulation* simulation, struct network* network);
 
-void receive_success(struct event* event, struct simulation* simulation, struct network* network);
+struct element* receive_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
 void forward_fail(struct event* event, struct simulation* simulation, struct network* network);
 

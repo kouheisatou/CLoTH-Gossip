@@ -136,7 +136,7 @@ void set_node_pair_result_fail(struct element** results, long from_node_id, long
 }
 
 /* process a payment which succeeded */
-void process_success_result(struct network* network, struct node* node, struct payment *payment, uint64_t current_time){
+struct element* process_success_result(struct network* network, struct node* node, struct payment *payment, uint64_t current_time, struct element* group_add_queue){
   struct route_hop* hop;
   int i;
   struct array* route_hops;
@@ -147,11 +147,17 @@ void process_success_result(struct network* network, struct node* node, struct p
 
     // if edge's group cap doesn't satisfy group's cap limit, close group
     struct edge* edge = array_get(network->edges, hop->edge_id);
-    if(edge->group != NULL) update_group_cap(edge->group, current_time);
+    if(edge->group != NULL) {
+        group_add_queue = update_group_cap(edge->group, current_time, group_add_queue);
+    }
     // if counter_edge's group cap doesn't satisfy group's cap limit, close group
     struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
-    if(counter_edge->group != NULL) update_group_cap(counter_edge->group, current_time);
+    if(counter_edge->group != NULL) {
+        group_add_queue = update_group_cap(counter_edge->group, current_time, group_add_queue);
+    }
   }
+
+  return group_add_queue;
 }
 
 /* process a payment which failed (different processments depending on the error type) */
@@ -482,13 +488,13 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
 }
 
 /* receive an HTLC success (behavior of the payment sender node) */
-void receive_success(struct event* event, struct simulation *simulation, struct network* network){
+struct element* receive_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
   struct node* node;
   struct payment* payment;
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
-  process_success_result(network, node, payment, simulation->current_time);
+  return process_success_result(network, node, payment, simulation->current_time, group_add_queue);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */

@@ -19,4 +19,6 @@ unsigned int is_in_list(struct element* head, void* data, int(*is_equal)());
 
 void list_free(struct element* head);
 
+struct element* list_delete(struct element* head, struct element** current_iterator, void* delete_target_data, int (*is_equal)(void*, void*));
+
 #endif

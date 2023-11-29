@@ -66,7 +66,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,is_closed,closed_time,min_cap_limit,max_cap_limit,max_edge_balance,group_capacity,accuracy\n");
+  fprintf(csv_group_output, "id,edges,is_closed(closed_time),min_cap_limit,max_cap_limit,max_edge_balance,group_capacity,accuracy\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
@@ -79,7 +79,7 @@ void write_output(struct network* network, struct array* payments, char output_d
             fprintf(csv_group_output, ",");
         }
     }
-    fprintf(csv_group_output, "%d,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->closed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, (float) group->min_cap / (float) group->max_cap);
+    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, (float) group->min_cap / (float) group->max_cap);
   }
   fclose(csv_group_output);
 
@@ -383,13 +383,32 @@ int main(int argc, char *argv[]) {
   time_spent_thread = finish.tv_sec - start.tv_sec;
   printf("Time consumed by initial dijkstra executions: %ld s\n", time_spent_thread);
 
+  // add edge which is not a member of any group to group_add_queue
+  struct element* group_add_queue = NULL;
+  for(int i = 0; i < array_len(network->edges); i++){
+      group_add_queue = push(group_add_queue, array_get(network->edges, i));
+//      printf("%ld, %ld\n", ((struct edge*)(array_get(network->edges, i)))->id, list_len(group_add_queue));
+  }
+  group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0);
+
   printf("EXECUTION OF THE SIMULATION\n");
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
-      printf("%ld\n", heap_len(simulation->events));
-      construct_group(network, simulation->random_generator);
+
+      if(group_add_queue != NULL) {
+          printf("QUEUE\t");
+          for (struct element *element = group_add_queue; element->next != NULL; element = element->next) {
+              struct edge *edge = element->data;
+              printf("%ld(%lu), ", edge->id, edge->balance);
+          }
+          printf("\n");
+      }else{
+          printf("QUEUE\t\n");
+      }
+      group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, simulation->current_time);
+
     event = heap_pop(simulation->events, compare_event);
     simulation->current_time = event->time;
     switch(event->type){
@@ -409,7 +428,7 @@ int main(int argc, char *argv[]) {
       forward_success(event, simulation, network);
       break;
     case RECEIVESUCCESS:
-      receive_success(event, simulation, network);
+      group_add_queue = receive_success(event, simulation, network, group_add_queue);
       break;
     case FORWARDFAIL:
       forward_fail(event, simulation, network);

@@ -370,91 +370,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-void construct_groups_randomly(struct network *network, gsl_rng *random_generator) {
-
-    // group construction policy
-    int group_size = 5;
-
-    network->groups = array_initialize(1000);
-    long group_seq = 0L;
-
-    for (long i = 0; i < array_len(network->nodes); i++) {
-
-        // show progress
-        float progress = (float)i / (float)array_len(network->nodes);
-        printf("\r%ld%% ", (long)(100 * progress));
-        for(int j = 0; j < 100; j++){
-            if(j <= (long)(100 * progress)){
-                printf("|");
-            }else{
-                printf(".");
-            }
-        }
-
-        struct node* start_node = array_get(network->nodes, i);
-
-        for (int j = 0; j < array_len(start_node->open_edges); j++) {
-
-            // init group struct
-            struct group *group = malloc(sizeof(struct group));
-            group->id = group_seq++;
-            group->edges = array_initialize(group_size);
-
-            // initialize prev node stock
-            struct edge *current_edge = array_get(start_node->open_edges, j);
-            struct node *current_node = array_get(network->nodes, current_edge->to_node_id);
-
-            // join nodes to group
-            for (int k = 0; k < group_size; k++) {
-
-                // add prev node as group edges
-                group->edges = array_insert(group->edges, current_edge);
-
-                // if nodes have no edge, end group
-                if(array_len(current_node->open_edges) == 0) break;
-
-                // if current_node don't have alternative edge, end group
-                int duplicated_count = 0;
-                for(int l = 0; l < array_len(current_node->open_edges); l++) {
-                    struct edge* edge = array_get(current_node->open_edges, l);
-                    for(int m = 0; m < array_len(group->edges); m++){
-                        struct edge* group_member_edge = array_get(group->edges, m);
-                        if(edge->id == group_member_edge->id){
-                            duplicated_count++;
-                        }
-                    }
-                }
-                if(duplicated_count == array_len(current_node->open_edges)) break;
-
-                // select next node randomly
-                struct edge *next_edge;
-                char duplicated;
-                do {
-                    duplicated = 0;
-                    next_edge = array_get(current_node->open_edges, (int)gsl_ran_flat(random_generator, 0, (double)array_len(current_node->open_edges)));
-
-                    // if next_node already exists in group
-                    for(int l = 0; l < array_len(group->edges); l++){
-                        struct edge *e = array_get(group->edges, l);
-                        if(next_edge->id == e->id){
-                            duplicated = 1;
-                        }
-                    }
-
-                }while(duplicated);
-
-                current_edge = next_edge;
-                current_node = array_get(network->nodes, next_edge->to_node_id);
-            }
-
-            // apply group to network
-            network->groups = array_insert(network->groups, group);
-        }
-    }
-    printf("\n");
-}
-
-void update_group_cap(struct group *group, uint64_t current_time) {
+struct element* update_group_cap(struct group* group, uint64_t current_time, struct element* group_add_queue) {
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
     for (int i = 0; i < array_len(group->edges); i++) {
@@ -464,26 +380,34 @@ void update_group_cap(struct group *group, uint64_t current_time) {
     }
     group->max_cap = max;
     group->min_cap = min;
+
     if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
-        group->is_closed = 1;
-        group->closed_time = current_time;
+        group->is_closed = current_time;
+
+        printf("CLOSE\t");
         for(int i = 0; i < array_len(group->edges); i++){
             struct edge* edge = array_get(group->edges, i);
             edge->group = NULL;
+            group_add_queue = push(group_add_queue, edge);
+            printf("%ld(%lu), ", edge->id, edge->balance);
         }
+        printf("\n");
     }
+    return group_add_queue;
 }
 
-void construct_group(struct network *network, gsl_rng *random_generator){
+struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, uint64_t current_time){
 
     // group construction policy
     int group_size = 5;
     float group_allowance = 0.1f;
 
-    long n_edges = array_len(network->edges);
-    for(long i = 0; i < n_edges; i++){
+    if(group_add_queue == NULL) return group_add_queue;
+    struct element* first_edge_i;
+    for(first_edge_i = group_add_queue; first_edge_i->next != NULL; first_edge_i = first_edge_i->next){
+        struct edge* first_edge = first_edge_i->data;
 
-        struct edge* first_edge = array_get(network->edges, i);
+        // if edge is already member of group, skip
         if(first_edge->group != NULL) continue;
 
         // init group
@@ -493,15 +417,12 @@ void construct_group(struct network *network, gsl_rng *random_generator){
         group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_allowance);
         group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_allowance);
         group->id = array_len(network->groups);
-        group->is_closed = 0;
-        group->closed_time = 0;
-        update_group_cap(group, 0);
+        group->is_closed = current_time;
+        update_group_cap(group, 0, group_add_queue);
 
         // select edge whose balance is in group allowance
-        long loop_end_index = (long)(gsl_ran_flat(random_generator, 0, (double)n_edges));
-        for(long k = (loop_end_index + 1) % n_edges; k % n_edges != loop_end_index; k = (k + 1) % n_edges){
-
-            struct edge* next_edge = array_get(network->edges, k);
+        for(struct element *next_edge_i = group_add_queue; next_edge_i->next != NULL; next_edge_i = next_edge_i->next){
+            struct edge* next_edge = next_edge_i->data;
 
             // if next_edge is already used by other group, skip
             if(next_edge->group != NULL) continue;
@@ -539,11 +460,20 @@ void construct_group(struct network *network, gsl_rng *random_generator){
 
         // register group to network
         if(array_len(group->edges) == group_size) {
+            printf("CONST\t");
             network->groups = array_insert(network->groups, group);
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
+                printf("%ld(%lu), ", edge->id, edge->balance);
+                group_add_queue = list_delete(group_add_queue, &first_edge_i, edge, (int (*)(void *, void *)) edge_equal);
                 edge->group = group;
             }
+            printf("\n");
         }
     }
+    return group_add_queue;
+}
+
+int edge_equal(struct edge* e1, struct edge* e2){
+    return e1->id == e2->id;
 }

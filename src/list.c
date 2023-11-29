@@ -58,3 +58,35 @@ void list_free(struct element* head){
     iterator = next;
   }
 }
+
+struct element* list_delete(struct element* head, struct element** current_iterator, void* delete_target_data, int (*is_equal)(void*, void*)) {
+    struct element* current = head;
+    struct element* previous = NULL;
+
+    // Iterate through the list to find the target element
+    while (current != NULL && !is_equal(current->data, delete_target_data)) {
+        previous = current;
+        current = current->next;
+    }
+
+    // If the target element is found
+    if (current != NULL) {
+        // If the target element is the head of the list
+        if (previous == NULL) {
+            head = current->next;
+        } else {
+            // Update the next pointer of the previous element
+            previous->next = current->next;
+        }
+
+        // If delete_target is current_iterator, replace current_iterator with next
+        if(current == (*current_iterator)){
+            *current_iterator = current->next;
+        }
+
+        // Free the memory occupied by the target element
+        free(current);
+    }
+
+    return head;
+}
