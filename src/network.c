@@ -351,9 +351,7 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
       node->results[j] = NULL;
   }
 
-//    construct_groups_randomly(network, random_generator);
-//    construct_non_duplication_group(network, random_generator);
-    construct_separated_group(network, random_generator);
+  network->groups = array_initialize(1000);
 
   return  network;
 }
@@ -476,44 +474,25 @@ void update_group_cap(struct group *group, uint64_t current_time) {
     }
 }
 
-void construct_separated_group(struct network *network, gsl_rng *random_generator){
+void construct_group(struct network *network, gsl_rng *random_generator){
 
     // group construction policy
     int group_size = 5;
     float group_allowance = 0.1f;
 
     long n_edges = array_len(network->edges);
-    network->groups = array_initialize(1000);
-    long group_seq = 0L;
-
-    char is_already_used_edge[n_edges];
     for(long i = 0; i < n_edges; i++){
-        is_already_used_edge[i] = 0;
-    }
-
-    for(long i = 0; i < n_edges; i++){
-
-        // show progress
-        float progress = (float)i / (float)array_len(network->edges);
-        printf("\r%ld%% ", (long)(100 * progress));
-        for(int j = 0; j < 100; j++){
-            if(j <= (long)(100 * progress)){
-                printf("|");
-            }else{
-                printf(".");
-            }
-        }
 
         struct edge* first_edge = array_get(network->edges, i);
-        if(is_already_used_edge[first_edge->id]) continue;
+        if(first_edge->group != NULL) continue;
 
         // init group
         struct group* group = malloc(sizeof(struct group));
         group->edges = array_initialize(group_size);
         group->edges = array_insert(group->edges, first_edge);
-        group->id = group_seq;
         group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_allowance);
         group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_allowance);
+        group->id = array_len(network->groups);
         group->is_closed = 0;
         group->closed_time = 0;
         update_group_cap(group, 0);
@@ -525,7 +504,7 @@ void construct_separated_group(struct network *network, gsl_rng *random_generato
             struct edge* next_edge = array_get(network->edges, k);
 
             // if next_edge is already used by other group, skip
-            if(is_already_used_edge[next_edge->id]) continue;
+            if(next_edge->group != NULL) continue;
 
             // if next_edge is counter_edge of first_edge, skip
             struct edge *prev_edge = array_get(group->edges, array_len(group->edges) -1);
@@ -561,13 +540,10 @@ void construct_separated_group(struct network *network, gsl_rng *random_generato
         // register group to network
         if(array_len(group->edges) == group_size) {
             network->groups = array_insert(network->groups, group);
-            group_seq++;
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
-                is_already_used_edge[edge->id]++;
                 edge->group = group;
             }
         }
     }
-    printf("\n");
 }

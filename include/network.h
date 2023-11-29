@@ -103,6 +103,6 @@ void update_group_cap(struct group* group, uint64_t current_time);
 
 void construct_non_duplication_group(struct network *network, gsl_rng *random_generator);
 
-void construct_separated_group(struct network *network, gsl_rng *random_generator);
+void construct_group(struct network *network, gsl_rng *random_generator);
 
 #endif

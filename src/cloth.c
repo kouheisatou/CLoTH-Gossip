@@ -388,6 +388,8 @@ int main(int argc, char *argv[]) {
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
+      printf("%ld\n", heap_len(simulation->events));
+      construct_group(network, simulation->random_generator);
     event = heap_pop(simulation->events, compare_event);
     simulation->current_time = event->time;
     switch(event->type){
