@@ -98,7 +98,7 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
 
 struct element* update_group_cap(struct group* group, uint64_t current_time, struct element* group_add_queue);
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, uint64_t current_time);
+struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, uint64_t current_time, int group_size, float group_limit_rate);
 
 int edge_equal(struct edge* e1, struct edge* e2);
 

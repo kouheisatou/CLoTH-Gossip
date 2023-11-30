@@ -273,6 +273,12 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
+    else if(strcmp(parameter, "group_size")==0){
+        net_params->group_size = strtod(value, NULL);
+    }
+    else if(strcmp(parameter, "group_limit_rate")==0){
+        net_params->group_limit_rate = strtod(value, NULL);
+    }
     else if(strcmp(parameter, "payments_filename")==0){
       strcpy(pay_params->payments_filename, value);
     }
@@ -389,7 +395,7 @@ int main(int argc, char *argv[]) {
       group_add_queue = push(group_add_queue, array_get(network->edges, i));
 //      printf("%ld, %ld\n", ((struct edge*)(array_get(network->edges, i)))->id, list_len(group_add_queue));
   }
-  group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0);
+  group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0, net_params.group_size, net_params.group_limit_rate);
 
   printf("EXECUTION OF THE SIMULATION\n");
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
@@ -397,17 +403,17 @@ int main(int argc, char *argv[]) {
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
 
-      if(group_add_queue != NULL) {
-          printf("QUEUE\t");
-          for (struct element *element = group_add_queue; element->next != NULL; element = element->next) {
-              struct edge *edge = element->data;
-              printf("%ld(%lu), ", edge->id, edge->balance);
-          }
-          printf("\n");
-      }else{
-          printf("QUEUE\t\n");
-      }
-      group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, simulation->current_time);
+//      if(group_add_queue != NULL) {
+//          printf("QUEUE\t");
+//          for (struct element *element = group_add_queue; element->next != NULL; element = element->next) {
+//              struct edge *edge = element->data;
+//              printf("%ld(%lu), ", edge->id, edge->balance);
+//          }
+//          printf("\n");
+//      }else{
+//          printf("QUEUE\t\n");
+//      }
+      group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, simulation->current_time, net_params.group_size, net_params.group_limit_rate);
 
     event = heap_pop(simulation->events, compare_event);
     simulation->current_time = event->time;

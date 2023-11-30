@@ -384,23 +384,19 @@ struct element* update_group_cap(struct group* group, uint64_t current_time, str
     if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
         group->is_closed = current_time;
 
-        printf("CLOSE\t");
+//        printf("CLOSE\t");
         for(int i = 0; i < array_len(group->edges); i++){
             struct edge* edge = array_get(group->edges, i);
             edge->group = NULL;
             group_add_queue = push(group_add_queue, edge);
-            printf("%ld(%lu), ", edge->id, edge->balance);
+//            printf("%ld(%lu), ", edge->id, edge->balance);
         }
-        printf("\n");
+//        printf("\n");
     }
     return group_add_queue;
 }
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, uint64_t current_time){
-
-    // group construction policy
-    int group_size = 5;
-    float group_allowance = 0.1f;
+struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, uint64_t current_time, int group_size, float group_limit_rate){
 
     if(group_add_queue == NULL) return group_add_queue;
     struct element* first_edge_i;
@@ -414,8 +410,8 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         struct group* group = malloc(sizeof(struct group));
         group->edges = array_initialize(group_size);
         group->edges = array_insert(group->edges, first_edge);
-        group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_allowance);
-        group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_allowance);
+        group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_limit_rate);
+        group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_limit_rate);
         group->id = array_len(network->groups);
         group->is_closed = current_time;
         update_group_cap(group, 0, group_add_queue);
@@ -460,15 +456,15 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
         // register group to network
         if(array_len(group->edges) == group_size) {
-            printf("CONST\t");
+//            printf("CONST\t");
             network->groups = array_insert(network->groups, group);
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
-                printf("%ld(%lu), ", edge->id, edge->balance);
+//                printf("%ld(%lu), ", edge->id, edge->balance);
                 group_add_queue = list_delete(group_add_queue, &first_edge_i, edge, (int (*)(void *, void *)) edge_equal);
                 edge->group = group;
             }
-            printf("\n");
+//            printf("\n");
         }
     }
     return group_add_queue;
