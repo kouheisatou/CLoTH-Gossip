@@ -114,6 +114,25 @@ for stat in stats:
      confidence_max[stat] = means[stat] + h[stat]
      variances[stat] = np.var(batches[stat])
 
+
+# group statics
+group_output = {"group_cover_proportion": 0.0, "accuracy": {"mean": 0.0, "variance": 0.0}}
+with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
+     n_edges = len(open(output_dir_name + "edges_output.csv").readlines())
+     groups = list(csv.DictReader(csv_group))
+     group_member_count = 0
+     accuracy = []
+     for group in groups:
+          accuracy.append(float(group["accuracy"]))
+          edges: list[str] = group["edges"].split("-")
+          if group["is_closed(closed_time)"] == "0":
+               for edge in edges:
+                    group_member_count += 1
+     group_output["group_cover_proportion"] = group_member_count.__float__() / n_edges
+     group_output["accuracy"]["mean"] = np.mean(np.array(accuracy))
+     group_output["accuracy"]["variance"] = np.var(np.array(accuracy))
+
+
 # WRITE OUTPUT
 
 with open(output_dir_name + 'cloth_output.json', 'w') as stats_file:
@@ -130,6 +149,7 @@ with open(output_dir_name + 'cloth_output.json', 'w') as stats_file:
           if stat == 'Total': continue
           temp_output.append((stat, dict_stats[stat]))
      output = OrderedDict(temp_output)
+     output["group"] = group_output
      json.dump(output, stats_file, indent=4)
 
 

@@ -83,29 +83,6 @@ void write_output(struct network* network, struct array* payments, char output_d
   }
   fclose(csv_group_output);
 
-  // calc cover proportion
-  long n_edges = array_len(network->edges);
-  int group_member_distribution[n_edges];
-  for(i = 0; i < n_edges; i++){
-      group_member_distribution[i] = 0;
-  }
-  for(i = 0; i < array_len(network->groups); i++){
-      struct group* group = array_get(network->groups, i);
-      if(!group->is_closed) {
-          for (j = 0; j < array_len(group->edges); j++) {
-              edge = array_get(group->edges, j);
-              group_member_distribution[edge->id]++;
-          }
-      }
-  }
-  long group_member_count = 0L;
-  for(i = 0; i < n_edges; i++){
-      if(group_member_distribution[i] != 0){
-          group_member_count++;
-      }
-  }
-  printf("group_cover_proportion=%f\n", (float)group_member_count / (float)n_edges);
-
   strcpy(output_filename, output_dir_name);
   strcat(output_filename, "edges_output.csv");
   csv_edge_output = fopen(output_filename, "w");
@@ -372,8 +349,6 @@ int main(int argc, char *argv[]) {
   simulation->random_generator = initialize_random_generator();
   printf("NETWORK INITIALIZATION\n");
   network = initialize_network(net_params, simulation->random_generator);
-//    write_output(network, payments, output_dir_name);
-//    return 0;
   n_nodes = array_len(network->nodes);
   n_edges = array_len(network->edges);
   printf("PAYMENTS INITIALIZATION\n");
