@@ -377,6 +377,22 @@ int main(int argc, char *argv[]) {
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
+      int width = 100;
+      int queue_length = list_len(group_add_queue);
+      int bar_length = queue_length % width;
+      printf("\rQUEUE : %d\t", queue_length);
+      if(queue_length / width == 0){
+          printf("|");
+      } else {
+          printf("||...%d->|", queue_length - bar_length);
+      }
+      for(int i = 0; i < width; i++){
+          if(i < bar_length){
+              printf("|");
+          }else{
+              printf(" ");
+          }
+      }
 
 //      if(group_add_queue != NULL) {
 //          printf("QUEUE\t");
@@ -425,6 +441,7 @@ int main(int argc, char *argv[]) {
       exit(-1);
     }
   }
+  printf("\n");
   end = clock();
 
   if(pay_params.mpp)
