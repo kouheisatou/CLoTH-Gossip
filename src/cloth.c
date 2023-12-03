@@ -380,8 +380,19 @@ int main(int argc, char *argv[]) {
   network = initialize_network(net_params, simulation->random_generator);
   n_nodes = array_len(network->nodes);
   n_edges = array_len(network->edges);
+
+    // add edge which is not a member of any group to group_add_queue
+    struct element* group_add_queue = NULL;
+    if(net_params.enable_group_routing) {
+        for (int i = 0; i < array_len(network->edges); i++) {
+            group_add_queue = push(group_add_queue, array_get(network->edges, i));
+        }
+        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0, net_params.group_size, net_params.group_limit_rate);
+    }
+
   printf("PAYMENTS INITIALIZATION\n");
   payments = initialize_payments(pay_params,  n_nodes, simulation->random_generator);
+
   printf("EVENTS INITIALIZATION\n");
   simulation->events = initialize_events(payments);
   initialize_dijkstra(n_nodes, n_edges, payments);
@@ -392,15 +403,6 @@ int main(int argc, char *argv[]) {
   clock_gettime(CLOCK_MONOTONIC, &finish);
   time_spent_thread = finish.tv_sec - start.tv_sec;
   printf("Time consumed by initial dijkstra executions: %ld s\n", time_spent_thread);
-
-  // add edge which is not a member of any group to group_add_queue
-  struct element* group_add_queue = NULL;
-  if(net_params.enable_group_routing) {
-      for (int i = 0; i < array_len(network->edges); i++) {
-          group_add_queue = push(group_add_queue, array_get(network->edges, i));
-      }
-      group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0, net_params.group_size, net_params.group_limit_rate);
-  }
 
   printf("EXECUTION OF THE SIMULATION\n");
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */

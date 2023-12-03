@@ -557,7 +557,7 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     struct channel_update* channel_update = malloc(sizeof(struct channel_update));
     channel_update->htlc_maximum_msat = payment->amount;
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
-    printf("error at %ld (amount=%lu, error_edge_capacity=%lu)\n", error_edge->id, payment->amount, error_edge->balance);
+    printf("error sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu)\n", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat);
 
   process_fail_result(node, payment, simulation->current_time);
 

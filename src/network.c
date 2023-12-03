@@ -47,7 +47,9 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->is_closed = 0;
   edge->tot_flows = 0;
   edge->group = NULL;
-  edge->channel_updates = NULL;
+  struct channel_update* channel_update = malloc(sizeof(struct channel_update));
+  channel_update->htlc_maximum_msat = channel_capacity;
+  edge->channel_updates = push(NULL, channel_update);
   return edge;
 }
 
@@ -387,14 +389,11 @@ struct element* update_group_cap(struct group* group, uint64_t current_time, str
     if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
         group->is_closed = current_time;
 
-//        printf("CLOSE\t");
         for(int i = 0; i < array_len(group->edges); i++){
             struct edge* edge = array_get(group->edges, i);
             edge->group = NULL;
             group_add_queue = push(group_add_queue, edge);
-//            printf("%ld(%lu), ", edge->id, edge->balance);
         }
-//        printf("\n");
     }
     return group_add_queue;
 }
@@ -403,7 +402,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
     if(group_add_queue == NULL) return group_add_queue;
     struct element* first_edge_i;
-    for(first_edge_i = group_add_queue; first_edge_i->next != NULL; first_edge_i = first_edge_i->next){
+    for(first_edge_i = group_add_queue; first_edge_i != NULL; first_edge_i = first_edge_i->next){
         struct edge* first_edge = first_edge_i->data;
 
         // if edge is already member of group, skip
@@ -420,7 +419,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         update_group_cap(group, 0, group_add_queue);
 
         // select edge whose balance is in group allowance
-        for(struct element *next_edge_i = group_add_queue; next_edge_i->next != NULL; next_edge_i = next_edge_i->next){
+        for(struct element *next_edge_i = group_add_queue; next_edge_i != NULL; next_edge_i = next_edge_i->next){
             struct edge* next_edge = next_edge_i->data;
 
             // if next_edge is already used by other group, skip
@@ -459,15 +458,13 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
         // register group to network
         if(array_len(group->edges) == group_size) {
-//            printf("CONST\t");
             network->groups = array_insert(network->groups, group);
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
-//                printf("%ld(%lu), ", edge->id, edge->balance);
                 group_add_queue = list_delete(group_add_queue, &first_edge_i, edge, (int (*)(void *, void *)) edge_equal);
                 edge->group = group;
             }
-//            printf("\n");
+            if(first_edge_i == NULL) break;
         }
     }
     return group_add_queue;
