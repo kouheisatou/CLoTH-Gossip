@@ -16,6 +16,7 @@ struct network_params{
   char nodes_filename[256];
   char channels_filename[256];
   char edges_filename[256];
+  unsigned int enable_group_routing;
   int group_size;
   float group_limit_rate;
 };

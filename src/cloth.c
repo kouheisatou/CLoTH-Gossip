@@ -250,6 +250,17 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
+    else if(strcmp(parameter, "enable_group_routing")==0){
+      if(strcmp(value, "true")==0)
+        net_params->enable_group_routing=1;
+      else if(strcmp(value, "false")==0)
+        net_params->enable_group_routing=0;
+      else{
+        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
+        fclose(input_file);
+        exit(-1);
+      }
+    }
     else if(strcmp(parameter, "group_size")==0){
         net_params->group_size = strtod(value, NULL);
     }
@@ -366,45 +377,37 @@ int main(int argc, char *argv[]) {
 
   // add edge which is not a member of any group to group_add_queue
   struct element* group_add_queue = NULL;
-  for(int i = 0; i < array_len(network->edges); i++){
-      group_add_queue = push(group_add_queue, array_get(network->edges, i));
-//      printf("%ld, %ld\n", ((struct edge*)(array_get(network->edges, i)))->id, list_len(group_add_queue));
+  if(net_params.enable_group_routing) {
+      for (int i = 0; i < array_len(network->edges); i++) {
+          group_add_queue = push(group_add_queue, array_get(network->edges, i));
+      }
+      group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0, net_params.group_size, net_params.group_limit_rate);
   }
-  group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0, net_params.group_size, net_params.group_limit_rate);
 
   printf("EXECUTION OF THE SIMULATION\n");
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
-      int width = 100;
-      int queue_length = list_len(group_add_queue);
-      int bar_length = queue_length % width;
-      printf("\rQUEUE : %d\t", queue_length);
-      if(queue_length / width == 0){
-          printf("|");
-      } else {
-          printf("||...%d->|", queue_length - bar_length);
-      }
-      for(int i = 0; i < width; i++){
-          if(i < bar_length){
+      if (net_params.enable_group_routing) {
+          int width = 100;
+          long queue_length = list_len(group_add_queue);
+          long bar_length = queue_length % width;
+          printf("\rQUEUE : %ld\t", queue_length);
+          if(queue_length / width == 0){
               printf("|");
-          }else{
-              printf(" ");
+          } else {
+              printf("||...%ld->|", queue_length - bar_length);
           }
+          for(int i = 0; i < width; i++){
+              if(i < bar_length){
+                  printf("|");
+              }else{
+                  printf(" ");
+              }
+          }
+          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, simulation->current_time, net_params.group_size, net_params.group_limit_rate);
       }
-
-//      if(group_add_queue != NULL) {
-//          printf("QUEUE\t");
-//          for (struct element *element = group_add_queue; element->next != NULL; element = element->next) {
-//              struct edge *edge = element->data;
-//              printf("%ld(%lu), ", edge->id, edge->balance);
-//          }
-//          printf("\n");
-//      }else{
-//          printf("QUEUE\t\n");
-//      }
-      group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, simulation->current_time, net_params.group_size, net_params.group_limit_rate);
 
     event = heap_pop(simulation->events, compare_event);
     simulation->current_time = event->time;
