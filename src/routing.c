@@ -79,7 +79,7 @@ void* dijkstra_thread(void*arg) {
     pthread_mutex_lock(&data_mutex);
     payment = array_get(thread_args->payments, payment_id);
     pthread_mutex_unlock(&data_mutex);
-    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error);
+    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->enable_group_routing);
     paths[payment->id] = hops;
   }
 
@@ -88,7 +88,7 @@ void* dijkstra_thread(void*arg) {
 
 
 /* run dijkstra threads to find the initial paths of the payments (before the simulation starts) */
-void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time) {
+void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time, unsigned int enable_group_routing) {
   long i;
   pthread_t tid[N_THREADS];
   struct thread_args *thread_args;
@@ -99,6 +99,7 @@ void run_dijkstra_threads(struct network*  network, struct array* payments, uint
     thread_args->payments = payments;
     thread_args->current_time = current_time;
     thread_args->data_index = i;
+    thread_args->enable_group_routing = enable_group_routing;
     pthread_create(&(tid[i]), NULL, dijkstra_thread, (void*) thread_args);
    }
 
@@ -231,7 +232,7 @@ int compare_distance(struct distance* a, struct distance* b) {
 }
 
 /* get maximum and total balance of the edges of a node */
-void get_balance(struct node* node, uint64_t *max_balance, uint64_t *total_balance){
+void get_balance(struct node* node, uint64_t *max_balance, uint64_t *total_balance, unsigned int enable_group_routing){
   int i;
   struct edge* edge;
 
@@ -307,7 +308,7 @@ struct array* get_best_edges(long to_node_id, uint64_t amount, long source_node_
     if(!local_node){
       modified_policy = best_edge->policy;
       modified_policy.timelock = max_timelock;
-      new_best_edge = new_edge(best_edge->id, best_edge->channel_id, best_edge->counter_edge_id, best_edge->from_node_id, best_edge->to_node_id, best_edge->balance, modified_policy);
+      new_best_edge = new_edge(best_edge->id, best_edge->channel_id, best_edge->counter_edge_id, best_edge->from_node_id, best_edge->to_node_id, best_edge->balance, modified_policy, channel->capacity);
     }
     else {
       new_best_edge = best_edge;
@@ -328,7 +329,7 @@ double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock){
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error) {
+struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, unsigned int enable_group_routing) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
   struct node *source_node, *best_node;
@@ -341,7 +342,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
   struct channel* channel;
 
   source_node = array_get(network->nodes, source);
-  get_balance(source_node, &max_balance, &total_balance);
+  get_balance(source_node, &max_balance, &total_balance, enable_group_routing);
   if(amount > total_balance){
     *error = NOLOCALBALANCE;
     return NULL;

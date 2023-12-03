@@ -33,7 +33,8 @@ struct channel* new_channel(long id, long direction1, long direction2, long node
 }
 
 
-struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy){
+//struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy, uint64_t channel_capacity){
+struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy, uint64_t channel_capacity){
   struct edge* edge;
   edge = malloc(sizeof(struct edge));
   edge->id = id;
@@ -46,6 +47,7 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->is_closed = 0;
   edge->tot_flows = 0;
   edge->group = NULL;
+  edge->channel_updates = NULL;
   return edge;
 }
 
@@ -141,8 +143,8 @@ void generate_random_channel(struct channel channel_data, uint64_t mean_channel_
   edge2_policy.min_htlc = gsl_pow_int(10, gsl_ran_discrete(random_generator, min_htlc_discrete));
   edge2_policy.min_htlc = edge2_policy.min_htlc == 1 ? 0 : edge2_policy.min_htlc;
 
-  edge1 = new_edge(channel_data.edge1, channel_data.id, channel_data.edge2, channel_data.node1, channel_data.node2, edge1_balance, edge1_policy);
-  edge2 = new_edge(channel_data.edge2, channel_data.id, channel_data.edge1, channel_data.node2, channel_data.node1, edge2_balance, edge2_policy);
+  edge1 = new_edge(channel_data.edge1, channel_data.id, channel_data.edge2, channel_data.node1, channel_data.node2, edge1_balance, edge1_policy, channel_data.capacity);
+  edge2 = new_edge(channel_data.edge2, channel_data.id, channel_data.edge1, channel_data.node2, channel_data.node1, edge2_balance, edge2_policy, channel_data.capacity);
 
   network->channels = array_insert(network->channels, channel);
   network->edges = array_insert(network->edges, edge1);
@@ -316,7 +318,8 @@ struct network* generate_network_from_files(char nodes_filename[256], char chann
   fgets(row, 2048, edges_file);
   while(fgets(row, 2048, edges_file)!=NULL) {
     sscanf(row, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d", &id, &channel_id, &other_direction, &node_id1, &node_id2, &balance, &policy.fee_base, &policy.fee_proportional, &policy.min_htlc, &policy.timelock);
-    edge = new_edge(id, channel_id, other_direction, node_id1, node_id2, balance, policy);
+    channel = array_get(network->channels, channel_id);
+    edge = new_edge(id, channel_id, other_direction, node_id1, node_id2, balance, policy, channel->capacity);
     network->edges = array_insert(network->edges, edge);
     node = array_get(network->nodes, node_id1);
     node->open_edges = array_insert(node->open_edges, &(edge->id));

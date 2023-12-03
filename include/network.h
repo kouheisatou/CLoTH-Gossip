@@ -57,6 +57,12 @@ struct edge {
   unsigned int is_closed;
   uint64_t tot_flows;
   struct group* group;
+  struct element* channel_updates;
+};
+
+
+struct channel_update {
+    uint64_t htlc_maximum_msat;
 };
 
 
@@ -90,7 +96,7 @@ struct node* new_node(long id);
 
 struct channel* new_channel(long id, long direction1, long direction2, long node1, long node2, uint64_t capacity);
 
-struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy);
+struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy, uint64_t channel_capacity);
 
 void open_channel(struct network* network, gsl_rng* random_generator);
 

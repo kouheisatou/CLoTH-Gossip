@@ -212,7 +212,7 @@ struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struc
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp) {
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, unsigned int enable_group_routing) {
   struct payment *payment, *shard1, *shard2;
   struct array *path, *shard1_path, *shard2_path;
   uint64_t shard1_amount, shard2_amount;
@@ -232,7 +232,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if (payment->attempts==1)
     path = paths[payment->id];
   else
-    path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error);
+    path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
 
   if (path != NULL) {
     generate_send_payment_event(payment, path, simulation, network);
@@ -243,12 +243,12 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
     shard1_amount = payment->amount/2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error);
+    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, enable_group_routing);
     if(shard1_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error);
+    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, enable_group_routing);
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;
@@ -533,7 +533,7 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
 void receive_fail(struct event* event, struct simulation* simulation, struct network* network) {
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
-  struct edge* next_edge;
+  struct edge* next_edge, *error_edge;
   struct event* next_event;
   struct node* node;
   uint64_t next_event_time;
@@ -551,6 +551,13 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     }
     next_edge->balance += first_hop->amount_to_forward;
   }
+
+    // record channel_update
+    error_edge = array_get(network->edges, error_hop->edge_id);
+    struct channel_update* channel_update = malloc(sizeof(struct channel_update));
+    channel_update->htlc_maximum_msat = payment->amount;
+    error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
+    printf("error at %ld (amount=%lu, error_edge_capacity=%lu)\n", error_edge->id, payment->amount, error_edge->balance);
 
   process_fail_result(node, payment, simulation->current_time);
 

@@ -90,10 +90,28 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,group\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
     fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
+    char channel_updates_text[10000] = "";
+    for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
+        struct channel_update *channel_update = iterator->data;
+        char temp[10000];
+        int written = 0;
+        if(iterator->next != NULL) {
+            written = snprintf(temp, sizeof(temp), "-%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
+        }else{
+            written = snprintf(temp, sizeof(temp), "%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
+        }
+        // Check if the output was truncated
+        if (written < 0 || (size_t)written >= sizeof(temp)) {
+            fprintf(stderr, "Error: Buffer overflow detected.\n");
+            exit(1);
+        }
+        strncpy(channel_updates_text, temp, sizeof(channel_updates_text) - 1);
+    }
+    fprintf(csv_edge_output, "%s,", channel_updates_text);
     if(edge->group == NULL){
         fprintf(csv_edge_output, "NULL\n");
     }else{
@@ -370,7 +388,7 @@ int main(int argc, char *argv[]) {
 
   printf("INITIAL DIJKSTRA THREADS EXECUTION\n");
   clock_gettime(CLOCK_MONOTONIC, &start);
-  run_dijkstra_threads(network, payments, 0);
+  run_dijkstra_threads(network, payments, 0, net_params.enable_group_routing);
   clock_gettime(CLOCK_MONOTONIC, &finish);
   time_spent_thread = finish.tv_sec - start.tv_sec;
   printf("Time consumed by initial dijkstra executions: %ld s\n", time_spent_thread);
@@ -393,11 +411,12 @@ int main(int argc, char *argv[]) {
           int width = 100;
           long queue_length = list_len(group_add_queue);
           long bar_length = queue_length % width;
-          printf("\rQUEUE : %ld\t", queue_length);
-          if(queue_length / width == 0){
-              printf("|");
-          } else {
-              printf("||...%ld->|", queue_length - bar_length);
+          printf("\rSIMULATION:%-10lu\tqueue_len:%-10ld ", simulation->current_time, queue_length);
+          printf("0|");
+          if(queue_length / width != 0){
+              for(int i = 0; i < queue_length / width; i++){
+                  printf("..%d|", (i + 1) * width);
+              }
           }
           for(int i = 0; i < width; i++){
               if(i < bar_length){
@@ -413,7 +432,7 @@ int main(int argc, char *argv[]) {
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:
-      find_path(event, simulation, network, &payments, pay_params.mpp);
+      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.enable_group_routing);
       break;
     case SENDPAYMENT:
       send_payment(event, simulation, network);
