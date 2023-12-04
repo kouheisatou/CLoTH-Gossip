@@ -232,7 +232,7 @@ int compare_distance(struct distance* a, struct distance* b) {
 }
 
 /* get maximum and total balance of the edges of a node */
-void get_balance(struct node* node, uint64_t *max_balance, uint64_t *total_balance, unsigned int enable_group_routing, struct network* network){
+void get_balance(struct node* node, uint64_t *max_balance, uint64_t *total_balance){
   int i;
   struct edge* edge;
 
@@ -240,31 +240,9 @@ void get_balance(struct node* node, uint64_t *max_balance, uint64_t *total_balan
   *max_balance = 0;
   for(i=0; i<array_len(node->open_edges); i++){
     edge = array_get(node->open_edges, i);
-//      *total_balance += edge->balance;
-//      if(edge->balance > *max_balance)
-//          *max_balance = edge->balance;
-    struct channel* channel = array_get(network->channels, edge->channel_id);
-    if(enable_group_routing){
-        if(edge->group != NULL){
-            struct group* group;
-            group = edge->group;
-            *total_balance += group->min_cap;
-            if(edge->balance > *max_balance) *max_balance = group->min_cap;
-        }else{
-            *total_balance += channel->capacity;
-            if(edge->balance > *max_balance) *max_balance = channel->capacity;
-        }
-    }else{
-        if(edge->channel_updates != NULL){
-            struct channel_update* channel_update;
-            channel_update = edge->channel_updates->data;
-            *total_balance += channel_update->htlc_maximum_msat;
-            if(edge->balance > *max_balance) *max_balance = channel_update->htlc_maximum_msat;
-        }else{
-            *total_balance += channel->capacity;
-            if(edge->balance > *max_balance) *max_balance = channel->capacity;
-        }
-    }
+    *total_balance += edge->balance;
+    if(edge->balance > *max_balance)
+      *max_balance = edge->balance;
   }
 }
 
@@ -364,7 +342,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
   struct channel* channel;
 
   source_node = array_get(network->nodes, source);
-  get_balance(source_node, &max_balance, &total_balance, enable_group_routing, network);
+  get_balance(source_node, &max_balance, &total_balance);
   if(amount > total_balance){
     *error = NOLOCALBALANCE;
     return NULL;
@@ -418,8 +396,24 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       }
       else{
         channel = array_get(network->channels, edge->channel_id);
-        if(channel->capacity < amt_to_send)
-          continue;
+        // judge edge has enough capacity by group_capacity (proposal)
+        if(enable_group_routing){
+            if(edge->group != NULL){
+                if(edge->group->min_cap < amt_to_send) continue;
+            }else{
+                if(channel->capacity < amt_to_send) continue;
+            }
+        }
+        // judge by channel_update (conventional)
+        else{
+            if(edge->channel_updates != NULL) {
+                struct channel_update* channel_update = edge->channel_updates->data;
+                if(channel_update->htlc_maximum_msat < amt_to_send) continue;
+            }else{
+                if(channel->capacity < amt_to_send) continue;
+            }
+        }
+//        if(channel->capacity < amt_to_send) continue;
       }
 
       if(amt_to_send < edge->policy.min_htlc)

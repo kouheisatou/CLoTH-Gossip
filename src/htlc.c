@@ -554,10 +554,11 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
 
     // record channel_update
     error_edge = array_get(network->edges, error_hop->edge_id);
+    struct channel* channel = array_get(network->channels, error_edge->channel_id);
+    printf("error sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu)\n", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
     struct channel_update* channel_update = malloc(sizeof(struct channel_update));
     channel_update->htlc_maximum_msat = payment->amount;
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
-    printf("error sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu)\n", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat);
 
   process_fail_result(node, payment, simulation->current_time);
 
