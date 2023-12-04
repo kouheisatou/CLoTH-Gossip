@@ -125,9 +125,9 @@ if len(open(output_dir_name + "groups_output.csv").readlines()) > 1:
           group_member_count = 0
           accuracy = []
           for group in groups:
-               accuracy.append(float(group["accuracy"]))
                edges: list[str] = group["edges"].split("-")
                if group["is_closed(closed_time)"] == "0":
+                    accuracy.append(float(group["accuracy"]))
                     for edge in edges:
                          group_member_count += 1
           group_output["group_cover_proportion"] = group_member_count.__float__() / n_edges
