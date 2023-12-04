@@ -24,7 +24,7 @@
 
 /* AUXILIARY FUNCTIONS */
 
-/* compute the fees to be paid to a hop for forwarding the payment */ 
+/* compute the fees to be paid to a hop for forwarding the payment */
 uint64_t compute_fee(uint64_t amount_to_forward, struct policy policy) {
   uint64_t fee;
   fee = (policy.fee_proportional*amount_to_forward) / 1000000;
@@ -136,7 +136,7 @@ void set_node_pair_result_fail(struct element** results, long from_node_id, long
 }
 
 /* process a payment which succeeded */
-struct element* process_success_result(struct network* network, struct node* node, struct payment *payment, uint64_t current_time, struct element* group_add_queue){
+void process_success_result(struct node* node, struct payment *payment, uint64_t current_time){
   struct route_hop* hop;
   int i;
   struct array* route_hops;
@@ -144,20 +144,7 @@ struct element* process_success_result(struct network* network, struct node* nod
   for(i=0; i<array_len(route_hops); i++){
     hop = array_get(route_hops, i);
     set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
-
-    // if edge's group cap doesn't satisfy group's cap limit, close group
-    struct edge* edge = array_get(network->edges, hop->edge_id);
-    if(edge->group != NULL) {
-        group_add_queue = update_group_cap(edge->group, current_time, group_add_queue);
-    }
-    // if counter_edge's group cap doesn't satisfy group's cap limit, close group
-    struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
-    if(counter_edge->group != NULL) {
-        group_add_queue = update_group_cap(counter_edge->group, current_time, group_add_queue);
-    }
   }
-
-  return group_add_queue;
 }
 
 /* process a payment which failed (different processments depending on the error type) */
@@ -268,11 +255,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   }
 
   payment->end_time = simulation->current_time;
-  return;
 }
 
 /* send an HTLC for the payment (behavior of the payment sender) */
-void send_payment(struct event* event, struct simulation* simulation, struct network *network) {
+struct element* send_payment(struct event* event, struct simulation* simulation, struct network *network, struct element* group_add_queue) {
   struct payment* payment;
   uint64_t next_event_time;
   struct route* route;
@@ -303,7 +289,7 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     next_event_time = simulation->current_time + OFFLINELATENCY;
     next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return;
+    return group_add_queue;
   }
 
   if(first_route_hop->amount_to_forward > next_edge->balance) {
@@ -313,10 +299,15 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     next_event_time = simulation->current_time;
     next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment );
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return;
+    return group_add_queue;
   }
 
   next_edge->balance -= first_route_hop->amount_to_forward;
+    if(next_edge->group != NULL) {
+        update_group(next_edge->group);
+        group_add_queue = close_group(next_edge->group, simulation->current_time, group_add_queue);
+    }
+
 
   next_edge->tot_flows += 1;
 
@@ -324,10 +315,12 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
   next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator);
   next_event = new_event(next_event_time, event_type, first_route_hop->to_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    return group_add_queue;
 }
 
 /* forward an HTLC for the payment (behavior of an intermediate hop node in a route) */
-void forward_payment(struct event *event, struct simulation* simulation, struct network* network) {
+struct element* forward_payment(struct event *event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
   struct payment* payment;
   struct route* route;
   struct route_hop* next_route_hop, *previous_route_hop;
@@ -363,7 +356,7 @@ void forward_payment(struct event *event, struct simulation* simulation, struct 
     next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator) + OFFLINELATENCY;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return;
+    return group_add_queue;
   }
 
   // BEGIN -- NON-STRICT FORWARDING (cannot simulate it because the current blokchain height is needed)
@@ -394,7 +387,7 @@ void forward_payment(struct event *event, struct simulation* simulation, struct 
   /* next_route_hop->edge_id = next_edge->id; */
   //END -- NON-STRICT FORWARDING
 
-  // STRICT FORWARDING 
+  // STRICT FORWARDING
   prev_edge = array_get(network->edges,previous_route_hop->edge_id);
   next_edge = array_get(network->edges, next_route_hop->edge_id);
   can_send_htlc = check_balance_and_policy(next_edge, prev_edge, previous_route_hop, next_route_hop);
@@ -407,10 +400,14 @@ void forward_payment(struct event *event, struct simulation* simulation, struct 
     next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator);//prev_channel->latency;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return;
+    return group_add_queue;
   }
 
   next_edge->balance -= next_route_hop->amount_to_forward;
+    if(next_edge->group != NULL) {
+        update_group(next_edge->group);
+        group_add_queue = close_group(next_edge->group, simulation->current_time, group_add_queue);
+    }
 
   next_edge->tot_flows += 1;
 
@@ -418,10 +415,12 @@ void forward_payment(struct event *event, struct simulation* simulation, struct 
   next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator);//next_channel->latency;
   next_event = new_event(next_event_time, event_type, next_route_hop->to_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    return group_add_queue;
 }
 
 /* receive a payment (behavior of the payment receiver node) */
-void receive_payment(struct event* event, struct simulation* simulation, struct network* network) {
+struct element* receive_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
   long  prev_node_id;
   struct route* route;
   struct payment* payment;
@@ -446,6 +445,10 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
   }
 
   backward_edge->balance += last_route_hop->amount_to_forward;
+    if(backward_edge->group != NULL) {
+        update_group(backward_edge->group);
+        group_add_queue = close_group(backward_edge->group, simulation->current_time, group_add_queue);
+    }
 
   payment->is_success = 1;
 
@@ -454,10 +457,12 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
   next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator);//channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    return group_add_queue;
 }
 
 /* forward an HTLC success back to the payment sender (behavior of a intermediate hop node in the route) */
-void forward_success(struct event* event, struct simulation* simulation, struct network* network) {
+struct element* forward_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
   struct route_hop* prev_hop;
   struct payment* payment;
   struct edge* forward_edge, * backward_edge;
@@ -479,26 +484,32 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
   }
 
   backward_edge->balance += prev_hop->amount_to_forward;
+    if(backward_edge->group != NULL) {
+        update_group(backward_edge->group);
+        group_add_queue = close_group(backward_edge->group, simulation->current_time, group_add_queue);
+    }
 
   prev_node_id = prev_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVESUCCESS : FORWARDSUCCESS;
   next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator);//prev_channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    return group_add_queue;
 }
 
 /* receive an HTLC success (behavior of the payment sender node) */
-struct element* receive_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
+void receive_success(struct event* event, struct simulation* simulation, struct network* network) {
   struct node* node;
   struct payment* payment;
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
-  return process_success_result(network, node, payment, simulation->current_time, group_add_queue);
+  process_success_result(node, payment, simulation->current_time);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
-void forward_fail(struct event* event, struct simulation* simulation, struct network* network) {
+struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
   struct payment* payment;
   struct route_hop* next_hop, *prev_hop;
   struct edge* next_edge;
@@ -518,8 +529,12 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
     exit(-1);
   }
 
-  /* since the payment failed, the balance must be brought back to the state before the payment occurred */ 
+  /* since the payment failed, the balance must be brought back to the state before the payment occurred */
   next_edge->balance += next_hop->amount_to_forward;
+    if(next_edge->group != NULL) {
+        update_group(next_edge->group);
+        group_add_queue = close_group(next_edge->group, simulation->current_time, group_add_queue);
+    }
 
   prev_hop = get_route_hop(event->node_id, payment->route->route_hops, 0);
   prev_node_id = prev_hop->from_node_id;
@@ -527,10 +542,12 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
   next_event_time = simulation->current_time + 100 + gsl_ran_ugaussian(simulation->random_generator);//prev_channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    return group_add_queue;
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network) {
+struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue) {
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
   struct edge* next_edge, *error_edge;
@@ -549,13 +566,31 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
       printf("ERROR (receive_fail): edge %ld is not an edge of node %ld \n", next_edge->id, node->id);
       exit(-1);
     }
+
     next_edge->balance += first_hop->amount_to_forward;
+      if(next_edge->group != NULL) {
+          update_group(next_edge->group);
+          group_add_queue = close_group(next_edge->group, simulation->current_time, group_add_queue);
+      }
   }
 
     // record channel_update
     error_edge = array_get(network->edges, error_hop->edge_id);
     struct channel* channel = array_get(network->channels, error_edge->channel_id);
-    printf("error sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu)\n", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
+    printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
+    printf("\n\tPATH  : ");
+    for(int i = 0; i < array_len(payment->route->route_hops); i++){
+        struct route_hop* hop = array_get(payment->route->route_hops, i);
+        struct edge* edge = array_get(network->edges, hop->edge_id);
+        printf("(edge_id=%ld,edge_balance=%lu,", edge->id, edge->balance);
+        if(edge->group != NULL) {
+            printf("group_id=%ld,group_cap=%lu)", edge->group->id, edge->group->min_cap);
+        }else{
+            printf("group_id=NULL,group_cap=NULL)");
+        }
+        if (i != array_len(payment->route->route_hops) - 1) printf("-");
+    }
+    printf("\n");
     struct channel_update* channel_update = malloc(sizeof(struct channel_update));
     channel_update->htlc_maximum_msat = payment->amount;
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
@@ -565,4 +600,6 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    return group_add_queue;
 }

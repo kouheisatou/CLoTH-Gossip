@@ -401,7 +401,12 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
             if(edge->group != NULL){
                 if(edge->group->min_cap < amt_to_send) continue;
             }else{
-                if(channel->capacity < amt_to_send) continue;
+                if(edge->channel_updates != NULL) {
+                    struct channel_update* channel_update = edge->channel_updates->data;
+                    if(channel_update->htlc_maximum_msat < amt_to_send) continue;
+                }else{
+                    if(channel->capacity < amt_to_send) continue;
+                }
             }
         }
         // judge by channel_update (conventional)

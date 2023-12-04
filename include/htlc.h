@@ -26,18 +26,18 @@ uint64_t compute_fee(uint64_t amount_to_forward, struct policy policy);
 
 void find_path(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, unsigned int enable_group_routing);
 
-void send_payment(struct event* event, struct simulation* simulation, struct network* network);
+struct element* send_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
-void forward_payment(struct event* event, struct simulation* simulation, struct network* network);
+struct element* forward_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
-void receive_payment(struct event* event, struct simulation* simulation, struct network* network);
+struct element* receive_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
-void forward_success(struct event* event, struct simulation* simulation, struct network* network);
+struct element* forward_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
-struct element* receive_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
+void receive_success(struct event* event, struct simulation* simulation, struct network* network);
 
-void forward_fail(struct event* event, struct simulation* simulation, struct network* network);
+struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network);
+struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue);
 
 #endif

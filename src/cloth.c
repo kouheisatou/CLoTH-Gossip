@@ -387,7 +387,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < array_len(network->edges); i++) {
             group_add_queue = push(group_add_queue, array_get(network->edges, i));
         }
-        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, 0, net_params.group_size, net_params.group_limit_rate);
+        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params.group_size, net_params.group_limit_rate);
     }
 
   printf("PAYMENTS INITIALIZATION\n");
@@ -413,21 +413,21 @@ int main(int argc, char *argv[]) {
           int width = 100;
           long queue_length = list_len(group_add_queue);
           long bar_length = queue_length % width;
-          printf("\rSIMULATION:%-10lu\tqueue_len:%-10ld ", simulation->current_time, queue_length);
-          printf("0|");
-          if(queue_length / width != 0){
-              for(int i = 0; i < queue_length / width; i++){
-                  printf("..%d|", (i + 1) * width);
-              }
-          }
-          for(int i = 0; i < width; i++){
-              if(i < bar_length){
-                  printf("|");
-              }else{
-                  printf(" ");
-              }
-          }
-          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, simulation->current_time, net_params.group_size, net_params.group_limit_rate);
+//          printf("\rSIMULATION:%-10lu\tqueue_len:%-10ld ", simulation->current_time, queue_length);
+//          printf("0|");
+//          if(queue_length / width != 0){
+//              for(int i = 0; i < queue_length / width; i++){
+//                  printf("..%d|", (i + 1) * width);
+//              }
+//          }
+//          for(int i = 0; i < width; i++){
+//              if(i < bar_length){
+//                  printf("|");
+//              }else{
+//                  printf(" ");
+//              }
+//          }
+          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params.group_size, net_params.group_limit_rate);
       }
 
     event = heap_pop(simulation->events, compare_event);
@@ -437,25 +437,25 @@ int main(int argc, char *argv[]) {
       find_path(event, simulation, network, &payments, pay_params.mpp, net_params.enable_group_routing);
       break;
     case SENDPAYMENT:
-      send_payment(event, simulation, network);
+      group_add_queue = send_payment(event, simulation, network, group_add_queue);
       break;
     case FORWARDPAYMENT:
-      forward_payment(event, simulation, network);
+      group_add_queue = forward_payment(event, simulation, network, group_add_queue);
       break;
     case RECEIVEPAYMENT:
-      receive_payment(event, simulation, network);
+      group_add_queue = receive_payment(event, simulation, network, group_add_queue);
       break;
     case FORWARDSUCCESS:
-      forward_success(event, simulation, network);
+      group_add_queue = forward_success(event, simulation, network, group_add_queue);
       break;
     case RECEIVESUCCESS:
-      group_add_queue = receive_success(event, simulation, network, group_add_queue);
+      receive_success(event, simulation, network);
       break;
     case FORWARDFAIL:
-      forward_fail(event, simulation, network);
+      group_add_queue = forward_fail(event, simulation, network, group_add_queue);
       break;
     case RECEIVEFAIL:
-      receive_fail(event, simulation, network);
+      group_add_queue = receive_fail(event, simulation, network, group_add_queue);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);
