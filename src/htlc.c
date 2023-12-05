@@ -216,10 +216,52 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  if (payment->attempts==1)
-    path = paths[payment->id];
-  else
-    path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
+  if (payment->attempts==1) {
+      path = paths[payment->id];
+      if(path != NULL) {
+
+          // calc path capacity
+          uint64_t path_cap = INT64_MAX;
+          for (int i = 0; i < array_len(path); i++) {
+              struct route_hop *hop = array_get(path, i);
+              struct edge *edge = array_get(network->edges, hop->edge_id);
+              if (enable_group_routing) {
+                  // if first edge of the path (directory connected edge to source node)
+                  if (i == 0) {
+                      if (edge->balance < path_cap) path_cap = edge->balance;
+                  } else {
+                      if (edge->group != NULL) {
+                          struct group *group = edge->group;
+                          if (group->min_cap < path_cap) path_cap = group->min_cap;
+                      } else {
+                          struct channel *channel = array_get(network->channels, edge->channel_id);
+                          if (channel->capacity < path_cap) path_cap = channel->capacity;
+                      }
+                  }
+              } else {
+                  if (i == 0) {
+                      if (edge->balance < path_cap) path_cap = edge->balance;
+                  } else {
+                      struct channel *channel = array_get(network->channels, edge->channel_id);
+                      if (channel->capacity < path_cap) path_cap = channel->capacity;
+                  }
+              }
+          }
+
+          // calc total fee
+          struct route* route = transform_path_into_route(path, payment->amount, network);
+          uint64_t fee = route->total_fee;
+
+          // if path capacity is not enough to send the payment, find new path
+          if(path_cap < payment->amount + fee){
+              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
+          }
+      }else{
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
+      }
+  } else {
+      path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
+  }
 
   if (path != NULL) {
     generate_send_payment_event(payment, path, simulation, network);
@@ -239,6 +281,24 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;
+    }
+    // if shard1_path and shard2_path is same route, return
+    long shard1_path_len = array_len(shard1_path);
+    long shard2_path_len = array_len(shard2_path);
+    if(shard1_path_len == shard2_path_len) {
+        int duplicated = 0;
+        for (int i = 0; i < shard1_path_len; i++) {
+            struct route_hop *shard1_hop = array_get(shard1_path, i);
+            for (int j = 0; j < shard2_path_len; j++){
+                struct route_hop* shard2_hop = array_get(shard2_path, j);
+                if(shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
+            }
+        }
+        // all hop of shade1_path is same as shade2_path's, return
+        if(duplicated == shard1_path_len && duplicated == shard2_path_len){
+            payment->end_time = simulation->current_time;
+            return;
+        }
     }
     shard1_id = array_len(*payments);
     shard2_id = array_len(*payments) + 1;
@@ -574,7 +634,6 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
       }
   }
 
-    // record channel_update
     error_edge = array_get(network->edges, error_hop->edge_id);
     struct channel* channel = array_get(network->channels, error_edge->channel_id);
     printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
@@ -591,6 +650,8 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
         if (i != array_len(payment->route->route_hops) - 1) printf("-");
     }
     printf("\n");
+
+    // record channel_update
     struct channel_update* channel_update = malloc(sizeof(struct channel_update));
     channel_update->htlc_maximum_msat = payment->amount;
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);

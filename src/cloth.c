@@ -413,20 +413,20 @@ int main(int argc, char *argv[]) {
           int width = 100;
           long queue_length = list_len(group_add_queue);
           long bar_length = queue_length % width;
-//          printf("\rSIMULATION:%-10lu\tqueue_len:%-10ld ", simulation->current_time, queue_length);
-//          printf("0|");
-//          if(queue_length / width != 0){
-//              for(int i = 0; i < queue_length / width; i++){
-//                  printf("..%d|", (i + 1) * width);
-//              }
-//          }
-//          for(int i = 0; i < width; i++){
-//              if(i < bar_length){
-//                  printf("|");
-//              }else{
-//                  printf(" ");
-//              }
-//          }
+          printf("\rSIMULATION:%-10lu\tqueue_len:%-10ld ", simulation->current_time, queue_length);
+          printf("0|");
+          if(queue_length / width != 0){
+              for(int i = 0; i < queue_length / width; i++){
+                  printf("..%d|", (i + 1) * width);
+              }
+          }
+          for(int i = 0; i < width; i++){
+              if(i < bar_length){
+                  printf("|");
+              }else{
+                  printf(" ");
+              }
+          }
           group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params.group_size, net_params.group_limit_rate);
       }
 
