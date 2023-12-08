@@ -396,6 +396,27 @@ struct element* close_group(struct group* group, uint64_t current_time, struct e
             struct edge* edge = array_get(group->edges, i);
             edge->group = NULL;
             group_add_queue = push(group_add_queue, edge);
+
+            // take snapshot of the group
+            struct edge* copy = malloc(sizeof(struct edge));
+            copy->id = edge->id;
+            copy->channel_id = edge->channel_id;
+            copy->from_node_id = edge->from_node_id;
+            copy->to_node_id = edge->to_node_id;
+            copy->counter_edge_id = edge->counter_edge_id;
+            copy->policy = edge->policy;
+            copy->balance = edge->balance;
+            copy->is_closed = edge->is_closed;
+            copy->tot_flows = edge->tot_flows;
+            copy->group = NULL;
+            copy->channel_updates = NULL;
+            for(struct element* channel_update_i = edge->channel_updates; channel_update_i != NULL; channel_update_i = channel_update_i->next){
+                struct channel_update* channel_update = channel_update_i->data;
+                struct channel_update* channel_update_copy = malloc(sizeof(struct channel_update));
+                channel_update_copy->htlc_maximum_msat = channel_update->htlc_maximum_msat;
+                copy->channel_updates = push(copy->channel_updates, channel_update_copy);
+            }
+            group->edges->element[i] = copy;
         }
     }
     return group_add_queue;
