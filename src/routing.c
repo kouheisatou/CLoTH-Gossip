@@ -399,7 +399,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
         // judge edge has enough capacity by group_capacity (proposal)
         if(enable_group_routing){
             if(edge->group != NULL){
-                if(edge->group->min_cap < amt_to_send) continue;
+                if(edge->group->group_cap < amt_to_send) continue;
             }else{
                 if(edge->channel_updates != NULL) {
                     struct channel_update* channel_update = edge->channel_updates->data;

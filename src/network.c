@@ -375,7 +375,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-void update_group(struct group* group) {
+void update_group(struct group* group, struct network_params net_params) {
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
     for (int i = 0; i < array_len(group->edges); i++) {
@@ -384,12 +384,16 @@ void update_group(struct group* group) {
         if(edge->balance > max) max = edge->balance;
     }
     group->max_cap = max;
-    group->min_cap = min;
+    if(net_params.group_cap_update) {
+        group->group_cap = min;
+    }else{
+        group->group_cap = group->min_cap_limit;
+    }
 }
 
 struct element* close_group(struct group* group, uint64_t current_time, struct element* group_add_queue){
 
-    if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
+    if (group->group_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
         group->is_closed = current_time;
 
         for(int i = 0; i < array_len(group->edges); i++){
@@ -422,7 +426,7 @@ struct element* close_group(struct group* group, uint64_t current_time, struct e
     return group_add_queue;
 }
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, int group_size, float group_limit_rate){
+struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, struct network_params net_params){
 
     if(group_add_queue == NULL) return group_add_queue;
     struct element* first_edge_i;
@@ -434,10 +438,10 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
         // init group
         struct group* group = malloc(sizeof(struct group));
-        group->edges = array_initialize(group_size);
+        group->edges = array_initialize(net_params.group_size);
         group->edges = array_insert(group->edges, first_edge);
-        group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * group_limit_rate);
-        group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * group_limit_rate);
+        group->max_cap_limit = first_edge->balance + (uint64_t)((float)first_edge->balance * net_params.group_limit_rate);
+        group->min_cap_limit = first_edge->balance - (uint64_t)((float)first_edge->balance * net_params.group_limit_rate);
         group->id = array_len(network->groups);
         group->is_closed = 0;
 
@@ -475,14 +479,14 @@ struct element* construct_group(struct element* group_add_queue, struct network 
                 group->edges = array_insert(group->edges, next_edge);
 
                 // if group member is full, end
-                if(array_len(group->edges) >= group_size) break;
+                if(array_len(group->edges) >= net_params.group_size) break;
             }
         }
 
         // register group to network
-        if(array_len(group->edges) == group_size) {
+        if(array_len(group->edges) == net_params.group_size) {
             network->groups = array_insert(network->groups, group);
-            update_group(group);
+            update_group(group, net_params);
             for (int j = 0; j < array_len(group->edges); j++) {
                 struct edge *edge = array_get(group->edges, j);
                 group_add_queue = list_delete(group_add_queue, &first_edge_i, edge, (int (*)(void *, void *)) edge_equal);

@@ -74,7 +74,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     long n_members = array_len(group->edges);
     for(j=0; j< n_members; j++){
         edge = array_get(group->edges, j);
-        sum_accuracy += ((float)group->min_cap / (float)edge->balance);
+        sum_accuracy += ((float)group->group_cap / (float)edge->balance);
         fprintf(csv_group_output, "%ld", edge->id);
         if(j < n_members -1){
             fprintf(csv_group_output, "-");
@@ -82,7 +82,7 @@ void write_output(struct network* network, struct array* payments, char output_d
             fprintf(csv_group_output, ",");
         }
     }
-    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, sum_accuracy / (float)n_members);
+    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->group_cap, sum_accuracy / (float)n_members);
   }
   fclose(csv_group_output);
 
@@ -282,6 +282,17 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
+    else if(strcmp(parameter, "group_cap_update")==0){
+      if(strcmp(value, "true")==0)
+        net_params->group_cap_update=1;
+      else if(strcmp(value, "false")==0)
+        net_params->group_cap_update=0;
+      else{
+        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
+        fclose(input_file);
+        exit(-1);
+      }
+    }
     else if(strcmp(parameter, "group_size")==0){
         net_params->group_size = strtod(value, NULL);
     }
@@ -375,6 +386,7 @@ int main(int argc, char *argv[]) {
   strcpy(output_dir_name, argv[1]);
 
   read_input(&net_params, &pay_params);
+  printf("%d\n", net_params.group_cap_update);
 
   simulation = malloc(sizeof(struct simulation));
 
@@ -390,7 +402,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < array_len(network->edges); i++) {
             group_add_queue = push(group_add_queue, array_get(network->edges, i));
         }
-        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params.group_size, net_params.group_limit_rate);
+        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params);
     }
 
   printf("PAYMENTS INITIALIZATION\n");
@@ -430,7 +442,7 @@ int main(int argc, char *argv[]) {
                   printf(" ");
               }
           }
-          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params.group_size, net_params.group_limit_rate);
+          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params);
       }
 
     event = heap_pop(simulation->events, compare_event);
@@ -440,25 +452,25 @@ int main(int argc, char *argv[]) {
       find_path(event, simulation, network, &payments, pay_params.mpp, net_params.enable_group_routing);
       break;
     case SENDPAYMENT:
-      group_add_queue = send_payment(event, simulation, network, group_add_queue);
+      group_add_queue = send_payment(event, simulation, network, group_add_queue, net_params);
       break;
     case FORWARDPAYMENT:
-      group_add_queue = forward_payment(event, simulation, network, group_add_queue);
+      group_add_queue = forward_payment(event, simulation, network, group_add_queue, net_params);
       break;
     case RECEIVEPAYMENT:
-      group_add_queue = receive_payment(event, simulation, network, group_add_queue);
+      group_add_queue = receive_payment(event, simulation, network, group_add_queue, net_params);
       break;
     case FORWARDSUCCESS:
-      group_add_queue = forward_success(event, simulation, network, group_add_queue);
+      group_add_queue = forward_success(event, simulation, network, group_add_queue, net_params);
       break;
     case RECEIVESUCCESS:
       receive_success(event, simulation, network);
       break;
     case FORWARDFAIL:
-      group_add_queue = forward_fail(event, simulation, network, group_add_queue);
+      group_add_queue = forward_fail(event, simulation, network, group_add_queue, net_params);
       break;
     case RECEIVEFAIL:
-      group_add_queue = receive_fail(event, simulation, network, group_add_queue);
+      group_add_queue = receive_fail(event, simulation, network, group_add_queue, net_params);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);

@@ -72,7 +72,7 @@ struct group {
     uint64_t max_cap_limit;
     uint64_t min_cap_limit;
     uint64_t max_cap;
-    uint64_t min_cap;
+    uint64_t group_cap;
     uint64_t is_closed;
 };
 
@@ -102,11 +102,11 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-void update_group(struct group* group);
+void update_group(struct group* group, struct network_params net_params);
 
 struct element* close_group(struct group* group, uint64_t current_time, struct element* group_add_queue);
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, int group_size, float group_limit_rate);
+struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, struct network_params net_params);
 
 int edge_equal(struct edge* e1, struct edge* e2);
 

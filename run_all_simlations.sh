@@ -25,7 +25,7 @@ for ((i = 1; i <= 10; i++)); do
   make
   ./run-simulation.sh 39 "$result_sub_sub_dir/"
 done
-python3 gen_csv_summary.py result_sub_dir
+python3 gen_csv_summary.py "$result_sub_dir"
 
 change_target="group_size"
 result_sub_dir="$result_dir/change_$change_target"
@@ -45,7 +45,7 @@ for ((i = 1; i <= 10; i++)); do
   make
   ./run-simulation.sh 39 "$result_sub_sub_dir/"
 done
-python3 gen_csv_summary.py result_sub_dir
+python3 gen_csv_summary.py "$result_sub_dir"
 
 change_target="average_payment_amount"
 result_sub_dir="$result_dir/change_$change_target/enable_group_routing=true"
@@ -69,7 +69,7 @@ for ((i = 0; i <= 10; i++)); do
   make
   ./run-simulation.sh 39 "$result_sub_sub_dir/"
 done
-python3 gen_csv_summary.py result_sub_dir
+python3 gen_csv_summary.py "$result_sub_dir"
 
 change_target="average_payment_amount"
 result_sub_dir="$result_dir/change_$change_target/enable_group_routing=true"
@@ -93,4 +93,4 @@ for ((i = 0; i <= 10; i++)); do
   make
   ./run-simulation.sh 39 "$result_sub_sub_dir/"
 done
-python3 gen_csv_summary.py result_sub_dir
+python3 gen_csv_summary.py "$result_sub_dir"
