@@ -386,7 +386,6 @@ int main(int argc, char *argv[]) {
   strcpy(output_dir_name, argv[1]);
 
   read_input(&net_params, &pay_params);
-  printf("%d\n", net_params.group_cap_update);
 
   simulation = malloc(sizeof(struct simulation));
 
