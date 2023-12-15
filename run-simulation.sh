@@ -4,6 +4,6 @@ then
     exit
 fi
 
-GSL_RNG_SEED=$1  ./CLoTH-Gossip $2
+GSL_RNG_SEED=$1  ./CLoTH_Gossip $2
 
 python3 batch-means.py $2
