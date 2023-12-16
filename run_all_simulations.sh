@@ -21,6 +21,18 @@ function run_simulation_background() {
     ./run-simulation.sh "$@" > /dev/null 2>&1
 
     python3 gen_csv_summary.py "$2/.."
+    echo "$2" >> "$2/../done.tmp"
+}
+
+function count_done_task() {
+    done_tmp_file="$1/done.tmp"
+
+    if [ -f "$done_tmp_file" ]; then
+        line_count=$(wc -l < "$done_tmp_file")
+        echo "$line_count"
+    else
+        echo "0"
+    fi
 }
 
 change_target="group_limit_rate"
@@ -72,3 +84,18 @@ for ((i = 0; i <= 10; i++)); do
   run_simulation_background "$seed" "$result_root_dir_5/$change_target=$value" "enable_group_routing=true" "group_cap_update=false" "$change_target=$value" &
   sleep 5
 done
+
+all_tasks=53
+done_tasks=0
+while [ "$done_tasks" -lt "$all_tasks" ]; do
+    sleep 5
+    echo "progress:$done_tasks/$all_tasks"
+    done_tasks=0
+    ((done_tasks += $(count_done_task "$result_root_dir_1") || 0))
+    ((done_tasks += $(count_done_task "$result_root_dir_2") || 0))
+    ((done_tasks += $(count_done_task "$result_root_dir_3") || 0))
+    ((done_tasks += $(count_done_task "$result_root_dir_4") || 0))
+    ((done_tasks += $(count_done_task "$result_root_dir_5") || 0))
+done
+
+echo "All simulations have completed."
