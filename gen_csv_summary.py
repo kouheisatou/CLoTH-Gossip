@@ -39,6 +39,7 @@ def json_to_csv(json_files, output_csv_path):
 
             # CSVファイルに書き込む
             writer.writerow(row_data)
+    print("Output summary was generated in " + output_csv_path)
     
 def find_files_in_subfolders(root_folder, relative_path):
     file_paths = []

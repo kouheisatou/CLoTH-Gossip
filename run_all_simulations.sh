@@ -1,125 +1,74 @@
 if [[ "$#" -ne 1 ]]; then
-  echo "./run_all_simulations.sh <result_dir>"
+  echo "./run_all_simulations.sh <output_dir>"
   exit 0
 fi
 
-result_dir="$1/$(date "+%Y%m%d%H%M%S")"
-root_dir=$(pwd)
+seed=39
 
+output_dir="$1/$(date "+%Y%m%d%H%M%S")"
+
+function run_simulation_background() {
+
+    max_processes=4
+    running_processes=$(pgrep -c -f "./CLoTH_Gossip")
+
+    while [ "$running_processes" -ge "$max_processes" ]; do
+        sleep 5
+        running_processes=$(pgrep -c -f "./CLoTH_Gossip")
+    done
+
+    echo "simulation starts on threads:$running_processes/$max_processes $2"
+    ./run-simulation.sh "$@" > /dev/null 2>&1
+
+    python3 gen_csv_summary.py "$2/.."
+}
 
 change_target="group_limit_rate"
-result_sub_dir="$result_dir/change_$change_target"
+result_root_dir_1="$output_dir/change_$change_target"
 for ((i = 1; i <= 10; i++)); do
-  cd "$root_dir"
-  current=$(echo "scale=1; $i / 10" | bc)
-  value=$(printf "%.1f" $current)
-  folder_name="$result_sub_dir/$change_target=$value"
-  environment_dir="$folder_name/environment"
-  result_sub_sub_dir="$folder_name/result"
-  mkdir -p "$environment_dir"
-  mkdir -p "$result_sub_sub_dir"
-  rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
-  sed -i -e "s/$change_target=.*/$change_target=$value/" "$environment_dir/cloth_input.txt"
-  cp "$environment_dir/cloth_input.txt" "$folder_name"
-  cd "$environment_dir"
-  cmake .
-  make
-  ./run-simulation.sh 39 "$result_sub_sub_dir/"
+  value=$(printf "%.1f" "$(echo "scale=1; $i / 10" | bc)")
+  run_simulation_background "$seed" "$result_root_dir_1/$change_target=$value" "$change_target=$value" &
+  sleep 5
 done
-python3 gen_csv_summary.py "$result_sub_dir"
 
 
 change_target="group_size"
-result_sub_dir="$result_dir/change_$change_target"
+result_root_dir_2="$output_dir/change_$change_target"
 for ((i = 1; i <= 10; i++)); do
-  cd "$root_dir"
-  value="$i"
-  folder_name="$result_sub_dir/$change_target=$value"
-  environment_dir="$folder_name/environment"
-  result_sub_sub_dir="$folder_name/result"
-  mkdir -p "$environment_dir"
-  mkdir -p "$result_sub_sub_dir"
-  rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
-  sed -i -e "s/$change_target=.*/$change_target=$value/" "$environment_dir/cloth_input.txt"
-  cp "$environment_dir/cloth_input.txt" "$folder_name"
-  cd "$environment_dir"
-  cmake .
-  make
-  ./run-simulation.sh 39 "$result_sub_sub_dir/"
+  run_simulation_background "$seed" "$result_root_dir_2/$change_target=$i" "$change_target=$i" &
+  sleep 5
 done
-python3 gen_csv_summary.py "$result_sub_dir"
 
 
 change_target="average_payment_amount"
-result_sub_dir="$result_dir/change_$change_target/enable_group_routing=false"
+result_root_dir_3="$output_dir/change_$change_target/enable_group_routing=false"
 for ((i = 0; i <= 10; i++)); do
-  cd "$root_dir"
   value=$((i*1000))
   if [ "$i" -eq 0 ]; then
       value=100
   fi
-  folder_name="$result_sub_dir/$change_target=$value"
-  environment_dir="$folder_name/environment"
-  result_sub_sub_dir="$folder_name/result"
-  mkdir -p "$environment_dir"
-  mkdir -p "$result_sub_sub_dir"
-  rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
-  sed -i -e "s/$change_target=.*/$change_target=$value/" "$environment_dir/cloth_input.txt"
-  sed -i -e "s/enable_group_routing=.*/enable_group_routing=false/" "$environment_dir/cloth_input.txt"
-  cp "$environment_dir/cloth_input.txt" "$folder_name"
-  cd "$environment_dir"
-  cmake .
-  make
-  ./run-simulation.sh 39 "$result_sub_sub_dir/"
+  run_simulation_background "$seed" "$result_root_dir_3/$change_target=$value" "enable_group_routing=false" "$change_target=$value" &
+  sleep 5
 done
-python3 gen_csv_summary.py "$result_sub_dir"
 
 change_target="average_payment_amount"
-result_sub_dir="$result_dir/change_$change_target/enable_group_routing=true/group_cap_update=true"
+result_root_dir_4="$output_dir/change_$change_target/enable_group_routing=true/group_cap_update=true"
 for ((i = 0; i <= 10; i++)); do
-  cd "$root_dir"
   value=$((i*1000))
   if [ "$i" -eq 0 ]; then
       value=100
   fi
-  folder_name="$result_sub_dir/$change_target=$value"
-  environment_dir="$folder_name/environment"
-  result_sub_sub_dir="$folder_name/result"
-  mkdir -p "$environment_dir"
-  mkdir -p "$result_sub_sub_dir"
-  rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
-  sed -i -e "s/$change_target=.*/$change_target=$value/" "$environment_dir/cloth_input.txt"
-  sed -i -e "s/enable_group_routing=.*/enable_group_routing=true/" "$environment_dir/cloth_input.txt"
-  sed -i -e "s/group_cap_update=.*/group_cap_update=true/" "$environment_dir/cloth_input.txt"
-  cp "$environment_dir/cloth_input.txt" "$folder_name"
-  cd "$environment_dir"
-  cmake .
-  make
-  ./run-simulation.sh 39 "$result_sub_sub_dir/"
+  run_simulation_background "$seed" "$result_root_dir_4/$change_target=$value" "enable_group_routing=true" "group_cap_update=true" "$change_target=$value" &
+  sleep 5
 done
-python3 gen_csv_summary.py "$result_sub_dir"
 
 change_target="average_payment_amount"
-result_sub_dir="$result_dir/change_$change_target/enable_group_routing=true/group_cap_update=false"
+result_root_dir_5="$output_dir/change_$change_target/enable_group_routing=true/group_cap_update=false"
 for ((i = 0; i <= 10; i++)); do
-  cd "$root_dir"
   value=$((i*1000))
   if [ "$i" -eq 0 ]; then
       value=100
   fi
-  folder_name="$result_sub_dir/$change_target=$value"
-  environment_dir="$folder_name/environment"
-  result_sub_sub_dir="$folder_name/result"
-  mkdir -p "$environment_dir"
-  mkdir -p "$result_sub_sub_dir"
-  rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
-  sed -i -e "s/$change_target=.*/$change_target=$value/" "$environment_dir/cloth_input.txt"
-  sed -i -e "s/enable_group_routing=.*/enable_group_routing=true/" "$environment_dir/cloth_input.txt"
-  sed -i -e "s/group_cap_update=.*/group_cap_update=false/" "$environment_dir/cloth_input.txt"
-  cp "$environment_dir/cloth_input.txt" "$folder_name"
-  cd "$environment_dir"
-  cmake .
-  make
-  ./run-simulation.sh 39 "$result_sub_sub_dir/"
+  run_simulation_background "$seed" "$result_root_dir_5/$change_target=$value" "enable_group_routing=true" "group_cap_update=false" "$change_target=$value" &
+  sleep 5
 done
-python3 gen_csv_summary.py "$result_sub_dir"
