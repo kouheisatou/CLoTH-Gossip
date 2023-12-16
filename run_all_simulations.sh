@@ -3,37 +3,55 @@ if [[ "$#" -ne 1 ]]; then
   exit 0
 fi
 
-seed=39
+get_value_from_tmp() {
+    touch "$tmp_file"
+    key=$1
+    value=$(grep "^$key=" "$tmp_file" | cut -d '=' -f2)
+    if [ -n "$value" ]; then
+        :
+    else
+        value=0
+    fi
+    echo "$value"
+}
 
-output_dir="$1/$(date "+%Y%m%d%H%M%S")"
+set_value_to_tmp() {
+    touch "$tmp_file"
+    key=$1
+    value=$2
+    if grep -q "^$key=" "$tmp_file"; then
+        sed -i -e "s/n_process=.*/$key=$value/" "$tmp_file"
+    else
+        echo "$key=$value" >> "$tmp_file"
+    fi
+}
 
 function run_simulation_background() {
 
-    max_processes=4
-    running_processes=$(pgrep -c -f "./CLoTH_Gossip")
+    running_processes=$(get_value_from_tmp n_process)
 
-    while [ "$running_processes" -ge "$max_processes" ]; do
+    while [ "$running_processes" -gt "$max_processes" ]; do
         sleep 5
-        running_processes=$(pgrep -c -f "./CLoTH_Gossip")
+        running_processes=$(get_value_from_tmp n_process)
     done
 
+    set_value_to_tmp n_process $(($(get_value_from_tmp n_process)+1))
     echo "simulation starts on threads:$running_processes/$max_processes $2"
     ./run-simulation.sh "$@" > /dev/null 2>&1
+    set_value_to_tmp n_process $(($(get_value_from_tmp n_process)-1))
 
     python3 gen_csv_summary.py "$2/.."
-    echo "$2" >> "$2/../done.tmp"
+    set_value_to_tmp n_done $(($(get_value_from_tmp n_done)+1))
 }
 
-function count_done_task() {
-    done_tmp_file="$1/done.tmp"
 
-    if [ -f "$done_tmp_file" ]; then
-        line_count=$(wc -l < "$done_tmp_file")
-        echo "$line_count"
-    else
-        echo "0"
-    fi
-}
+output_dir="$1/$(date "+%Y%m%d%H%M%S")"
+tmp_file="$output_dir/temp.txt"
+
+seed=39
+max_processes=4
+all_tasks=53
+
 
 change_target="group_limit_rate"
 result_root_dir_1="$output_dir/change_$change_target"
@@ -85,17 +103,10 @@ for ((i = 0; i <= 10; i++)); do
   sleep 5
 done
 
-all_tasks=53
-done_tasks=0
-while [ "$done_tasks" -lt "$all_tasks" ]; do
+
+while [ "$(get_value_from_tmp n_done)" -lt "$all_tasks" ]; do
     sleep 5
-    echo "progress:$done_tasks/$all_tasks"
-    done_tasks=0
-    ((done_tasks += $(count_done_task "$result_root_dir_1") || 0))
-    ((done_tasks += $(count_done_task "$result_root_dir_2") || 0))
-    ((done_tasks += $(count_done_task "$result_root_dir_3") || 0))
-    ((done_tasks += $(count_done_task "$result_root_dir_4") || 0))
-    ((done_tasks += $(count_done_task "$result_root_dir_5") || 0))
+    echo "progress:$(get_value_from_tmp n_done)/$all_tasks"
 done
 
 echo "All simulations have completed."
