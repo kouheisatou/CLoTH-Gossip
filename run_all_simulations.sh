@@ -3,6 +3,18 @@ if [[ "$#" -ne 1 ]]; then
   exit 0
 fi
 
+
+
+output_dir="$1/$(date "+%Y%m%d%H%M%S")"
+mkdir "$output_dir"
+tmp_file="$output_dir/temp.txt"
+
+seed=39
+max_processes=8
+all_tasks=53
+
+
+
 get_value_from_tmp() {
     touch "$tmp_file"
     key=$1
@@ -20,7 +32,7 @@ set_value_to_tmp() {
     key=$1
     value=$2
     if grep -q "^$key=" "$tmp_file"; then
-        sed -i -e "s/n_process=.*/$key=$value/" "$tmp_file"
+        sed -i -e "s/$key=.*/$key=$value/" "$tmp_file"
     else
         echo "$key=$value" >> "$tmp_file"
     fi
@@ -28,29 +40,18 @@ set_value_to_tmp() {
 
 function run_simulation_background() {
 
-    running_processes=$(get_value_from_tmp n_process)
-
-    while [ "$running_processes" -gt "$max_processes" ]; do
+    while [ "$(($(get_value_from_tmp n_process)+1))" -gt "$max_processes" ]; do
         sleep 5
-        running_processes=$(get_value_from_tmp n_process)
     done
 
     set_value_to_tmp n_process $(($(get_value_from_tmp n_process)+1))
-    echo "simulation starts on threads:$running_processes/$max_processes $2"
+    echo "simulation starts on threads:$(($(get_value_from_tmp n_process)))/$max_processes $2"
     ./run-simulation.sh "$@" > /dev/null 2>&1
     set_value_to_tmp n_process $(($(get_value_from_tmp n_process)-1))
 
     python3 gen_csv_summary.py "$2/.."
     set_value_to_tmp n_done $(($(get_value_from_tmp n_done)+1))
 }
-
-
-output_dir="$1/$(date "+%Y%m%d%H%M%S")"
-tmp_file="$output_dir/temp.txt"
-
-seed=39
-max_processes=4
-all_tasks=53
 
 
 change_target="group_limit_rate"
@@ -104,9 +105,11 @@ for ((i = 0; i <= 10; i++)); do
 done
 
 
+echo "Waiting until all simulations done."
 while [ "$(get_value_from_tmp n_done)" -lt "$all_tasks" ]; do
     sleep 5
-    echo "progress:$(get_value_from_tmp n_done)/$all_tasks"
+    echo -e "\033[A"
+    printf "done:$(get_value_from_tmp n_done)/$all_tasks\t processe:$(get_value_from_tmp n_process)/$max_processes\t"
 done
 
 echo "All simulations have completed."
