@@ -311,6 +311,9 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "average_payment_amount")==0){
       pay_params->average_amount = strtod(value, NULL);
     }
+    else if(strcmp(parameter, "variance_payment_amount")==0){
+      pay_params->variance_amount = strtod(value, NULL);
+    }
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);
     }

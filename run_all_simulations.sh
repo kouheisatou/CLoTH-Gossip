@@ -11,7 +11,7 @@ tmp_file="$output_dir/temp.txt"
 
 seed=39
 max_processes=8
-all_tasks=53
+all_tasks=102
 
 
 
