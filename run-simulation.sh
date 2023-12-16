@@ -19,7 +19,7 @@ for arg in "${@:3}"; do
     sed -i -e "s/$key=.*/$key=$value/" "$environment_dir/cloth_input.txt"
 done
 
-cp "$environment_dir/cloth_input.txt" $2
+cp "$environment_dir/cloth_input.txt" "$2"
 cd "$environment_dir"
 cmake .
 make
