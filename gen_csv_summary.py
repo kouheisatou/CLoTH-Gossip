@@ -60,5 +60,5 @@ if len(sys.argv) != 2:
 
 # result.json ファイルを読み込む
 result_data = find_files_in_subfolders(sys.argv[1], "result/cloth_output.json")
-json_to_csv(result_data, "summary.csv")
+json_to_csv(result_data, sys.argv[1] + "/summary.csv")
 

@@ -72,6 +72,7 @@ struct group {
     uint64_t max_cap_limit;
     uint64_t min_cap_limit;
     uint64_t max_cap;
+    uint64_t min_cap;
     uint64_t group_cap;
     uint64_t is_closed;
 };

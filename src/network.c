@@ -384,6 +384,7 @@ void update_group(struct group* group, struct network_params net_params) {
         if(edge->balance > max) max = edge->balance;
     }
     group->max_cap = max;
+    group->min_cap = min;
     if(net_params.group_cap_update) {
         group->group_cap = min;
     }else{
@@ -393,7 +394,7 @@ void update_group(struct group* group, struct network_params net_params) {
 
 struct element* close_group(struct group* group, uint64_t current_time, struct element* group_add_queue){
 
-    if (group->group_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
+    if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
         group->is_closed = current_time;
 
         for(int i = 0; i < array_len(group->edges); i++){
