@@ -43,47 +43,55 @@ change_target="group_limit_rate"
 result_root_dir="$output_dir/change_$change_target"
 for ((i = 1; i <= 10; i++)); do
     value=$(printf "%.1f" "$(echo "scale=1; $i / 10" | bc)")
-    enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$value\" \"$change_target=$value\"; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/$change_target=$value average_payment_amount=10000 $change_target=$value; python3 gen_csv_summary.py $result_root_dir;"
 done
 
 # Simulation 2
 change_target="group_size"
 result_root_dir="$output_dir/change_$change_target"
 for ((i = 2; i <= 10; i++)); do
-    enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$i\" \"$change_target=$i\""
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/$change_target=$i average_payment_amount=10000 $change_target=$i; python3 gen_csv_summary.py $result_root_dir;"
 done
 
 # Simulation 3
 change_target="average_payment_amount"
 result_root_dir="$output_dir/change_$change_target/enable_group_routing=false"
-for ((i = 0; i <= 10; i++)); do
+for ((i = 0; i <= 20; i++)); do
     value=$((i*1000))
     if [ "$i" -eq 0 ]; then
         value=100
     fi
-    enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$value\" \"enable_group_routing=false\" \"$change_target=$value\"; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/$change_target=$value enable_group_routing=false $change_target=$value; python3 gen_csv_summary.py $result_root_dir;"
 done
 
 # Simulation 4
 change_target="average_payment_amount"
 result_root_dir="$output_dir/change_$change_target/enable_group_routing=true/group_cap_update=true"
-for ((i = 0; i <= 10; i++)); do
+for ((i = 0; i <= 20; i++)); do
     value=$((i*1000))
     if [ "$i" -eq 0 ]; then
         value=100
     fi
-    enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$value\" \"enable_group_routing=true\" \"group_cap_update=true\" \"$change_target=$value\"; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/$change_target=$value enable_group_routing=true group_cap_update=true $change_target=$value; python3 gen_csv_summary.py $result_root_dir;"
 done
 
 # Simulation 5
 change_target="average_payment_amount"
 result_root_dir="$output_dir/change_$change_target/enable_group_routing=true/group_cap_update=false"
-for ((i = 0; i <= 10; i++)); do
+for ((i = 0; i <= 20; i++)); do
     value=$((i*1000))
     if [ "$i" -eq 0 ]; then
         value=100
     fi
-    enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$value\" \"enable_group_routing=true\" \"group_cap_update=false\" \"$change_target=$value\"; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/$change_target=$value enable_group_routing=true group_cap_update=false $change_target=$value; python3 gen_csv_summary.py $result_root_dir;"
+done
+
+# Simulation 6
+change_target="variance_payment_amount"
+result_root_dir="$output_dir/change_$change_target"
+for ((i = 1; i <= 20; i++)); do
+    value=$((i*1000))
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/$change_target=$value average_payment_amount=10000 $change_target=$value; python3 gen_csv_summary.py $result_root_dir;"
 done
 
 # Process the queue
