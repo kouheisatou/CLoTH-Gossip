@@ -405,8 +405,11 @@ int main(int argc, char *argv[]) {
 
   // init broadcast msg log file
   FILE* csv_group_update = NULL;
+  FILE* csv_channel_update = NULL;
   if(net_params.log_broadcast_msg){
       char output_filename[512];
+
+      // group_update log
       strcpy(output_filename, output_dir_name);
       strcat(output_filename, "group_updates.csv");
       csv_group_update = fopen(output_filename, "w");
@@ -415,6 +418,16 @@ int main(int argc, char *argv[]) {
           exit(-1);
       }
       fprintf(csv_group_update, "time,group_id,type,triggered_node_id,group_cap,balances_of_edge_in_queue\n");
+
+      // channel_update log
+      strcpy(output_filename, output_dir_name);
+      strcat(output_filename, "channel_updates.csv");
+      csv_channel_update = fopen(output_filename, "w");
+      if(csv_channel_update == NULL){
+          printf("ERROR cannot open group_updates.csv\n");
+          exit(-1);
+      }
+      fprintf(csv_channel_update, "time,edge_id,htlc_maximum_msat\n");
   }
 
   simulation->random_generator = initialize_random_generator();
@@ -497,7 +510,7 @@ int main(int argc, char *argv[]) {
       group_add_queue = forward_fail(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case RECEIVEFAIL:
-      group_add_queue = receive_fail(event, simulation, network, group_add_queue, net_params, csv_group_update);
+      group_add_queue = receive_fail(event, simulation, network, group_add_queue, net_params, csv_group_update, csv_channel_update);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);

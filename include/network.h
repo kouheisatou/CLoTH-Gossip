@@ -68,6 +68,8 @@ struct edge {
 
 
 struct channel_update {
+    long edge_id;
+    uint64_t time;
     uint64_t htlc_maximum_msat;
 };
 
@@ -119,7 +121,7 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, unsigned char is_init_update, FILE* csv_group_output);
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, unsigned char is_init_update, FILE* csv_group_update);
 
 struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, struct network_params net_params, uint64_t current_time, FILE* csv_group_update);
 

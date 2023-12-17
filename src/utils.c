@@ -44,7 +44,7 @@ void write_group_update(FILE* csv_group_update, struct group_update* group_updat
     }
     fprintf(csv_group_update, "%lu,%lu,%s,%lu,%lu,", group_update->time, group_update->group_id, type_text, group_update->triggered_node_id, group_update->group_cap);
     for(struct element* iterator = group_update->balances_of_edge_in_queue_snapshot; iterator != NULL; iterator = iterator->next){
-        uint64_t balance = *((long *)iterator->data);
+        uint64_t balance = (uint64_t)iterator->data;
         fprintf(csv_group_update, "%lu", balance);
         if(iterator->next != NULL){
             fprintf(csv_group_update, "-");
@@ -52,4 +52,8 @@ void write_group_update(FILE* csv_group_update, struct group_update* group_updat
             fprintf(csv_group_update, "\n");
         }
     }
+}
+
+void write_channel_update(FILE* csv_channel_update, struct channel_update* channel_update){
+    fprintf(csv_channel_update, "%lu,%lu,%lu\n", channel_update->time, channel_update->edge_id, channel_update->htlc_maximum_msat);
 }

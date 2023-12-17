@@ -38,6 +38,6 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
 
 struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
 
-struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
+struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update, FILE* csv_channel_update);
 
 #endif

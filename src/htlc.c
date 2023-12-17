@@ -318,7 +318,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 }
 
 /* send an HTLC for the payment (behavior of the payment sender) */
-struct element* send_payment(struct event* event, struct simulation* simulation, struct network *network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_output) {
+struct element* send_payment(struct event* event, struct simulation* simulation, struct network *network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
   struct payment* payment;
   uint64_t next_event_time;
   struct route* route;
@@ -364,7 +364,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
 
   next_edge->balance -= first_route_hop->amount_to_forward;
     if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_output);
+        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
     }
 
 
@@ -379,7 +379,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
 }
 
 /* forward an HTLC for the payment (behavior of an intermediate hop node in a route) */
-struct element* forward_payment(struct event *event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_output) {
+struct element* forward_payment(struct event *event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
   struct payment* payment;
   struct route* route;
   struct route_hop* next_route_hop, *previous_route_hop;
@@ -464,7 +464,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
 
   next_edge->balance -= next_route_hop->amount_to_forward;
     if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_output);
+        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
     }
 
   next_edge->tot_flows += 1;
@@ -519,7 +519,7 @@ struct element* receive_payment(struct event* event, struct simulation* simulati
 }
 
 /* forward an HTLC success back to the payment sender (behavior of a intermediate hop node in the route) */
-struct element* forward_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_output) {
+struct element* forward_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
   struct route_hop* prev_hop;
   struct payment* payment;
   struct edge* forward_edge, * backward_edge;
@@ -542,7 +542,7 @@ struct element* forward_success(struct event* event, struct simulation* simulati
 
   backward_edge->balance += prev_hop->amount_to_forward;
     if(backward_edge->group != NULL) {
-        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_output);
+        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
     }
 
   prev_node_id = prev_hop->from_node_id;
@@ -565,7 +565,7 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
-struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_output) {
+struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
   struct payment* payment;
   struct route_hop* next_hop, *prev_hop;
   struct edge* next_edge;
@@ -588,7 +588,7 @@ struct element* forward_fail(struct event* event, struct simulation* simulation,
   /* since the payment failed, the balance must be brought back to the state before the payment occurred */
   next_edge->balance += next_hop->amount_to_forward;
     if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_output);
+        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
     }
 
   prev_hop = get_route_hop(event->node_id, payment->route->route_hops, 0);
@@ -602,7 +602,7 @@ struct element* forward_fail(struct event* event, struct simulation* simulation,
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_output) {
+struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update, FILE* csv_channel_update) {
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
   struct edge* next_edge, *error_edge;
@@ -624,7 +624,7 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
 
     next_edge->balance += first_hop->amount_to_forward;
       if(next_edge->group != NULL) {
-          group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, first_hop->from_node_id, 0, csv_group_output);
+          group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, first_hop->from_node_id, 0, csv_group_update);
       }
   }
 
@@ -648,7 +648,12 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
     // record channel_update
     struct channel_update* channel_update = malloc(sizeof(struct channel_update));
     channel_update->htlc_maximum_msat = payment->amount;
+    channel_update->edge_id = error_edge->id;
+    channel_update->time = simulation->current_time;
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
+    if(net_params.log_broadcast_msg) {
+        write_channel_update(csv_channel_update, channel_update);
+    }
 
   process_fail_result(node, payment, simulation->current_time);
 

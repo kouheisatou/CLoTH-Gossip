@@ -50,6 +50,8 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->group = NULL;
   struct channel_update* channel_update = malloc(sizeof(struct channel_update));
   channel_update->htlc_maximum_msat = channel_capacity;
+  channel_update->edge_id = edge->id;
+  channel_update->time = 0;
   edge->channel_updates = push(NULL, channel_update);
   return edge;
 }
@@ -376,7 +378,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, unsigned char is_init_update, FILE* csv_group_output) {
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, unsigned char is_init_update, FILE* csv_group_update) {
 
     // update group cap
     uint64_t min = UINT64_MAX;
@@ -431,6 +433,8 @@ struct element* update_group(struct group* group, struct network_params net_para
                 struct channel_update* channel_update = channel_update_i->data;
                 struct channel_update* channel_update_copy = malloc(sizeof(struct channel_update));
                 channel_update_copy->htlc_maximum_msat = channel_update->htlc_maximum_msat;
+                channel_update_copy->edge_id = channel_update->edge_id;
+                channel_update_copy->time = channel_update->time;
                 copy->channel_updates = push(copy->channel_updates, channel_update_copy);
             }
             group->edges->element[i] = copy;
@@ -441,14 +445,16 @@ struct element* update_group(struct group* group, struct network_params net_para
     // take snapshot of group_add_queue
     for(struct element* iterator = group_add_queue; iterator != NULL; iterator = iterator->next){
         struct edge* requesting_edge = iterator->data;
-        uint64_t balance = requesting_edge->balance;
-        group_update->balances_of_edge_in_queue_snapshot = push(group_add_queue, &balance);
+        group_update->balances_of_edge_in_queue_snapshot = push(group_update->balances_of_edge_in_queue_snapshot, (void *)requesting_edge->balance);
     }
 
     // if this group is not simulation's initial construction, write to log file
     if(net_params.log_broadcast_msg && current_time != 0) {
-        write_group_update(csv_group_output, group_update);
+        write_group_update(csv_group_update, group_update);
     }
+
+    // release memory
+    list_free(group_update->balances_of_edge_in_queue_snapshot);
     free(group_update);
 
     return group_add_queue;
