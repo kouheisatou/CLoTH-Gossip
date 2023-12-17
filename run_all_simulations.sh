@@ -41,7 +41,7 @@ function display_progress() {
 # Simulation 1
 change_target="group_limit_rate"
 result_root_dir="$output_dir/change_$change_target"
-for ((i = 1; i <= 20; i++)); do
+for ((i = 1; i <= 10; i++)); do
     value=$(printf "%.1f" "$(echo "scale=1; $i / 10" | bc)")
     enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$value\" \"$change_target=$value\"; python3 gen_csv_summary.py $result_root_dir;"
 done
@@ -49,7 +49,7 @@ done
 # Simulation 2
 change_target="group_size"
 result_root_dir="$output_dir/change_$change_target"
-for ((i = 2; i <= 20; i++)); do
+for ((i = 2; i <= 10; i++)); do
     enqueue_simulation "./run-simulation.sh $seed \"$result_root_dir/$change_target=$i\" \"$change_target=$i\""
 done
 

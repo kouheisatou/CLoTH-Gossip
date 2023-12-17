@@ -18,6 +18,12 @@
 #define MINBALANCE 1E2
 #define MAXBALANCE 1E11
 
+enum group_update_type {
+    CONSTRUCT,
+    CLOSE,
+    UPDATE,
+};
+
 /* a policy that must be respected when forwarding a payment through an edge (see edge below) */
 struct policy {
   uint64_t fee_base;
@@ -66,6 +72,16 @@ struct channel_update {
 };
 
 
+struct group_update {
+    long group_id;
+    long triggered_node_id;
+    uint64_t time;
+    uint64_t group_cap;
+    enum group_update_type type;
+    struct element* balances_of_edge_in_queue_snapshot;
+};
+
+
 struct group {
     long id;
     struct array* edges;
@@ -103,11 +119,9 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-void update_group(struct group* group, struct network_params net_params);
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, unsigned char is_init_update, FILE* csv_group_output);
 
-struct element* close_group(struct group* group, uint64_t current_time, struct element* group_add_queue);
-
-struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, struct network_params net_params);
+struct element* construct_group(struct element* group_add_queue, struct network *network, gsl_rng *random_generator, struct network_params net_params, uint64_t current_time, FILE* csv_group_update);
 
 int edge_equal(struct edge* e1, struct edge* e2);
 

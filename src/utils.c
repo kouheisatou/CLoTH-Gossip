@@ -30,3 +30,26 @@ int is_present(long element, struct array* long_array) {
 
   return 0;
 }
+
+void write_group_update(FILE* csv_group_update, struct group_update* group_update){
+    char* type_text;
+    if(group_update->type == UPDATE){
+        type_text = "UPDATE";
+    }else if(group_update->type == CONSTRUCT){
+        type_text = "CONSTRUCT";
+    }else if(group_update->type == CLOSE){
+        type_text = "CLOSE";
+    }else{
+        type_text = "UNKNOWN";
+    }
+    fprintf(csv_group_update, "%lu,%lu,%s,%lu,%lu,", group_update->time, group_update->group_id, type_text, group_update->triggered_node_id, group_update->group_cap);
+    for(struct element* iterator = group_update->balances_of_edge_in_queue_snapshot; iterator != NULL; iterator = iterator->next){
+        uint64_t balance = *((long *)iterator->data);
+        fprintf(csv_group_update, "%lu", balance);
+        if(iterator->next != NULL){
+            fprintf(csv_group_update, "-");
+        }else{
+            fprintf(csv_group_update, "\n");
+        }
+    }
+}

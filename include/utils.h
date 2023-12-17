@@ -15,5 +15,6 @@ int is_present(long element, struct array* long_array);
 
 int is_key_equal(struct distance* a, struct distance* b);
 
+void write_group_update(FILE* csv_group_update, struct group_update* group_update);
 
 #endif

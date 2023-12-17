@@ -293,6 +293,17 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
+    else if(strcmp(parameter, "log_broadcast_msg")==0){
+      if(strcmp(value, "true")==0)
+        net_params->log_broadcast_msg=1;
+      else if(strcmp(value, "false")==0)
+        net_params->log_broadcast_msg=0;
+      else{
+        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
+        fclose(input_file);
+        exit(-1);
+      }
+    }
     else if(strcmp(parameter, "group_size")==0){
         net_params->group_size = strtod(value, NULL);
     }
@@ -392,6 +403,20 @@ int main(int argc, char *argv[]) {
 
   simulation = malloc(sizeof(struct simulation));
 
+  // init broadcast msg log file
+  FILE* csv_group_update = NULL;
+  if(net_params.log_broadcast_msg){
+      char output_filename[512];
+      strcpy(output_filename, output_dir_name);
+      strcat(output_filename, "group_updates.csv");
+      csv_group_update = fopen(output_filename, "w");
+      if(csv_group_update == NULL){
+          printf("ERROR cannot open group_updates.csv\n");
+          exit(-1);
+      }
+      fprintf(csv_group_update, "time,group_id,type,triggered_node_id,group_cap,balances_of_edge_in_queue\n");
+  }
+
   simulation->random_generator = initialize_random_generator();
   printf("NETWORK INITIALIZATION\n");
   network = initialize_network(net_params, simulation->random_generator);
@@ -404,7 +429,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < array_len(network->edges); i++) {
             group_add_queue = push(group_add_queue, array_get(network->edges, i));
         }
-        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params);
+        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, 0, csv_group_update);
     }
 
   printf("PAYMENTS INITIALIZATION\n");
@@ -444,7 +469,7 @@ int main(int argc, char *argv[]) {
                   printf(" ");
               }
           }
-          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params);
+          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, simulation->current_time, csv_group_update);
       }
 
     event = heap_pop(simulation->events, compare_event);
@@ -454,25 +479,25 @@ int main(int argc, char *argv[]) {
       find_path(event, simulation, network, &payments, pay_params.mpp, net_params.enable_group_routing);
       break;
     case SENDPAYMENT:
-      group_add_queue = send_payment(event, simulation, network, group_add_queue, net_params);
+      group_add_queue = send_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case FORWARDPAYMENT:
-      group_add_queue = forward_payment(event, simulation, network, group_add_queue, net_params);
+      group_add_queue = forward_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case RECEIVEPAYMENT:
-      group_add_queue = receive_payment(event, simulation, network, group_add_queue, net_params);
+      group_add_queue = receive_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case FORWARDSUCCESS:
-      group_add_queue = forward_success(event, simulation, network, group_add_queue, net_params);
+      group_add_queue = forward_success(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case RECEIVESUCCESS:
       receive_success(event, simulation, network);
       break;
     case FORWARDFAIL:
-      group_add_queue = forward_fail(event, simulation, network, group_add_queue, net_params);
+      group_add_queue = forward_fail(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case RECEIVEFAIL:
-      group_add_queue = receive_fail(event, simulation, network, group_add_queue, net_params);
+      group_add_queue = receive_fail(event, simulation, network, group_add_queue, net_params, csv_group_update);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);
