@@ -449,7 +449,7 @@ struct element* update_group(struct group* group, struct network_params net_para
     }
 
     // if this group is not simulation's initial construction, write to log file
-    if(net_params.log_broadcast_msg && current_time != 0) {
+    if((net_params.log_broadcast_msg && current_time != 0) && (net_params.group_cap_update && group_update->type != UPDATE)) {
         write_group_update(csv_group_update, group_update);
     }
 
