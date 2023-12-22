@@ -41,25 +41,19 @@ def json_to_csv(json_files, output_csv_path):
             writer.writerow(row_data)
     print("Output summary was generated in " + output_csv_path)
     
-def find_files_in_subfolders(root_folder, relative_path):
-    file_paths = []
-
-    # ルートフォルダ内のすべてのサブフォルダを取得
-    for folder_name in os.listdir(root_folder):
-        folder_path = os.path.join(root_folder, folder_name)
-        if os.path.isdir(folder_path):
-            # 指定された相対パスのファイルパスを検索
-            file_path = os.path.join(folder_path, relative_path)
-            if os.path.exists(file_path):
-                file_paths.append(file_path)
-
-    return file_paths
+def find_files_in_subdir(root_dir):
+  files = []
+  for subdir, _, files_in_subdir in os.walk(root_dir):
+    for f in files_in_subdir:
+      if f == "cloth_output.json":
+        files.append(os.path.join(subdir, f))
+  return files
 
 
 if len(sys.argv) != 2:
-    print("python3 gen_csv_summary.py <result_dir>")
+    print("python3 gen_csv_summary.py <output_dir>")
 
 # result.json ファイルを読み込む
-result_data = find_files_in_subfolders(sys.argv[1], "result/cloth_output.json")
-json_to_csv(result_data, sys.argv[1] + "/summary.csv")
+json_files = find_files_in_subdir(sys.argv[1])
+json_to_csv(json_files, sys.argv[1] + "/summary.csv")
 

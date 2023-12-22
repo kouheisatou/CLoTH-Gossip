@@ -43,9 +43,9 @@ change_target="group_limit_rate"
 result_root_dir="$output_dir/change_$change_target"
 for ((i = 1; i <= 10; i++)); do
     value=$(printf "%.1f" "$(echo "scale=1; $i / 10" | bc)")
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
 done
 
 # Simulation 2
@@ -54,8 +54,8 @@ result_root_dir="$output_dir/change_$change_target"
 for ((i = 2; i <= 10; i++)); do
     value="$i"
     enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
 done
 
 # Simulation 3
@@ -66,9 +66,9 @@ for ((i = 0; i <= 10; i++)); do
     if [ "$i" -eq 0 ]; then
         value=100
     fi
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
 done
 
 # Simulation 4
@@ -76,9 +76,9 @@ change_target="variance_payment_amount"
 result_root_dir="$output_dir/change_$change_target"
 for ((i = 1; i <= 10; i++)); do
     value=$((i*1000))
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false; python3 gen_csv_summary.py $result_root_dir;"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
+    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
 done
 
 # Process the queue
@@ -89,4 +89,5 @@ while [ "${#queue[@]}" -gt 0 ] || [ "$running_processes" -gt 0 ]; do
     sleep 5
 done
 
+python3 gen_csv_summary.py "$output_dir"
 echo -e "\nAll simulations have completed."
