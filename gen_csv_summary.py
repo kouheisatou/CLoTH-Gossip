@@ -10,7 +10,7 @@ def json_to_csv(json_files, output_csv_path):
         "filename",
         'Success.Mean', 'FailNoPath.Mean', 'FailNoBalance.Mean',
         'Time.Mean', 'Attempts.Mean', 'RouteLength.Mean',
-        'group.group_cover_proportion', 'group.accuracy.mean'
+        'group.group_cover_rate', 'group.accuracy.mean'
     ]
 
     # CSVファイルを開き、ヘッダー行を書き込む
@@ -24,7 +24,7 @@ def json_to_csv(json_files, output_csv_path):
                 json_data = json.load(f)
 
             # 各キーに対応する値を取得
-            group_enabled = "group_cover_proportion" in json_data["group"] or "accuracy" in json_data["group"]
+            group_enabled = "group_cover_rate" in json_data["group"] or "accuracy" in json_data["group"]
             row_data = {
                 'filename': os.path.abspath(json_file),  # ファイル名を取得
                 'Success.Mean': json_data['Success']['Mean'],
@@ -33,7 +33,7 @@ def json_to_csv(json_files, output_csv_path):
                 'Time.Mean': json_data['Time']['Mean'],
                 'Attempts.Mean': json_data['Attempts']['Mean'],
                 'RouteLength.Mean': json_data['RouteLength']['Mean'],
-                'group.group_cover_proportion': json_data['group']["group_cover_proportion"] if group_enabled else "",
+                'group.group_cover_rate': json_data['group']["group_cover_rate"] if group_enabled else "",
                 'group.accuracy.mean': json_data['group']["accuracy"]['mean'] if group_enabled else ""
             }
 

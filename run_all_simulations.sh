@@ -15,6 +15,7 @@ queue=()
 running_processes=0
 completed_simulations=0
 total_simulations=0
+start_time=$(date +%s)
 
 function enqueue_simulation() {
     queue+=("$@")
@@ -35,50 +36,38 @@ function process_queue() {
 
 function display_progress() {
     local progress=$((completed_simulations * 100 / total_simulations))
-    printf "\rProgress: [%-50s] %d%%" $(printf "%0.s#" $(seq 1 $((progress / 2)))) "$progress"
+    local progress_bar=$(printf "[%-${progress}s%-$((100 - progress))s]" "#" "")
+
+    if [ "$progress" -eq 0 ]; then
+        printf "\rProgress: [%-50s] %d%%\t Time remaining --:--\t" $(printf "%0.s#" $(seq 1 $((progress / 2)))) "$progress"
+    else
+        local elapsed_time=$(( $(date +%s) - start_time ))
+        local estimated_completion_time=$(( elapsed_time * 100 / progress - elapsed_time ))
+        local remaining_minutes=$(( estimated_completion_time / 60 ))
+        local remaining_seconds=$(( estimated_completion_time % 60 ))
+        printf "\rProgress: [%-50s] %d%%\t Time remaining %02d:%02d\t" $(printf "%0.s#" $(seq 1 $((progress / 2)))) "$progress" "$remaining_minutes" "$remaining_seconds"
+    fi
 }
 
-# Simulation 1
-change_target="group_limit_rate"
-result_root_dir="$output_dir/change_$change_target"
-for ((i = 1; i <= 10; i++)); do
-    value=$(printf "%.1f" "$(echo "scale=1; $i / 10" | bc)")
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
-done
+for ((i = 1; i <= 5; i++)); do
+    ave_pmt_amt=$((10 ** i))
+    for ((j = 1; j <= 5; j++)); do
+        var_pmt_amt=$((10 ** j))
 
-# Simulation 2
-change_target="group_size"
-result_root_dir="$output_dir/change_$change_target"
-for ((i = 2; i <= 10; i++)); do
-    value="$i"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false; python3 gen_csv_summary.py $result_root_dir;"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
-done
+        for ((k = 2; k <= 10; k++)); do
+            group_size="$k"
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=false/average_payment_amount=$ave_pmt_amt/variance_payment_amount=$var_pmt_amt                       log_broadcast_msg=true enable_group_routing=false                       average_payment_amount=$ave_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size"
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=true/average_payment_amount=$ave_pmt_amt/variance_payment_amount=$var_pmt_amt  log_broadcast_msg=true enable_group_routing=true group_cap_update=true  average_payment_amount=$ave_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size"
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=false/average_payment_amount=$ave_pmt_amt/variance_payment_amount=$var_pmt_amt log_broadcast_msg=true enable_group_routing=true group_cap_update=false average_payment_amount=$ave_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size"
+        done
 
-# Simulation 3
-change_target="average_payment_amount"
-result_root_dir="$output_dir/change_$change_target"
-for ((i = 0; i <= 10; i++)); do
-    value=$((i*1000))
-    if [ "$i" -eq 0 ]; then
-        value=100
-    fi
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
-done
-
-# Simulation 4
-change_target="variance_payment_amount"
-result_root_dir="$output_dir/change_$change_target"
-for ((i = 1; i <= 10; i++)); do
-    value=$((i*1000))
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=false"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=true/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=true"
-    enqueue_simulation "./run-simulation.sh $seed $result_root_dir/enable_group_routing=true/group_cap_update=false/$change_target=$value $change_target=$value log_broadcast_msg=true enable_group_routing=true group_cap_update=false"
+        for k in $(seq -3.0 0.5 1.0); do
+            group_limit_rate=$(python3 -c "print('{:.4f}'.format(10**$k))")
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=false/average_payment_amount=$ave_pmt_amt/variance_payment_amount=$var_pmt_amt                       log_broadcast_msg=true enable_group_routing=false                       average_payment_amount=$ave_pmt_amt variance_payment_amount=$var_pmt_amt group_limit_rate=$group_limit_rate(10^$k)"
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=true/average_payment_amount=$ave_pmt_amt/variance_payment_amount=$var_pmt_amt  log_broadcast_msg=true enable_group_routing=true group_cap_update=true  average_payment_amount=$ave_pmt_amt variance_payment_amount=$var_pmt_amt group_limit_rate=$group_limit_rate(10^$k)"
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=false/average_payment_amount=$ave_pmt_amt/variance_payment_amount=$var_pmt_amt log_broadcast_msg=true enable_group_routing=true group_cap_update=false average_payment_amount=$ave_pmt_amt variance_payment_amount=$var_pmt_amt group_limit_rate=$group_limit_rate(10^$k)"
+        done
+    done
 done
 
 # Process the queue
@@ -86,7 +75,7 @@ display_progress
 while [ "${#queue[@]}" -gt 0 ] || [ "$running_processes" -gt 0 ]; do
     process_queue
     display_progress
-    sleep 5
+    sleep 1
 done
 
 python3 gen_csv_summary.py "$output_dir"

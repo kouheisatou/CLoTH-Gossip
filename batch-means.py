@@ -118,7 +118,7 @@ for stat in stats:
 # group statics
 group_output = {}
 if len(open(output_dir_name + "groups_output.csv").readlines()) > 1:
-     group_output = {"group_cover_proportion": 0.0, "accuracy": {"mean": 0.0, "variance": 0.0}}
+     group_output = {"group_cover_rate": 0.0, "accuracy": {"mean": 0.0, "variance": 0.0}}
      with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
           n_edges = len(open(output_dir_name + "edges_output.csv").readlines())
           groups = list(csv.DictReader(csv_group))
@@ -130,7 +130,7 @@ if len(open(output_dir_name + "groups_output.csv").readlines()) > 1:
                     accuracy.append(float(group["accuracy"]))
                     for edge in edges:
                          group_member_count += 1
-          group_output["group_cover_proportion"] = group_member_count.__float__() / n_edges
+          group_output["group_cover_rate"] = group_member_count.__float__() / n_edges
           group_output["accuracy"]["mean"] = np.mean(np.array(accuracy))
           group_output["accuracy"]["variance"] = np.var(np.array(accuracy))
 
