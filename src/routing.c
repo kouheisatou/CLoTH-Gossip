@@ -396,7 +396,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       }
       else{
         channel = array_get(network->channels, edge->channel_id);
-        // judge edge has enough capacity by group_capacity (proposal)
+        // judge edge has enough capacity by group_capacity (proposed method)
         if(enable_group_routing){
             if(edge->group != NULL){
                 if(edge->group->group_cap < amt_to_send) continue;
@@ -409,7 +409,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
                 }
             }
         }
-        // judge by channel_update (conventional)
+        // judge by channel_update (conventional method)
         else{
             if(edge->channel_updates != NULL) {
                 struct channel_update* channel_update = edge->channel_updates->data;
@@ -418,7 +418,6 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
                 if(channel->capacity < amt_to_send) continue;
             }
         }
-//        if(channel->capacity < amt_to_send) continue;
       }
 
       if(amt_to_send < edge->policy.min_htlc)

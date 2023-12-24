@@ -364,7 +364,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
 
   next_edge->balance -= first_route_hop->amount_to_forward;
     if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
+        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update);
     }
 
 
@@ -464,7 +464,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
 
   next_edge->balance -= next_route_hop->amount_to_forward;
     if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
+        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update);
     }
 
   next_edge->tot_flows += 1;
@@ -504,7 +504,7 @@ struct element* receive_payment(struct event* event, struct simulation* simulati
 
   backward_edge->balance += last_route_hop->amount_to_forward;
     if(backward_edge->group != NULL) {
-        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
+        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update);
     }
 
   payment->is_success = 1;
@@ -542,7 +542,7 @@ struct element* forward_success(struct event* event, struct simulation* simulati
 
   backward_edge->balance += prev_hop->amount_to_forward;
     if(backward_edge->group != NULL) {
-        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
+        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update);
     }
 
   prev_node_id = prev_hop->from_node_id;
@@ -588,7 +588,7 @@ struct element* forward_fail(struct event* event, struct simulation* simulation,
   /* since the payment failed, the balance must be brought back to the state before the payment occurred */
   next_edge->balance += next_hop->amount_to_forward;
     if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, 0, csv_group_update);
+        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update);
     }
 
   prev_hop = get_route_hop(event->node_id, payment->route->route_hops, 0);
@@ -624,7 +624,7 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
 
     next_edge->balance += first_hop->amount_to_forward;
       if(next_edge->group != NULL) {
-          group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, first_hop->from_node_id, 0, csv_group_update);
+          group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, first_hop->from_node_id, UPDATE, csv_group_update);
       }
   }
 
