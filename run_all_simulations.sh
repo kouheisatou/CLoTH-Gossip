@@ -35,17 +35,17 @@ function process_queue() {
 }
 
 function display_progress() {
-    local progress=$((completed_simulations * 100 / total_simulations))
-    local progress_bar=$(printf "[%-${progress}s%-$((100 - progress))s]" "#" "")
+    progress=$(python3 -c "print($completed_simulations / $total_simulations)")
+    progress_bar=$(printf "%0.s#" $(seq 1 $((completed_simulations * 100 / total_simulations / 2))))
 
-    if [ "$progress" -eq 0 ]; then
-        printf "\rProgress: [%-50s] %d%%\t Time remaining --:--\t" $(printf "%0.s#" $(seq 1 $((progress / 2)))) "$progress"
+    if [ "$completed_simulations" -eq 0 ]; then
+        printf "\rProgress: [%-50s] 0%%\t%d/%d\t Time remaining --:--\t" "" "$completed_simulations" "$total_simulations"
     else
-        local elapsed_time=$(( $(date +%s) - start_time ))
-        local estimated_completion_time=$(( elapsed_time * 100 / progress - elapsed_time ))
-        local remaining_minutes=$(( estimated_completion_time / 60 ))
-        local remaining_seconds=$(( estimated_completion_time % 60 ))
-        printf "\rProgress: [%-50s] %d%%\t Time remaining %02d:%02d\t" $(printf "%0.s#" $(seq 1 $((progress / 2)))) "$progress" "$remaining_minutes" "$remaining_seconds"
+        elapsed_time=$(( $(date +%s) - start_time ))
+        estimated_completion_time=$(python3 -c "print(int($elapsed_time * 100 / $progress - $elapsed_time))")
+        remaining_minutes=$(( estimated_completion_time / 60 ))
+        remaining_seconds=$(( estimated_completion_time % 60 ))
+        printf "\rProgress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d\t" "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
     fi
 }
 
@@ -80,3 +80,5 @@ done
 
 python3 gen_csv_summary.py "$output_dir"
 echo -e "\nAll simulations have completed."
+echo "START : $(date --date @"$start_time")"
+echo "  END : $(date)"
