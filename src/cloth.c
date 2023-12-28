@@ -464,8 +464,8 @@ int main(int argc, char *argv[]) {
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
-/* print length of group requesting queue
       if (net_params.enable_group_routing) {
+/* print length of group requesting queue
           int width = 100;
           long queue_length = list_len(group_add_queue);
           long bar_length = queue_length % width;
@@ -483,9 +483,9 @@ int main(int argc, char *argv[]) {
                   printf(" ");
               }
           }
+*/
           group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, simulation->current_time, csv_group_update);
       }
-*/
 
     event = heap_pop(simulation->events, compare_event);
     simulation->current_time = event->time;

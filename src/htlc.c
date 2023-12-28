@@ -614,6 +614,7 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
   node = array_get(network->nodes, event->node_id);
 
   error_hop = payment->error.hop;
+  error_edge = array_get(network->edges, error_hop->edge_id);
   if(error_hop->from_node_id != payment->sender){ // if the error occurred in the first hop, the balance hasn't to be updated, since it was not decreased
     first_hop = array_get(payment->route->route_hops, 0);
     next_edge = array_get(network->edges, first_hop->edge_id);
@@ -629,7 +630,6 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
   }
 
 /* print FAIL_NO_BALANCE error
-    error_edge = array_get(network->edges, error_hop->edge_id);
     struct channel* channel = array_get(network->channels, error_edge->channel_id);
     printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
     printf("\n\tPATH  : ");

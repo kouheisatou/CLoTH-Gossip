@@ -412,6 +412,8 @@ struct element* update_group(struct group* group, struct network_params net_para
             // close if edge capacity is out of limit
             if (group->min_cap < group->min_cap_limit || group->max_cap_limit < group->max_cap) {
                 group_update->type = CLOSE;
+            } else {
+                break;
             }
         }
         case CLOSE: {
@@ -467,13 +469,18 @@ struct element* update_group(struct group* group, struct network_params net_para
         // take snapshot of group_add_queue
         for (struct element *iterator = group_add_queue; iterator != NULL; iterator = iterator->next) {
             struct edge *requesting_edge = iterator->data;
-            group_update->balances_of_edge_in_queue_snapshot = push(group_update->balances_of_edge_in_queue_snapshot,
-                                                                    (void *) requesting_edge->balance);
+            group_update->balances_of_edge_in_queue_snapshot = push(group_update->balances_of_edge_in_queue_snapshot,(void *) requesting_edge->balance);
         }
 
         // if this group is not simulation's initial construction, write to log file
-        if (net_params.group_cap_update && current_time != 0 && group_update->type != UPDATE) {
-            write_group_update(csv_group_update, group_update);
+        if (current_time != 0) {
+            if(net_params.group_cap_update){
+                write_group_update(csv_group_update, group_update);
+            }else{
+                if(group_update->type != UPDATE){
+                    write_group_update(csv_group_update, group_update);
+                }
+            }
         }
     }
 
