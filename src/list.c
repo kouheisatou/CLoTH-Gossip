@@ -8,6 +8,8 @@ struct element* push(struct element* head, void* data) {
 	newhead = malloc(sizeof(struct element));
 	newhead->data = data;
   newhead->next = head;
+  if(head != NULL) head->prev = newhead;
+  newhead->prev = NULL;
 
 	return newhead;
 }
@@ -27,6 +29,7 @@ struct element* pop(struct element* head, void** data) {
   }
   *data = head->data;
   head = head->next;
+  if(head != NULL) head->prev = NULL;
   return head;
 }
 
@@ -60,32 +63,77 @@ void list_free(struct element* head){
 }
 
 struct element* list_delete(struct element* head, struct element** current_iterator, void* delete_target_data, int (*is_equal)(void*, void*)) {
-    struct element* current = head;
-    struct element* previous = NULL;
 
     // Iterate through the list to find the target element
-    while (current != NULL && !is_equal(current->data, delete_target_data)) {
-        previous = current;
-        current = current->next;
+    struct element* delete_target = head;
+    while (delete_target != NULL && !is_equal(delete_target->data, delete_target_data)) {
+        delete_target = delete_target->next;
     }
 
     // If the target element is found
-    if (current != NULL) {
+    if (delete_target != NULL) {
         // If the target element is the head of the list
-        if (previous == NULL) {
-            head = current->next;
+        if (delete_target->prev == NULL) {
+            head = delete_target->next;
+            head->prev = NULL;
         } else {
             // Update the next pointer of the previous element
-            previous->next = current->next;
+            delete_target->next->prev = delete_target->prev;
+            delete_target->prev->next = delete_target->next;
         }
 
         // If delete_target is current_iterator, replace current_iterator with next
-        if(current == (*current_iterator)){
-            *current_iterator = current->next;
+        if(current_iterator != NULL && delete_target == (*current_iterator)){
+            *current_iterator = delete_target->next;
         }
 
         // Free the memory occupied by the target element
-        free(current);
+        free(delete_target);
+    }
+
+    return head;
+}
+
+struct element* list_insert_after(struct element* insert_position, void* data, struct element* head){
+    if(insert_position != NULL){
+        struct element* new_element = malloc(sizeof(struct element));
+        struct element* prev = insert_position;
+        struct element* next = insert_position->next;
+        new_element->data = data;
+        new_element->next = next;
+        new_element->prev = prev;
+        if(next != NULL) next->prev = new_element;
+        prev->next = new_element;
+    }else{
+        head = push(head, data);
+    }
+
+    return head;
+}
+
+struct element* list_insert_sorted_position(struct element* head, void* data, long (*get_sort_value)(void*)){
+    if(head == NULL) {
+        head = push(head, data);
+        return head;
+    }
+
+    for (struct element* iterator = head; iterator != NULL; iterator = iterator->next){
+
+        // insert last
+        if(get_sort_value(iterator->data) < get_sort_value(data) && iterator->next == NULL){
+            head = list_insert_after(iterator, data, head);
+            break;
+        }
+        // insert first
+        else if(iterator == head && get_sort_value(data) <= get_sort_value(iterator->data)){
+            head = push(head, data);
+            break;
+        }
+        // insert middle
+        else if(get_sort_value(iterator->data) < get_sort_value(data) && get_sort_value(data) <= get_sort_value(iterator->next->data)){
+            head = list_insert_after(iterator, data, head);
+            break;
+        }
     }
 
     return head;

@@ -439,8 +439,8 @@ int main(int argc, char *argv[]) {
     // add edge which is not a member of any group to group_add_queue
     struct element* group_add_queue = NULL;
     if(net_params.enable_group_routing) {
-        for (int i = 0; i < array_len(network->edges); i++) {
-            group_add_queue = push(group_add_queue, array_get(network->edges, i));
+        for (int i = 0; i < n_edges; i++) {
+            group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
         group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, 0, csv_group_update);
     }
@@ -485,6 +485,7 @@ int main(int argc, char *argv[]) {
           }
 */
           group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, simulation->current_time, csv_group_update);
+          printf("%lu\n", list_len(group_add_queue));
       }
 
     event = heap_pop(simulation->events, compare_event);

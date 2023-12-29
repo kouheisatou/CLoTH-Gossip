@@ -127,4 +127,6 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
 int edge_equal(struct edge* e1, struct edge* e2);
 
+long get_edge_balance(struct edge* e);
+
 #endif
