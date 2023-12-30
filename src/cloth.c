@@ -417,7 +417,7 @@ int main(int argc, char *argv[]) {
           printf("ERROR cannot open group_updates.csv\n");
           exit(-1);
       }
-      fprintf(csv_group_update, "time,group_id,type,triggered_node_id,group_cap,balances_of_edge_in_queue\n");
+      fprintf(csv_group_update, "time,group_id,type,triggered_node_id,group_cap,queue_length,edge_balances_in_queue\n");
 
       // channel_update log
       strcpy(output_filename, output_dir_name);
@@ -442,7 +442,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < n_edges; i++) {
             group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
-        group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, 0, csv_group_update);
+        group_add_queue = construct_group(group_add_queue, network, net_params, 0, csv_group_update);
     }
 
   printf("PAYMENTS INITIALIZATION\n");
@@ -464,29 +464,6 @@ int main(int argc, char *argv[]) {
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
-      if (net_params.enable_group_routing) {
-/* print length of group requesting queue
-          int width = 100;
-          long queue_length = list_len(group_add_queue);
-          long bar_length = queue_length % width;
-          printf("\rSIMULATION:%-10lu\tqueue_len:%-10ld ", simulation->current_time, queue_length);
-          printf("0|");
-          if(queue_length / width != 0){
-              for(int i = 0; i < queue_length / width; i++){
-                  printf("..%d|", (i + 1) * width);
-              }
-          }
-          for(int i = 0; i < width; i++){
-              if(i < bar_length){
-                  printf("|");
-              }else{
-                  printf(" ");
-              }
-          }
-*/
-          group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, simulation->current_time, csv_group_update);
-      }
-
     event = heap_pop(simulation->events, compare_event);
     simulation->current_time = event->time;
     switch(event->type){
