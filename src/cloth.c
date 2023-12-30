@@ -485,7 +485,6 @@ int main(int argc, char *argv[]) {
           }
 */
           group_add_queue = construct_group(group_add_queue, network, simulation->random_generator, net_params, simulation->current_time, csv_group_update);
-          printf("%lu\n", list_len(group_add_queue));
       }
 
     event = heap_pop(simulation->events, compare_event);

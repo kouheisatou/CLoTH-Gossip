@@ -23,8 +23,8 @@ Install the requirements:
 ```sh
 sudo apt-get install gcc
 sudo apt-get install libgsl-dev
-sudo apt-get install python
-sudo apt-get install python-pip
+sudo apt-get install python3
+sudo apt-get install python3-pip
 pip install numpy
 pip install scipy
 ```

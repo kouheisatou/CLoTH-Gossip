@@ -46,7 +46,7 @@ function display_progress() {
         printf "\rProgress: [%-50s] 0%%\t%d/%d\t Time remaining --:--\t" "" "$completed_simulations" "$total_simulations"
     else
         elapsed_time=$(( $(date +%s) - start_time ))
-        estimated_completion_time=$(python3 -c "print(int($elapsed_time * 100 / $progress - $elapsed_time))")
+        estimated_completion_time=$(python3 -c "print(int($elapsed_time / $progress - $elapsed_time))")
         remaining_minutes=$(( estimated_completion_time / 60 ))
         remaining_seconds=$(( estimated_completion_time % 60 ))
         printf "\rProgress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d\t" "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
