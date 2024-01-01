@@ -82,9 +82,10 @@ with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:#, open('xk.c
                     else:
                          batches['FailNoBalance'][b] += 1
 
-     total_mean_time = float(total_mean_time)/total_succeeded
-     total_mean_route = float(total_mean_route)/total_succeeded
-     total_mean_attempts = float(total_mean_attempts)/total_succeeded
+     if total_succeeded != 0: 
+          total_mean_time = float(total_mean_time)/total_succeeded
+          total_mean_route = float(total_mean_route)/total_succeeded
+          total_mean_attempts = float(total_mean_attempts)/total_succeeded
 
 
 # COMPUTE PER-BATCH STATS
