@@ -251,6 +251,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           // calc total fee
           struct route* route = transform_path_into_route(path, payment->amount, network);
           uint64_t fee = route->total_fee;
+          free_route(route);
 
           // if path capacity is not enough to send the payment, find new path
           if(path_cap < payment->amount + fee){

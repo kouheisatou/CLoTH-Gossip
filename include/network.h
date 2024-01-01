@@ -128,4 +128,6 @@ int edge_equal(struct edge* e1, struct edge* e2);
 
 long get_edge_balance(struct edge* e);
 
+void free_network(struct network* network);
+
 #endif

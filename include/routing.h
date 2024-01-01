@@ -80,5 +80,7 @@ void print_hop(struct route_hop* hop);
 
 int compare_distance(struct distance* a, struct distance* b);
 
+void free_route(struct route* route);
+
 
 #endif

@@ -14,7 +14,7 @@ struct array* resize_array(struct array* a) {
     new->element[i]=a->element[i];
   for(;i<new->size;i++)
     new->element[i] = NULL;
-
+  array_free(a);
   return new;
 }
 

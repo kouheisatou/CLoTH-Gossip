@@ -544,6 +544,9 @@ struct element* construct_group(struct element* group_add_queue, struct network 
                 group_member_edge->group = group;
             }
             if(iterator == NULL) break;
+        }else{
+            array_free(group->edges);
+            free(group);
         }
     }
     return group_add_queue;
@@ -555,4 +558,40 @@ int edge_equal(struct edge* e1, struct edge* e2){
 
 long get_edge_balance(struct edge* e){
     return e->balance;
+}
+
+void free_network(struct network* network){
+    for(long i = 0; i < array_len(network->groups); i++){
+        struct group* g = array_get(network->groups, i);
+        if(g->is_closed){
+            for(long j = 0; j < array_len(g->edges); j++){
+                free(array_get(g->edges, j));
+            }
+        }
+        array_free(g->edges);
+        free(g);
+    }
+    for(long i = 0; i < array_len(network->channels); i++){
+        free(array_get(network->channels, i));
+    }
+    for(long i = 0; i < array_len(network->edges); i++){
+        struct edge* e = array_get(network->edges, i);
+        for(struct element* iterator = e->channel_updates; iterator != NULL; iterator = iterator->next){
+            free(iterator->data);
+        }
+        list_free(e->channel_updates);
+        free(e);
+    }
+    for(long i = 0; i < array_len(network->nodes); i++){
+        struct node* n = array_get(network->nodes, i);
+        array_free(n->open_edges);
+        for(long j = 0; j < array_len(network->nodes); j++){
+            for(struct element* iterator = n->results[j]; iterator != NULL; iterator = iterator->next){
+                free(iterator->data);
+            }
+            list_free(n->results[j]);
+        }
+        free(n->results);
+        free(n);
+    }
 }

@@ -586,6 +586,7 @@ int main(int argc, char *argv[]) {
       printf("ERROR wrong event type\n");
       exit(-1);
     }
+    free(event);
   }
   printf("\n");
   end = clock();
@@ -598,6 +599,10 @@ int main(int argc, char *argv[]) {
 
   write_output(network, payments, output_dir_name);
 
+    list_free(group_add_queue);
+    free_network(network);
+    free(simulation->random_generator);
+    heap_free(simulation->events);
   free(simulation);
 
   return 0;

@@ -28,9 +28,10 @@ struct element* pop(struct element* head, void** data) {
     return NULL;
   }
   *data = head->data;
-  head = head->next;
-  if(head != NULL) head->prev = NULL;
-  return head;
+  struct element* newhead = head->next;
+    free(head);
+  if(newhead != NULL) newhead->prev = NULL;
+  return newhead;
 }
 
 long list_len(struct element* head){

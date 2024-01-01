@@ -103,8 +103,10 @@ void run_dijkstra_threads(struct network*  network, struct array* payments, uint
     pthread_create(&(tid[i]), NULL, dijkstra_thread, (void*) thread_args);
    }
 
-  for(i=0; i<N_THREADS; i++)
-    pthread_join(tid[i], NULL);
+  for(i=0; i<N_THREADS; i++) {
+      pthread_join(tid[i], NULL);
+  }
+  free(thread_args);
 }
 
 
@@ -554,4 +556,12 @@ struct route* transform_path_into_route(struct array* path_hops, uint64_t destin
   array_reverse(route->route_hops);
 
   return route;
+}
+
+void free_route(struct route* route){
+    for(int i = 0; i < array_len(route->route_hops); i++){
+        free(array_get(route->route_hops, i));
+    }
+    array_free(route->route_hops);
+    free(route);
 }
