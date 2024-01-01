@@ -428,6 +428,24 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
 }
 
 
+void write_dijkstra_cache(char* dijkstra_cache_name, struct network* network, struct array* payments){
+    FILE* dijkstra_cache = fopen(dijkstra_cache_name, "w");
+    if(dijkstra_cache != NULL){
+        uint64_t hash = calc_simulation_env_hash(network, payments);
+        fprintf(dijkstra_cache, "%lu\n", hash);
+        for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
+            if(paths[payment_id] == NULL) continue;
+            struct array* route_hops = paths[payment_id];
+            for(long j = 0; j < array_len(route_hops); j++){
+                struct route_hop* hop = array_get(route_hops, j);
+                fprintf(dijkstra_cache, "%ld,%ld,%ld,%ld,%lu,%d\n", payment_id, hop->from_node_id, hop->edge_id, hop->to_node_id, hop->amount_to_forward, hop->timelock);
+            }
+        }
+        fclose(dijkstra_cache);
+    }
+}
+
+
 int main(int argc, char *argv[]) {
   struct event* event;
   clock_t  begin, end;
@@ -511,24 +529,14 @@ int main(int argc, char *argv[]) {
   clock_gettime(CLOCK_MONOTONIC, &start);
   FILE* dijkstra_cache = fopen(dijkstra_cache_name, "r");
   if(dijkstra_cache == NULL){
+      printf("no cache file\n");
       run_dijkstra_threads(network, payments, 0, net_params.enable_group_routing);
-      dijkstra_cache = fopen(dijkstra_cache_name, "w");
-      if(dijkstra_cache != NULL){
-          uint64_t hash = calc_simulation_env_hash(network, payments);
-          fprintf(dijkstra_cache, "%lu\n", hash);
-          for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
-              if(paths[payment_id] == NULL) continue;
-              struct array* route_hops = paths[payment_id];
-              for(long j = 0; j < array_len(route_hops); j++){
-                  struct route_hop* hop = array_get(route_hops, j);
-                  fprintf(dijkstra_cache, "%ld,%ld,%ld,%ld,%lu,%d\n", payment_id, hop->from_node_id, hop->edge_id, hop->to_node_id, hop->amount_to_forward, hop->timelock);
-              }
-          }
-          fclose(dijkstra_cache);
-      }
+      write_dijkstra_cache(dijkstra_cache_name, network, payments);
+      printf("cache file created\n");
   } else {
       uint64_t hash = calc_simulation_env_hash(network, payments);
       uint64_t dijkstra_cache_env_hash;
+      printf("cache file found\n");
       fscanf(dijkstra_cache, "%lu\n", &dijkstra_cache_env_hash);
       if(hash == dijkstra_cache_env_hash){
           while(1) {
@@ -538,10 +546,14 @@ int main(int argc, char *argv[]) {
               if(paths[payment_id] == NULL) paths[payment_id] = array_initialize(10);
               paths[payment_id] = array_insert(paths[payment_id], hop);
           }
+          fclose(dijkstra_cache);
       }else{
+          fclose(dijkstra_cache);
+          printf("invalid cache\n");
           run_dijkstra_threads(network, payments, 0, net_params.enable_group_routing);
+          write_dijkstra_cache(dijkstra_cache_name, network, payments);
+          printf("cache file created\n");
       }
-      fclose(dijkstra_cache);
   }
   clock_gettime(CLOCK_MONOTONIC, &finish);
   time_spent_thread = finish.tv_sec - start.tv_sec;
