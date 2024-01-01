@@ -9,7 +9,6 @@ file(COPY cloth_input.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY channels_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY edges_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY nodes_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
 file(COPY run-simulation.sh DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY batch-means.py DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -26,6 +25,7 @@ add_executable(${PROJECT_NAME}
         include/payments.h
         include/routing.h
         include/utils.h
+        include/hash.h
         src/array.c
         src/cloth.c
         src/event.c
@@ -35,7 +35,8 @@ add_executable(${PROJECT_NAME}
         src/network.c
         src/payments.c
         src/routing.c
-        src/utils.c)
+        src/utils.c
+        src/hash.c)
 
 find_package(GSL REQUIRED)
 target_link_libraries(${PROJECT_NAME} GSL::gsl GSL::gslcblas m)

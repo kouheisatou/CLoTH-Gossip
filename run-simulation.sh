@@ -1,6 +1,6 @@
-if [ $# -lt 2 ]
+if [ $# -lt 3 ]
 then
-    echo "usage: $0 <seed> <output-directory> [setting_key=setting_value]"
+    echo "usage: $0 <seed> <output-directory> <dijkstra_cache_filename> [setting_key=setting_value]"
     exit
 fi
 
@@ -12,7 +12,7 @@ mkdir -p "$result_dir"
 
 rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
 
-for arg in "${@:3}"; do
+for arg in "${@:4}"; do
     key="${arg%=*}"
     value="${arg#*=}"
     sed -i -e "s/$key=.*/$key=$value/" "$environment_dir/cloth_input.txt"
@@ -23,7 +23,7 @@ cd "$environment_dir"
 cmake .
 make
 
-GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/"
+GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/" "$3"
 
 python3 batch-means.py "$result_dir/"
 

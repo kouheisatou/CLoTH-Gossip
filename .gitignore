@@ -56,3 +56,4 @@ dkms.conf
 /cloth
 /.idea
 /cmake-build-debug/
+dijkstra_cache*
