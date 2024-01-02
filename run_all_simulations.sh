@@ -10,7 +10,7 @@ install_dir="$(pwd)"
 mkdir "$output_dir"
 
 seed=39
-max_processes=24
+max_processes=8
 
 queue=()
 running_processes=0
