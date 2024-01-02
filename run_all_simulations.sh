@@ -50,7 +50,12 @@ function display_progress() {
     echo "$completed_simulations_from_tmp_file" > "$completed_simulations_tmp_file"
 
     while [ "$completed_simulations_from_tmp_file" -lt "$total_simulations" ]; do
-        completed_simulations_from_tmp_file=$(cat "$completed_simulations_tmp_file")
+
+        text=$(cat "$completed_simulations_tmp_file")
+        if [ -n "$text" ]; then
+            completed_simulations_from_tmp_file="$text"
+        fi
+
         progress=$(python3 -c "print($completed_simulations_from_tmp_file / $total_simulations)")
         progress_bar=$(printf "%0.s#" $(seq 1 $((completed_simulations_from_tmp_file * 100 / total_simulations / 2))))
 

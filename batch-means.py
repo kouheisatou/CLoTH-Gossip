@@ -82,7 +82,7 @@ with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:#, open('xk.c
                     else:
                          batches['FailNoBalance'][b] += 1
 
-     if total_succeeded != 0: 
+     if total_succeeded != 0:
           total_mean_time = float(total_mean_time)/total_succeeded
           total_mean_route = float(total_mean_route)/total_succeeded
           total_mean_attempts = float(total_mean_attempts)/total_succeeded
@@ -119,21 +119,42 @@ for stat in stats:
 # group statics
 group_output = {}
 if len(open(output_dir_name + "groups_output.csv").readlines()) > 1:
-     group_output = {"group_cover_rate": 0.0, "accuracy": {"mean": 0.0, "variance": 0.0}}
+     group_output = {
+          "group_cover_rate": 0.0,
+          "average_survival_time": {
+               "mean": 0.0,
+               "variance": 0.0
+          },
+          "accuracy": {
+               "mean": 0.0,
+               "variance": 0.0
+          }
+     }
      with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
           n_edges = len(open(output_dir_name + "edges_output.csv").readlines())
           groups = list(csv.DictReader(csv_group))
           group_member_count = 0
           accuracy = []
+          average_survival_time = []
           for group in groups:
-               edges: list[str] = group["edges"].split("-")
                if group["is_closed(closed_time)"] == "0":
+                    edges: list[str] = group["edges"].split("-")
                     accuracy.append(float(group["accuracy"]))
                     for edge in edges:
                          group_member_count += 1
+               else:
+                    average_survival_time.append(int(group["is_closed(closed_time)"]) - int(group["constructed_time"]))
           group_output["group_cover_rate"] = group_member_count.__float__() / n_edges
+          group_output["survival_time"]["mean"] = np.mean(np.array(average_survival_time))
+          group_output["survival_time"]["variance"] = np.var(np.array(average_survival_time))
           group_output["accuracy"]["mean"] = np.mean(np.array(accuracy))
           group_output["accuracy"]["variance"] = np.var(np.array(accuracy))
+
+# if os.path.isfile(output_dir_name + "group_updates.csv"):
+#      with open(output_dir_name + 'group_updates.csv', 'r') as csv_group:
+          # rate that new group can be constructed after close
+          # number of broadcast messages
+          # average of queue len
 
 
 # WRITE OUTPUT
