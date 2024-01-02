@@ -496,8 +496,16 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         struct group* group = malloc(sizeof(struct group));
         group->edges = array_initialize(net_params.group_size);
         group->edges = array_insert(group->edges, requesting_edge);
-        group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+        if(group->max_cap_limit > requesting_edge->balance * (uint64_t)(1.0f + net_params.group_limit_rate)){
+            group->max_cap_limit = INT64_MAX;   // overflow
+        }else{
+            group->max_cap_limit = requesting_edge->balance * (uint64_t)(1.0f + net_params.group_limit_rate);
+        }
+        if(1.0f - net_params.group_limit_rate < 0) {
+            group->min_cap_limit = 0;   // overflow
+        }else{
+            group->min_cap_limit = requesting_edge->balance * (uint64_t) (1.0f - net_params.group_limit_rate);
+        }
         group->id = array_len(network->groups);
         group->is_closed = 0;
 
