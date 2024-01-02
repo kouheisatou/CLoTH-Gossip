@@ -92,6 +92,7 @@ struct group {
     uint64_t min_cap;
     uint64_t group_cap;
     uint64_t is_closed; // if not zero, it describes closed time
+    uint64_t constructed_time;
 };
 
 

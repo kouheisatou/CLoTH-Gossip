@@ -510,6 +510,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         }
         group->id = array_len(network->groups);
         group->is_closed = 0;
+        group->constructed_time = current_time;
 
         // search the closest balance edge from neighbor
         struct element* bottom = iterator;
