@@ -20,7 +20,7 @@ if len(input_args) < 2:
 output_dir_name = input_args[1]
 if not path.exists(output_dir_name):
      print("batch-means.py: Cannot find the output directory. The output will be stored in the current directory" )
-     output_dir_name = './'
+     output_dir_name = '../'
 
 with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:#, open('xk.csv', 'w') as output_csv:#, open(stats_file_path, 'wb') as stats_file :
 

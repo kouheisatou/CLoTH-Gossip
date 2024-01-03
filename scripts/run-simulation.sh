@@ -10,7 +10,7 @@ result_dir="$2"
 mkdir -p "$environment_dir"
 mkdir -p "$result_dir"
 
-rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./" "$environment_dir"
+rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "./.." "$environment_dir"
 
 for arg in "${@:4}"; do
     key="${arg%=*}"
