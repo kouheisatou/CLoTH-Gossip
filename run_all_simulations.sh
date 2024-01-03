@@ -84,19 +84,17 @@ for i in $(seq 1.0 0.5 5.0); do
     avg_pmt_amt=$(python3 -c "print('{:.0f}'.format(10**$i))")
     var_pmt_amt=$((10 * avg_pmt_amt))
 
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=false/average_payment_amount=$avg_pmt_amt                                                                 $install_dir/dijkstra_cache_$avg_pmt_amt    log_broadcast_msg=true payment_rate=100 n_payments=50000 enable_group_routing=false                          average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt"
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/enable_group_routing=false/average_payment_amount=$avg_pmt_amt                                                                                $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 enable_group_routing=false                          average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt"
 
-    for ((k = 2; k <= 10; k++)); do
-        group_size="$k"
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=true/average_payment_amount=$avg_pmt_amt/group_size=$group_size                 $install_dir/dijkstra_cache_$avg_pmt_amt    log_broadcast_msg=true payment_rate=100 n_payments=50000 enable_group_routing=true group_cap_update=true     average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size"
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=false/average_payment_amount=$avg_pmt_amt/group_size=$group_size                $install_dir/dijkstra_cache_$avg_pmt_amt    log_broadcast_msg=true payment_rate=100 n_payments=50000 enable_group_routing=true group_cap_update=false    average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size"
+    for ((j = 2; j <= 10; j++)); do
+        group_size="$j"
+        for k in $(seq -3.0 0.5 1.0); do
+            group_limit_rate=$(python3 -c "print('{:.4f}'.format(10**$k))")
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true,group_update=true/average_payment_amount=$avg_pmt_amt/group_size=$group_size/group_limit_rate=$group_limit_rate     $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 enable_group_routing=true group_cap_update=true     average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size group_limit_rate=$group_limit_rate"
+            enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true,group_update=false/average_payment_amount=$avg_pmt_amt/group_size=$group_size/group_limit_rate=$group_limit_rate    $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 enable_group_routing=true group_cap_update=false    average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=$group_size group_limit_rate=$group_limit_rate"
+        done
     done
 
-    for k in $(seq -3.0 0.5 1.0); do
-        group_limit_rate=$(python3 -c "print('{:.4f}'.format(10**$k))")
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=true/average_payment_amount=$avg_pmt_amt/group_limit_rate=$group_limit_rate     $install_dir/dijkstra_cache_$avg_pmt_amt    log_broadcast_msg=true payment_rate=100 n_payments=50000 enable_group_routing=true group_cap_update=true     average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_limit_rate=$group_limit_rate"
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/enable_group_routing=true/group_cap_update=false/average_payment_amount=$avg_pmt_amt/group_limit_rate=$group_limit_rate    $install_dir/dijkstra_cache_$avg_pmt_amt    log_broadcast_msg=true payment_rate=100 n_payments=50000 enable_group_routing=true group_cap_update=false    average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_limit_rate=$group_limit_rate"
-    done
 done
 
 # Process the queue
