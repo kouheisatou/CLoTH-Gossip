@@ -121,7 +121,7 @@ group_output = {}
 if len(open(output_dir_name + "groups_output.csv").readlines()) > 1:
      group_output = {
           "group_cover_rate": 0.0,
-          "average_survival_time": {
+          "survival_time": {
                "mean": 0.0,
                "variance": 0.0
           },
