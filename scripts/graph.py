@@ -23,16 +23,17 @@ def csv_to_dict_list(file_path: str):
 def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_logarithmic_scale: bool = False, y_logarithmic_scale: bool = False, z_logarithmic_scale: bool = False):
     lines_data = {}
     for line in csv_to_dict_list(csv_file):
-        if (x_key not in line) or (y_key not in line) or (x_key in fix) or (y_key in fix) or (z_key in fix):
-            print("Axis key is included in fix map.")
-            exit(1)
 
+        # err check
+        if (x_key not in line) or (y_key not in line) or (x_key in fix) or (y_key in fix) or (z_key in fix):
+            exit(-1)
+
+        # add series
         hit = True
         for key in line:
             for fix_key in fix:
-                if key == fix_key and line[key] != fix[fix_key]:
+                if key == fix_key and line[key] not in fix[fix_key]:
                     hit = False
-
         if hit:
             x = float(line[x_key])
             y = float(line[y_key])
@@ -66,7 +67,7 @@ def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_log
     ax.set_xlabel(x_key)
     ax.set_ylabel(y_key)
     ax.set_zlabel(z_key)
-    ax.set_title(str(fix))
+    ax.set_title(z_key + "\n" + str(fix))
 
     ax.legend()
     plt.show()
@@ -82,7 +83,7 @@ def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: d
         hit = True
         for key in line:
             for fix_key in fix:
-                if key == fix_key and line[key] != fix[fix_key]:
+                if key == fix_key and line[key] not in fix[fix_key]:
                     hit = False
 
         if hit:
@@ -108,7 +109,7 @@ def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: d
 
     ax.set_xlabel(x_key)
     ax.set_ylabel(y_key)
-    ax.set_title(str(fix))
+    ax.set_title(y_key + "\n" + str(fix))
 
     ax.legend()
     plt.show()
@@ -118,11 +119,11 @@ show_3d_graph(
     sys.argv[1],
     "average_payment_amount",
     "group_size",
-    "Attempts.Mean",
+    "Success.Mean",
     {
-        "enable_group_routing": "true",
-        "group_limit_rate": "0.1",
-        "group_cap_update": "true"
+        "enable_group_routing": ["true"],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"]
     },
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
@@ -131,26 +132,180 @@ show_3d_graph(
 show_3d_graph(
     sys.argv[1],
     "average_payment_amount",
-    "group_limit_rate",
+    "group_size",
+    "FailNoPath.Mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=False,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group_size",
+    "FailNoBalance.Mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=False,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group_size",
     "Attempts.Mean",
     {
-        "enable_group_routing": "true",
-        "group_size": "5",
-        "group_cap_update": "true"
+        "enable_group_routing": ["true"],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=False,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "group_size",
+    "average_payment_amount",
+    "group.group_cover_rate",
+    {
+        "enable_group_routing": ["true"],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=False,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "group_size",
+    "average_payment_amount",
+    "group.accuracy.mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=False,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+
+show_3d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group_limit_rate",
+    "Success.Mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_size": ["5"],
+        "group_cap_update": ["true"]
     },
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
 )
+show_3d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group_limit_rate",
+    "FailNoPath.Mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_size": ["5"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group_limit_rate",
+    "FailNoBalance.Mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_size": ["5"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group_limit_rate",
+    "Attempts.Mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_size": ["5"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "group_limit_rate",
+    "average_payment_amount",
+    "group.group_cover_rate",
+    {
+        "enable_group_routing": ["true"],
+        "group_size": ["5"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+show_3d_graph(
+    sys.argv[1],
+    "group_limit_rate",
+    "average_payment_amount",
+    "group.accuracy.mean",
+    {
+        "enable_group_routing": ["true"],
+        "group_size": ["5"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=True,
+    z_logarithmic_scale=False,
+)
+
 show_2d_graph(
     sys.argv[1],
     "average_payment_amount",
     "Success.Mean",
     "enable_group_routing",
     {
-        "group_size": "5",
-        "group_limit_rate": "0.1",
-        "group_cap_update": "true"
+        "group_size": ["5", "-1"],
+        "group_limit_rate": ["0.1000", "-1"],
+        "group_cap_update": ["true"]
+    },
+    x_logarithmic_scale=True,
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "Attempts.Mean",
+    "enable_group_routing",
+    {
+        "group_size": ["5", "-1"],
+        "group_limit_rate": ["0.1000", "-1"],
+        "group_cap_update": ["true"]
     },
     x_logarithmic_scale=True,
 )
