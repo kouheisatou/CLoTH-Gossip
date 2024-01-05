@@ -24,6 +24,7 @@ cmake .
 make
 
 GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/" "$3" &> "$result_dir/output.log"
+cat "$result_dir/output.log"
 
 python3 batch-means.py "$result_dir/"
 

@@ -199,7 +199,7 @@ struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struc
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, unsigned int enable_group_routing) {
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_type routing_type) {
   struct payment *payment, *shard1, *shard2;
   struct array *path, *shard1_path, *shard2_path;
   uint64_t shard1_amount, shard2_amount;
@@ -216,54 +216,63 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  if (payment->attempts==1) {
-      path = paths[payment->id];
-      if(path != NULL) {
+  if(routing_type == CLOTH_ORIGINAL) {
+      if (payment->attempts == 1)
+          path = paths[payment->id];
+      else
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_type);
+  } else {
 
-          // calc path capacity
-          uint64_t path_cap = INT64_MAX;
-          for (int i = 0; i < array_len(path); i++) {
-              struct route_hop *hop = array_get(path, i);
-              struct edge *edge = array_get(network->edges, hop->edge_id);
-              if (enable_group_routing) {
-                  // if first edge of the path (directory connected edge to source node)
-                  if (i == 0) {
-                      if (edge->balance < path_cap) path_cap = edge->balance;
-                  } else {
-                      if (edge->group != NULL) {
-                          struct group *group = edge->group;
-                          if (group->group_cap < path_cap) path_cap = group->group_cap;
+      if (payment->attempts == 1) {
+          path = paths[payment->id];
+          if (path != NULL) {
+
+              // calc path capacity
+              uint64_t path_cap = INT64_MAX;
+              for (int i = 0; i < array_len(path); i++) {
+                  struct route_hop *hop = array_get(path, i);
+                  struct edge *edge = array_get(network->edges, hop->edge_id);
+                  if (routing_type == GROUP_ROUTING) {
+                      // if first edge of the path (directory connected edge to source node)
+                      if (i == 0) {
+                          if (edge->balance < path_cap) path_cap = edge->balance;
+                      } else {
+                          if (edge->group != NULL) {
+                              struct group *group = edge->group;
+                              if (group->group_cap < path_cap) path_cap = group->group_cap;
+                          } else {
+                              struct channel *channel = array_get(network->channels, edge->channel_id);
+                              if (channel->capacity < path_cap) path_cap = channel->capacity;
+                          }
+                      }
+                  } else if (routing_type == CHANNEL_UPDATE) {
+                      if (i == 0) {
+                          if (edge->balance < path_cap) path_cap = edge->balance;
                       } else {
                           struct channel *channel = array_get(network->channels, edge->channel_id);
                           if (channel->capacity < path_cap) path_cap = channel->capacity;
                       }
                   }
-              } else {
-                  if (i == 0) {
-                      if (edge->balance < path_cap) path_cap = edge->balance;
-                  } else {
-                      struct channel *channel = array_get(network->channels, edge->channel_id);
-                      if (channel->capacity < path_cap) path_cap = channel->capacity;
-                  }
               }
-          }
 
-          // calc total fee
-          struct route* route = transform_path_into_route(path, payment->amount, network);
-          uint64_t fee = route->total_fee;
-          free_route(route);
+              // calc total fee
+              struct route *route = transform_path_into_route(path, payment->amount, network);
+              uint64_t fee = route->total_fee;
+              free_route(route);
 
-          // if path capacity is not enough to send the payment, find new path
-          if(path_cap < payment->amount + fee){
-              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
+              // if path capacity is not enough to send the payment, find new path
+              if (path_cap < payment->amount + fee) {
+                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network,
+                                  simulation->current_time, 0, &error, routing_type);
+              }
+          } else {
+              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time,
+                              0, &error, routing_type);
           }
-      }else{
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
+      } else {
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_type);
       }
-  } else {
-      path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, enable_group_routing);
   }
-
   if (path != NULL) {
     generate_send_payment_event(payment, path, simulation, network);
     return;
@@ -273,32 +282,34 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
     shard1_amount = payment->amount/2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, enable_group_routing);
+    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, routing_type);
     if(shard1_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, enable_group_routing);
+    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, routing_type);
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
     // if shard1_path and shard2_path is same route, return
-    long shard1_path_len = array_len(shard1_path);
-    long shard2_path_len = array_len(shard2_path);
-    if(shard1_path_len == shard2_path_len) {
-        int duplicated = 0;
-        for (int i = 0; i < shard1_path_len; i++) {
-            struct route_hop *shard1_hop = array_get(shard1_path, i);
-            for (int j = 0; j < shard2_path_len; j++){
-                struct route_hop* shard2_hop = array_get(shard2_path, j);
-                if(shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
+    if(routing_type != CLOTH_ORIGINAL) {
+        long shard1_path_len = array_len(shard1_path);
+        long shard2_path_len = array_len(shard2_path);
+        if (shard1_path_len == shard2_path_len) {
+            int duplicated = 0;
+            for (int i = 0; i < shard1_path_len; i++) {
+                struct route_hop *shard1_hop = array_get(shard1_path, i);
+                for (int j = 0; j < shard2_path_len; j++) {
+                    struct route_hop *shard2_hop = array_get(shard2_path, j);
+                    if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
+                }
             }
-        }
-        // all hop of shade1_path is same as shade2_path's, return
-        if(duplicated == shard1_path_len && duplicated == shard2_path_len){
-            payment->end_time = simulation->current_time;
-            return;
+            // all hop of shade1_path is same as shade2_path's, return
+            if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
+                payment->end_time = simulation->current_time;
+                return;
+            }
         }
     }
     shard1_id = array_len(*payments);

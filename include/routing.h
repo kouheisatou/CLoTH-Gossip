@@ -22,7 +22,7 @@ struct thread_args{
   struct array* payments;
   uint64_t current_time;
   long data_index;
-  unsigned int enable_group_routing;
+  enum routing_type routing_type;
 };
 
 struct distance{
@@ -72,7 +72,7 @@ void initialize_dijkstra(long n_nodes, long n_edges, struct array* payments);
 
 void run_dijkstra_threads(struct network* network, struct array* payments, uint64_t current_time, unsigned int enable_group_routing);
 
-struct array* dijkstra(long source, long destination, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, unsigned int enable_group_routing);
+struct array* dijkstra(long source, long destination, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_type routing_type);
 
 struct route* transform_path_into_route(struct array* path_hops, uint64_t amount_to_send, struct network* network);
 
