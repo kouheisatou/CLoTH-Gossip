@@ -335,6 +335,16 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       exit(-1);
     }
   }
+  if(net_params->enable_group_routing){
+      if(net_params->group_limit_rate < 0 || net_params->group_limit_rate < 1){
+          fprintf(stderr, "ERROR: wrong value of parameter <group_limit_rate> in <cloth_input.txt>.\n");
+          exit(-1);
+      }
+      if(net_params->group_size < 0){
+          fprintf(stderr, "ERROR: wrong value of parameter <group_size> in <cloth_input.txt>.\n");
+          exit(-1);
+      }
+  }
   fclose(input_file);
 }
 
