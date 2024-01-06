@@ -289,11 +289,11 @@ show_2d_graph(
     sys.argv[1],
     "average_payment_amount",
     "Success.Mean",
-    "enable_group_routing",
+    "routing_type",
     {
         "group_size": ["5", "-1"],
         "group_limit_rate": ["0.1000", "-1"],
-        "group_cap_update": ["true"]
+        "group_cap_update": ["true", ""]
     },
     x_logarithmic_scale=True,
 )
@@ -301,11 +301,11 @@ show_2d_graph(
     sys.argv[1],
     "average_payment_amount",
     "Attempts.Mean",
-    "enable_group_routing",
+    "routing_type",
     {
         "group_size": ["5", "-1"],
         "group_limit_rate": ["0.1000", "-1"],
-        "group_cap_update": ["true"]
+        "group_cap_update": ["true", ""]
     },
     x_logarithmic_scale=True,
 )

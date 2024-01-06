@@ -83,8 +83,8 @@ function display_progress() {
 for i in $(seq 1.0 0.5 5.0); do
     avg_pmt_amt=$(python3 -c "print('{:.0f}'.format(10**$i))")
 
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_type=cloth_original/average_payment_amount=$avg_pmt_amt                                                                                $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 mpp=0 routing_type=cloth_original group_cap_update=false   average_payment_amount=$avg_pmt_amt group_size=-1 group_limit_rate=-1"
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_type=channel_update/average_payment_amount=$avg_pmt_amt                                                                                $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 mpp=0 routing_type=channel_update group_cap_update=false   average_payment_amount=$avg_pmt_amt group_size=-1 group_limit_rate=-1"
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_type=cloth_original/average_payment_amount=$avg_pmt_amt                                                                                $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 mpp=0 routing_type=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt group_size= group_limit_rate="
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_type=channel_update/average_payment_amount=$avg_pmt_amt                                                                                $install_dir/dijkstra_cache_$avg_pmt_amt     payment_rate=100 n_payments=50000 mpp=0 routing_type=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size= group_limit_rate="
 
     for ((j = 2; j <= 10; j++)); do
         group_size="$j"

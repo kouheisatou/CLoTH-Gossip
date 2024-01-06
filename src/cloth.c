@@ -290,11 +290,8 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         net_params->group_cap_update=1;
       else if(strcmp(value, "false")==0)
         net_params->group_cap_update=0;
-      else{
-        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
-        fclose(input_file);
-        exit(-1);
-      }
+      else
+        net_params->group_cap_update=-1;
     }
     else if(strcmp(parameter, "log_broadcast_msg")==0){
       if(strcmp(value, "true")==0)
@@ -308,10 +305,12 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       }
     }
     else if(strcmp(parameter, "group_size")==0){
-        net_params->group_size = strtod(value, NULL);
+        if(strcmp(value, "")) net_params->group_size = -1;
+        else net_params->group_size = strtol(value, NULL, 10);
     }
     else if(strcmp(parameter, "group_limit_rate")==0){
-        net_params->group_limit_rate = strtod(value, NULL);
+        if(strcmp(value, "")) net_params->group_limit_rate = -1;
+        else net_params->group_limit_rate = strtof(value, NULL);
     }
     else if(strcmp(parameter, "payments_filename")==0){
       strcpy(pay_params->payments_filename, value);
@@ -344,6 +343,10 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       }
       if(net_params->group_size < 0){
           fprintf(stderr, "ERROR: wrong value of parameter <group_size> in <cloth_input.txt>.\n");
+          exit(-1);
+      }
+      if(net_params->group_cap_update == -1){
+          fprintf(stderr, "ERROR: wrong value of parameter <group_cap_update> in <cloth_input.txt>.\n");
           exit(-1);
       }
   }
