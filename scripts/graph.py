@@ -173,30 +173,30 @@ show_3d_graph(
 )
 show_3d_graph(
     sys.argv[1],
-    "group_size",
     "average_payment_amount",
+    "group_size",
     "group.group_cover_rate",
     {
         "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
-    x_logarithmic_scale=False,
-    y_logarithmic_scale=True,
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=False,
     z_logarithmic_scale=False,
 )
 show_3d_graph(
     sys.argv[1],
-    "group_size",
     "average_payment_amount",
+    "group_size",
     "group.accuracy.mean",
     {
         "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
-    x_logarithmic_scale=False,
-    y_logarithmic_scale=True,
+    x_logarithmic_scale=True,
+    y_logarithmic_scale=False,
     z_logarithmic_scale=False,
 )
 
@@ -258,8 +258,8 @@ show_3d_graph(
 )
 show_3d_graph(
     sys.argv[1],
-    "group_limit_rate",
     "average_payment_amount",
+    "group_limit_rate",
     "group.group_cover_rate",
     {
         "routing_method": ["group_routing"],
@@ -272,8 +272,8 @@ show_3d_graph(
 )
 show_3d_graph(
     sys.argv[1],
-    "group_limit_rate",
     "average_payment_amount",
+    "group_limit_rate",
     "group.accuracy.mean",
     {
         "routing_method": ["group_routing"],
