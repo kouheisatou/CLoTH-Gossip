@@ -98,10 +98,10 @@ void write_output(struct network* network, struct array* payments, char output_d
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
     fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
-    char channel_updates_text[10000] = "";
+    char channel_updates_text[1000000] = "";
     for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
         struct channel_update *channel_update = iterator->data;
-        char temp[10000];
+        char temp[1000000];
         int written = 0;
         if(iterator->next != NULL) {
             written = snprintf(temp, sizeof(temp), "-%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
