@@ -199,7 +199,7 @@ struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struc
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_type routing_type) {
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method) {
   struct payment *payment, *shard1, *shard2;
   struct array *path, *shard1_path, *shard2_path;
   uint64_t shard1_amount, shard2_amount;
@@ -216,11 +216,11 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  if(routing_type == CLOTH_ORIGINAL) {
+  if(routing_method == CLOTH_ORIGINAL) {
       if (payment->attempts == 1)
           path = paths[payment->id];
       else
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_type);
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
   } else {
 
       if (payment->attempts == 1) {
@@ -232,7 +232,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
               for (int i = 0; i < array_len(path); i++) {
                   struct route_hop *hop = array_get(path, i);
                   struct edge *edge = array_get(network->edges, hop->edge_id);
-                  if (routing_type == GROUP_ROUTING) {
+                  if (routing_method == GROUP_ROUTING) {
                       // if first edge of the path (directory connected edge to source node)
                       if (i == 0) {
                           if (edge->balance < path_cap) path_cap = edge->balance;
@@ -245,13 +245,15 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
                               if (channel->capacity < path_cap) path_cap = channel->capacity;
                           }
                       }
-                  } else if (routing_type == CHANNEL_UPDATE) {
+                  } else if (routing_method == CHANNEL_UPDATE) {
                       if (i == 0) {
                           if (edge->balance < path_cap) path_cap = edge->balance;
                       } else {
                           struct channel *channel = array_get(network->channels, edge->channel_id);
                           if (channel->capacity < path_cap) path_cap = channel->capacity;
                       }
+                  } else if (routing_method == IDEAL) {
+                      if(edge->balance < path_cap) path_cap = edge->balance;
                   }
               }
 
@@ -262,15 +264,13 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
               // if path capacity is not enough to send the payment, find new path
               if (path_cap < payment->amount + fee) {
-                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network,
-                                  simulation->current_time, 0, &error, routing_type);
+                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
               }
           } else {
-              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time,
-                              0, &error, routing_type);
+              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
           }
       } else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_type);
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
       }
   }
   if (path != NULL) {
@@ -282,18 +282,18 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
     shard1_amount = payment->amount/2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, routing_type);
+    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, routing_method);
     if(shard1_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, routing_type);
+    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, routing_method);
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
     // if shard1_path and shard2_path is same route, return
-    if(routing_type != CLOTH_ORIGINAL) {
+    if(routing_method != CLOTH_ORIGINAL) {
         long shard1_path_len = array_len(shard1_path);
         long shard2_path_len = array_len(shard2_path);
         if (shard1_path_len == shard2_path_len) {

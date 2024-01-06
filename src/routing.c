@@ -79,7 +79,7 @@ void* dijkstra_thread(void*arg) {
     pthread_mutex_lock(&data_mutex);
     payment = array_get(thread_args->payments, payment_id);
     pthread_mutex_unlock(&data_mutex);
-    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_type);
+    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method);
     paths[payment->id] = hops;
   }
 
@@ -88,7 +88,7 @@ void* dijkstra_thread(void*arg) {
 
 
 /* run dijkstra threads to find the initial paths of the payments (before the simulation starts) */
-void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time, enum routing_type routing_type) {
+void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time, enum routing_method routing_method) {
   long i;
   pthread_t tid[N_THREADS];
   struct thread_args *thread_args;
@@ -99,7 +99,7 @@ void run_dijkstra_threads(struct network*  network, struct array* payments, uint
     thread_args->payments = payments;
     thread_args->current_time = current_time;
     thread_args->data_index = i;
-    thread_args->routing_type = routing_type;
+    thread_args->routing_method = routing_method;
     pthread_create(&(tid[i]), NULL, dijkstra_thread, (void*) thread_args);
    }
 
@@ -331,7 +331,7 @@ double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock){
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_type routing_type) {
+struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
   struct node *source_node, *best_node;
@@ -399,7 +399,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       else{
         channel = array_get(network->channels, edge->channel_id);
         // judge edge has enough capacity by group_capacity (proposed method)
-        if(routing_type == GROUP_ROUTING){
+        if(routing_method == GROUP_ROUTING){
             if(edge->group != NULL){
                 if(edge->group->group_cap < amt_to_send) continue;
             }else{
@@ -412,7 +412,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
             }
         }
         // judge by channel_update (conventional method)
-        else if (routing_type == CHANNEL_UPDATE){
+        else if (routing_method == CHANNEL_UPDATE){
             if(edge->channel_updates != NULL) {
                 struct channel_update* channel_update = edge->channel_updates->data;
                 if(channel_update->htlc_maximum_msat < amt_to_send) continue;
@@ -420,8 +420,13 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
                 if(channel->capacity < amt_to_send) continue;
             }
         }
-        else if (routing_type == CLOTH_ORIGINAL){
+        // judge by channel capacity (cloth method)
+        else if (routing_method == CLOTH_ORIGINAL){
             if(channel->capacity < amt_to_send) continue;
+        }
+        // judge by edge capacity (ideal for routing but no privacy)
+        else if (routing_method == IDEAL){
+            if(edge->balance < amt_to_send) continue;
         }
       }
 

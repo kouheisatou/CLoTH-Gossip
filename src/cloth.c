@@ -272,13 +272,13 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
-    else if(strcmp(parameter, "routing_type")==0){
+    else if(strcmp(parameter, "routing_method")==0){
       if(strcmp(value, "cloth_original")==0)
-        net_params->routing_type=CLOTH_ORIGINAL;
+        net_params->routing_method=CLOTH_ORIGINAL;
       else if(strcmp(value, "channel_update")==0)
-        net_params->routing_type=CHANNEL_UPDATE;
+        net_params->routing_method=CHANNEL_UPDATE;
       else if(strcmp(value, "group_routing")==0)
-        net_params->routing_type=GROUP_ROUTING;
+        net_params->routing_method=GROUP_ROUTING;
       else{
         fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are [\"cloth_original\", \"channel_update\", \"group_routing\"]\n", parameter);
         fclose(input_file);
@@ -336,7 +336,8 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       exit(-1);
     }
   }
-  if(net_params->routing_type == GROUP_ROUTING){
+  // check invalid group settings
+  if(net_params->routing_method == GROUP_ROUTING){
       if(net_params->group_limit_rate < 0 || net_params->group_limit_rate > 1){
           fprintf(stderr, "ERROR: wrong value of parameter <group_limit_rate> in <cloth_input.txt>.\n");
           exit(-1);
@@ -526,7 +527,7 @@ int main(int argc, char *argv[]) {
 
     // add edge which is not a member of any group to group_add_queue
     struct element* group_add_queue = NULL;
-    if(net_params.routing_type == GROUP_ROUTING) {
+    if(net_params.routing_method == GROUP_ROUTING) {
         for (int i = 0; i < n_edges; i++) {
             group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
@@ -543,9 +544,10 @@ int main(int argc, char *argv[]) {
   printf("INITIAL DIJKSTRA THREADS EXECUTION\n");
   clock_gettime(CLOCK_MONOTONIC, &start);
   FILE* dijkstra_cache = fopen(dijkstra_cache_name, "r");
+  // use dijkstra cache
   if(dijkstra_cache == NULL){
       printf("no cache file\n");
-      run_dijkstra_threads(network, payments, 0, net_params.routing_type);
+      run_dijkstra_threads(network, payments, 0, net_params.routing_method);
       write_dijkstra_cache(dijkstra_cache_name, network, payments);
       printf("cache file created\n");
   } else {
@@ -565,7 +567,7 @@ int main(int argc, char *argv[]) {
       }else{
           fclose(dijkstra_cache);
           printf("invalid cache\n");
-          run_dijkstra_threads(network, payments, 0, net_params.routing_type);
+          run_dijkstra_threads(network, payments, 0, net_params.routing_method);
           write_dijkstra_cache(dijkstra_cache_name, network, payments);
           printf("cache file created\n");
       }
@@ -583,7 +585,7 @@ int main(int argc, char *argv[]) {
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:
-      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_type);
+      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method);
       break;
     case SENDPAYMENT:
       group_add_queue = send_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);

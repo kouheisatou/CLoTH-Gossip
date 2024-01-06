@@ -121,7 +121,7 @@ show_3d_graph(
     "group_size",
     "Success.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
@@ -135,7 +135,7 @@ show_3d_graph(
     "group_size",
     "FailNoPath.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
@@ -149,7 +149,7 @@ show_3d_graph(
     "group_size",
     "FailNoBalance.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
@@ -163,7 +163,7 @@ show_3d_graph(
     "group_size",
     "Attempts.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
@@ -177,7 +177,7 @@ show_3d_graph(
     "average_payment_amount",
     "group.group_cover_rate",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
@@ -191,7 +191,7 @@ show_3d_graph(
     "average_payment_amount",
     "group.accuracy.mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_limit_rate": ["0.1000"],
         "group_cap_update": ["true"]
     },
@@ -206,7 +206,7 @@ show_3d_graph(
     "group_limit_rate",
     "Success.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_size": ["5"],
         "group_cap_update": ["true"]
     },
@@ -220,7 +220,7 @@ show_3d_graph(
     "group_limit_rate",
     "FailNoPath.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_size": ["5"],
         "group_cap_update": ["true"]
     },
@@ -234,7 +234,7 @@ show_3d_graph(
     "group_limit_rate",
     "FailNoBalance.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_size": ["5"],
         "group_cap_update": ["true"]
     },
@@ -248,7 +248,7 @@ show_3d_graph(
     "group_limit_rate",
     "Attempts.Mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_size": ["5"],
         "group_cap_update": ["true"]
     },
@@ -262,7 +262,7 @@ show_3d_graph(
     "average_payment_amount",
     "group.group_cover_rate",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_size": ["5"],
         "group_cap_update": ["true"]
     },
@@ -276,7 +276,7 @@ show_3d_graph(
     "average_payment_amount",
     "group.accuracy.mean",
     {
-        "enable_group_routing": ["true"],
+        "routing_method": ["group_routing"],
         "group_size": ["5"],
         "group_cap_update": ["true"]
     },
@@ -289,10 +289,10 @@ show_2d_graph(
     sys.argv[1],
     "average_payment_amount",
     "Success.Mean",
-    "routing_type",
+    "routing_method",
     {
-        "group_size": ["5", "-1"],
-        "group_limit_rate": ["0.1000", "-1"],
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000", ""],
         "group_cap_update": ["true", ""]
     },
     x_logarithmic_scale=True,
@@ -301,10 +301,10 @@ show_2d_graph(
     sys.argv[1],
     "average_payment_amount",
     "Attempts.Mean",
-    "routing_type",
+    "routing_method",
     {
-        "group_size": ["5", "-1"],
-        "group_limit_rate": ["0.1000", "-1"],
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000", ""],
         "group_cap_update": ["true", ""]
     },
     x_logarithmic_scale=True,

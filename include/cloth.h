@@ -6,8 +6,8 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
-enum routing_type{
-    CLOTH_ORIGINAL, CHANNEL_UPDATE, GROUP_ROUTING
+enum routing_method{
+    CLOTH_ORIGINAL, CHANNEL_UPDATE, GROUP_ROUTING, IDEAL
 };
 
 struct network_params{
@@ -19,7 +19,7 @@ struct network_params{
   char nodes_filename[256];
   char channels_filename[256];
   char edges_filename[256];
-  enum routing_type routing_type;
+  enum routing_method routing_method;
   unsigned int group_cap_update;
   unsigned int log_broadcast_msg;
   int group_size;

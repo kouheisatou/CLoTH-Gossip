@@ -24,7 +24,7 @@ struct node_pair_result{
 
 uint64_t compute_fee(uint64_t amount_to_forward, struct policy policy);
 
-void find_path(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, unsigned int enable_group_routing);
+void find_path(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method);
 
 struct element* send_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
 
