@@ -279,8 +279,10 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         net_params->routing_method=CHANNEL_UPDATE;
       else if(strcmp(value, "group_routing")==0)
         net_params->routing_method=GROUP_ROUTING;
+      else if(strcmp(value, "ideal")==0)
+        net_params->routing_method=IDEAL;
       else{
-        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are [\"cloth_original\", \"channel_update\", \"group_routing\"]\n", parameter);
+        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are [\"cloth_original\", \"channel_update\", \"group_routing\", \"ideal\"]\n", parameter);
         fclose(input_file);
         exit(-1);
       }
@@ -305,11 +307,11 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       }
     }
     else if(strcmp(parameter, "group_size")==0){
-        if(strcmp(value, "")) net_params->group_size = -1;
+        if(strcmp(value, "")==0) net_params->group_size = -1;
         else net_params->group_size = strtol(value, NULL, 10);
     }
     else if(strcmp(parameter, "group_limit_rate")==0){
-        if(strcmp(value, "")) net_params->group_limit_rate = -1;
+        if(strcmp(value, "")==0) net_params->group_limit_rate = -1;
         else net_params->group_limit_rate = strtof(value, NULL);
     }
     else if(strcmp(parameter, "payments_filename")==0){

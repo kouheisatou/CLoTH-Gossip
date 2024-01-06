@@ -73,14 +73,19 @@ struct element* list_delete(struct element* head, struct element** current_itera
 
     // If the target element is found
     if (delete_target != NULL) {
+        // If the list consists of delete_target only
+        if(delete_target->prev == NULL && delete_target->next == NULL){
+            head = NULL;
+        }
         // If the target element is the head of the list
-        if (delete_target->prev == NULL) {
+        else if (delete_target->prev == NULL) {
             head = delete_target->next;
-            head->prev = NULL;
-        } else {
+            if(head != NULL) head->prev = NULL;
+        }
+        else {
             // Update the next pointer of the previous element
-            delete_target->next->prev = delete_target->prev;
-            delete_target->prev->next = delete_target->next;
+            if(delete_target->prev != NULL) delete_target->prev->next = delete_target->next;
+            if(delete_target->next != NULL) delete_target->next->prev = delete_target->prev;
         }
 
         // If delete_target is current_iterator, replace current_iterator with next
