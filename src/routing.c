@@ -405,7 +405,11 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
             }else{
                 if(edge->channel_updates != NULL) {
                     struct channel_update* channel_update = edge->channel_updates->data;
-                    if(channel_update->htlc_maximum_msat < amt_to_send) continue;
+                    if(channel_update->htlc_maximum_msat < channel->capacity) {
+                        if (channel_update->htlc_maximum_msat < amt_to_send) continue;
+                    }else{
+                        if(channel->capacity < amt_to_send) continue;
+                    }
                 }else{
                     if(channel->capacity < amt_to_send) continue;
                 }
@@ -415,7 +419,11 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
         else if (routing_method == CHANNEL_UPDATE){
             if(edge->channel_updates != NULL) {
                 struct channel_update* channel_update = edge->channel_updates->data;
-                if(channel_update->htlc_maximum_msat < amt_to_send) continue;
+                if(channel_update->htlc_maximum_msat < channel->capacity) {
+                    if (channel_update->htlc_maximum_msat < amt_to_send) continue;
+                }else{
+                    if(channel->capacity < amt_to_send) continue;
+                }
             }else{
                 if(channel->capacity < amt_to_send) continue;
             }
