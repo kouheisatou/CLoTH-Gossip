@@ -6,6 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 import matplotlib.ticker as mticker
 
+markers = [".", "x", "+", "1", "2", "3", "4", "|", "_", "v", "^", "<", ">", "8", "s", "p", "*", "h", "H", "D", "d"]
+
 
 def log_tick_formatter(val, pos=None):
     return f"$10^{{{int(val)}}}$"
@@ -20,7 +22,7 @@ def csv_to_dict_list(file_path: str):
     return dict_list
 
 
-def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_logarithmic_scale: bool = False, y_logarithmic_scale: bool = False, z_logarithmic_scale: bool = False):
+def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_logarithmic_scale: bool = False, y_logarithmic_scale: bool = False, z_logarithmic_scale: bool = False, x_axis: str = None, y_axis: str = None, z_axis: str = None, title: str = None):
     lines_data = {}
     for line in csv_to_dict_list(csv_file):
 
@@ -37,7 +39,8 @@ def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_log
         if hit:
             x = float(line[x_key])
             y = float(line[y_key])
-            z = float(line[z_key])
+            # z = float(line[z_key])
+            z = float(line[z_key]) - 1.0 if z_key == "Attempts.Mean" else float(line[z_key])
             if y not in lines_data:
                 lines_data[y] = []
             lines_data[y].append((x, y, z))
@@ -62,23 +65,24 @@ def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_log
         x = np.log10(xs) if x_logarithmic_scale else xs
         y = np.log10(ys) if y_logarithmic_scale else ys
         z = np.log10(zs) if z_logarithmic_scale else zs
-        ax.plot(x, y, z, label=f'{y_key}={y_value}', )
+        ax.plot(x, y, z, label=f'{y_key}={y_value}', marker=markers[0])
 
-    ax.set_xlabel(x_key)
-    ax.set_ylabel(y_key)
-    ax.set_zlabel(z_key)
-    ax.set_title(z_key + "\n" + str(fix))
+    ax.set_xlabel(x_key if x_axis is None else x_axis)
+    ax.set_ylabel(y_key if y_axis is None else y_axis)
+    ax.set_zlabel(z_key if z_axis is None else z_axis)
+    ax.set_title(z_key + "\n" + str(fix) if title is None else title)
 
     ax.legend()
+    ax.get_legend().remove()
     plt.show()
 
 
-def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: dict, x_logarithmic_scale: bool = False, y_logarithmic_scale: bool = False):
+def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: dict, x_logarithmic_scale: bool = False, y_logarithmic_scale: bool = False, x_axis: str = None, y_axis: str = None, title: str = None):
     lines_data = {}
     for line in csv_to_dict_list(csv_file):
 
-        if (x_key not in line) or (y_key not in line) or (x_key in fix) or (y_key in fix) or (series_key in fix):
-            exit(1)
+        if (x_key not in line) or (y_key not in line) or (x_key in fix) or (y_key in fix):
+            exit(-1)
 
         hit = True
         for key in line:
@@ -88,7 +92,8 @@ def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: d
 
         if hit:
             x = float(line[x_key])
-            y = float(line[y_key])
+            # y = float(line[y_key])
+            y = float(line[y_key]) - 1.0 if y_key == "Attempts.Mean" else float(line[y_key])
             series_value = line[series_key]
             if series_value not in lines_data:
                 lines_data[series_value] = []
@@ -103,13 +108,18 @@ def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: d
     if y_logarithmic_scale:
         ax.set_yscale("log")
 
+    count = 0
     for series_value, line_data in lines_data.items():
         x, y = zip(*line_data)
-        ax.plot(x, y, label=f'{series_key}={series_value}')
+        ax.plot(x, y, label=f'{series_key}={series_value}', marker=markers[count % len(markers)])
+        count += 1
 
-    ax.set_xlabel(x_key)
-    ax.set_ylabel(y_key)
-    ax.set_title(y_key + "\n" + str(fix))
+    ax.set_xlabel(x_key if x_axis is None else x_axis)
+    ax.set_ylabel(y_key if y_axis is None else y_axis)
+    ax.set_title(y_key + "\n" + str(fix) if title is None else title)
+
+    plt.minorticks_on()
+    plt.grid()
 
     ax.legend()
     plt.show()
@@ -128,6 +138,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group size",
+    z_axis="Success rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -142,6 +156,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group size",
+    z_axis="Fail no path rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -156,6 +174,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group size",
+    z_axis="Fail no balance rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -170,6 +192,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group size",
+    z_axis="Average number of retries",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -184,6 +210,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group size",
+    z_axis="Group cover rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -198,6 +228,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=False,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group size",
+    z_axis="Accuracy",
+    title="",
 )
 
 show_3d_graph(
@@ -213,6 +247,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group limit rate",
+    z_axis="Success rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -227,6 +265,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group limit rate",
+    z_axis="Fail no path rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -241,6 +283,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group limit rate",
+    z_axis="Fail no balance rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -255,6 +301,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group limit rate",
+    z_axis="Average number of retries",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -269,6 +319,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group limit rate",
+    z_axis="Group cover rate",
+    title="",
 )
 show_3d_graph(
     sys.argv[1],
@@ -283,6 +337,10 @@ show_3d_graph(
     x_logarithmic_scale=True,
     y_logarithmic_scale=True,
     z_logarithmic_scale=False,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group limit rate",
+    z_axis="Accuracy",
+    title="",
 )
 
 show_2d_graph(
@@ -293,9 +351,45 @@ show_2d_graph(
     {
         "group_size": ["5", ""],
         "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""]
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
     },
     x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Success rate",
+    title="",
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "FailNoPath.Mean",
+    "routing_method",
+    {
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000", ""],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Fail no path rate",
+    title="",
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "FailNoBalance.Mean",
+    "routing_method",
+    {
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000", ""],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Fail no balance rate",
+    title="",
 )
 show_2d_graph(
     sys.argv[1],
@@ -305,7 +399,75 @@ show_2d_graph(
     {
         "group_size": ["5", ""],
         "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""]
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
     },
     x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Average number of retries",
+    title="",
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "RouteLength.Mean",
+    "routing_method",
+    {
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000", ""],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Average route length",
+    title="",
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "Time.Mean",
+    "routing_method",
+    {
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000", ""],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Time [ms]",
+    title="",
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group.accuracy.mean",
+    "routing_method",
+    {
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"],
+        "routing_method": ["group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Accuracy of group capacity",
+    title="",
+)
+show_2d_graph(
+    sys.argv[1],
+    "average_payment_amount",
+    "group.group_cover_rate",
+    "routing_method",
+    {
+        "group_size": ["5", ""],
+        "group_limit_rate": ["0.1000"],
+        "group_cap_update": ["true"],
+        "routing_method": ["group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 average payment amount [satoshi]",
+    y_axis="Group cover rate",
+    title="",
 )
