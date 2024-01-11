@@ -57,3 +57,4 @@ dkms.conf
 /.idea
 /cmake-build-debug/
 dijkstra_cache*
+dijkstra_cache/*
