@@ -26,6 +26,6 @@ make
 GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/" "$3" &> "$result_dir/output.log"
 cat "$result_dir/output.log"
 
-python3 scripts/batch-means.py "$result_dir/"
+python3 scripts/analize_output.py "$result_dir/"
 
 rm -Rf "$environment_dir"

@@ -39,8 +39,7 @@ def show_3d_graph(csv_file: str, x_key: str, y_key: str, z_key, fix: dict, x_log
         if hit:
             x = float(line[x_key])
             y = float(line[y_key])
-            # z = float(line[z_key])
-            z = float(line[z_key]) - 1.0 if z_key == "Attempts.Mean" else float(line[z_key])
+            z = float(line[z_key])
             if y not in lines_data:
                 lines_data[y] = []
             lines_data[y].append((x, y, z))
@@ -92,8 +91,7 @@ def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: d
 
         if hit:
             x = float(line[x_key])
-            # y = float(line[y_key])
-            y = float(line[y_key]) - 1.0 if y_key == "Attempts.Mean" else float(line[y_key])
+            y = float(line[y_key])
             series_value = line[series_key]
             if series_value not in lines_data:
                 lines_data[series_value] = []
@@ -125,349 +123,238 @@ def show_2d_graph(csv_file: str, x_key: str, y_key: str, series_key: str, fix: d
     plt.show()
 
 
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_size",
-    "Success.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=False,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group size",
-    z_axis="Success rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_size",
-    "FailNoPath.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=False,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group size",
-    z_axis="Fail no path rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_size",
-    "FailNoBalance.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=False,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group size",
-    z_axis="Fail no balance rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_size",
-    "Attempts.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=False,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group size",
-    z_axis="Average number of retries",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_size",
-    "group.group_cover_rate",
-    {
-        "routing_method": ["group_routing"],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=False,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group size",
-    z_axis="Group cover rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_size",
-    "group.accuracy.mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=False,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group size",
-    z_axis="Accuracy",
-    title="",
-)
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_size",
+#     "Success.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_limit_rate": ["0.1000"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=False,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group size",
+#     z_axis="Success rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_size",
+#     "FailNoPath.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_limit_rate": ["0.1000"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=False,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group size",
+#     z_axis="Fail no path rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_size",
+#     "FailNoBalance.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_limit_rate": ["0.1000"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=False,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group size",
+#     z_axis="Fail no balance rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_size",
+#     "Attempts.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_limit_rate": ["0.1000"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=False,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group size",
+#     z_axis="Average number of retries",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_size",
+#     "group.group_cover_rate",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_limit_rate": ["0.1000"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=False,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group size",
+#     z_axis="Group cover rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_size",
+#     "group.accuracy.mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_limit_rate": ["0.1000"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=False,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group size",
+#     z_axis="Accuracy",
+#     title="",
+# )
+#
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_limit_rate",
+#     "Success.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_size": ["5"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=True,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group limit rate",
+#     z_axis="Success rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_limit_rate",
+#     "FailNoPath.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_size": ["5"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=True,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group limit rate",
+#     z_axis="Fail no path rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_limit_rate",
+#     "FailNoBalance.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_size": ["5"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=True,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group limit rate",
+#     z_axis="Fail no balance rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_limit_rate",
+#     "Attempts.Mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_size": ["5"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=True,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group limit rate",
+#     z_axis="Average number of retries",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_limit_rate",
+#     "group.group_cover_rate",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_size": ["5"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=True,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group limit rate",
+#     z_axis="Group cover rate",
+#     title="",
+# )
+# show_3d_graph(
+#     sys.argv[1],
+#     "average_payment_amount",
+#     "group_limit_rate",
+#     "group.accuracy.mean",
+#     {
+#         "routing_method": ["group_routing"],
+#         "group_size": ["5"],
+#         "group_cap_update": ["true"]
+#     },
+#     x_logarithmic_scale=True,
+#     y_logarithmic_scale=True,
+#     z_logarithmic_scale=False,
+#     x_axis="Log base 10 average payment amount [satoshi]",
+#     y_axis="Group limit rate",
+#     z_axis="Accuracy",
+#     title="",
+# )
 
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_limit_rate",
-    "Success.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_size": ["5"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=True,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group limit rate",
-    z_axis="Success rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_limit_rate",
-    "FailNoPath.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_size": ["5"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=True,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group limit rate",
-    z_axis="Fail no path rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_limit_rate",
-    "FailNoBalance.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_size": ["5"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=True,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group limit rate",
-    z_axis="Fail no balance rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_limit_rate",
-    "Attempts.Mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_size": ["5"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=True,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group limit rate",
-    z_axis="Average number of retries",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_limit_rate",
-    "group.group_cover_rate",
-    {
-        "routing_method": ["group_routing"],
-        "group_size": ["5"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=True,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group limit rate",
-    z_axis="Group cover rate",
-    title="",
-)
-show_3d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group_limit_rate",
-    "group.accuracy.mean",
-    {
-        "routing_method": ["group_routing"],
-        "group_size": ["5"],
-        "group_cap_update": ["true"]
-    },
-    x_logarithmic_scale=True,
-    y_logarithmic_scale=True,
-    z_logarithmic_scale=False,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group limit rate",
-    z_axis="Accuracy",
-    title="",
-)
-
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "Success.Mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Success rate",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "FailNoPath.Mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Fail no path rate",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "FailNoBalance.Mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Fail no balance rate",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "Attempts.Mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Average number of retries",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "RouteLength.Mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Average route length",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "Time.Mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000", ""],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Time [ms]",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group.accuracy.mean",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"],
-        "routing_method": ["group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Accuracy of group capacity",
-    title="",
-)
-show_2d_graph(
-    sys.argv[1],
-    "average_payment_amount",
-    "group.group_cover_rate",
-    "routing_method",
-    {
-        "group_size": ["5", ""],
-        "group_limit_rate": ["0.1000"],
-        "group_cap_update": ["true"],
-        "routing_method": ["group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 average payment amount [satoshi]",
-    y_axis="Group cover rate",
-    title="",
-)
+for i in range(11):
+    print(str(10**i))
+    show_2d_graph(
+        sys.argv[1],
+        "payment_rate",
+        "success_rate",
+        "routing_method",
+        {
+            "average_payment_amount": [str(10**i)],
+            "group_cap_update": ["true", ""],
+            "routing_method": ["ideal", "channel_update", "group_routing"]
+        },
+        x_logarithmic_scale=True,
+        x_axis="Log base 10 transactions per sec [satoshi]",
+        y_axis="Success rate",
+        title="",
+    )
