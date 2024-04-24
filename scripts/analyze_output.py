@@ -62,24 +62,43 @@ def analyze_output(output_dir_name):
                 elif fail_no_path:
                     total_fail_no_path_num += 1
 
-        success_rate = total_success_num / total_num
-        fail_rate = total_fail_num / total_num
-        fail_no_balance_rate = total_fail_no_balance_num / total_num
-        fail_no_path_rate = total_fail_no_path_num / total_num
-        avg_time = np.mean(time_distribution)
-        avg_retry = np.mean(retry_distribution)
-        avg_fee = np.mean(fee_distribution)
-        avg_route_len = np.mean(route_len_distribution)
-
         result = {
-            "success_rate": success_rate,
-            "fail_rate": fail_rate,
-            "fail_no_balance_rate": fail_no_balance_rate,
-            "fail_no_path_rate": fail_no_path_rate,
-            "avg_time": avg_time,
-            "avg_retry": avg_retry,
-            "avg_fee": avg_fee,
-            "avg_route_len": avg_route_len,
+            "success_rate": total_success_num / total_num,
+            "fail_rate": total_fail_num / total_num,
+            "fail_no_balance_rate": total_fail_no_balance_num / total_num,
+            "fail_no_path_rate": total_fail_no_path_num / total_num,
+
+            "time/average": np.mean(time_distribution),
+            "time/variance": np.var(time_distribution),
+            "time/max": np.max(time_distribution),
+            "time/min": np.min(time_distribution),
+            "time/25-percentile": np.percentile(time_distribution, 25),
+            "time/50-percentile": np.percentile(time_distribution, 50),
+            "time/75-percentile": np.percentile(time_distribution, 75),
+
+            "retry/average": np.mean(retry_distribution),
+            "retry/variance": np.var(retry_distribution),
+            "retry/max": np.max(retry_distribution),
+            "retry/min": np.min(retry_distribution),
+            "retry/25-percentile": np.percentile(retry_distribution, 25),
+            "retry/50-percentile": np.percentile(retry_distribution, 50),
+            "retry/75-percentile": np.percentile(retry_distribution, 75),
+
+            "fee/average": np.mean(fee_distribution),
+            "fee/variance": np.var(fee_distribution),
+            "fee/max": np.max(fee_distribution),
+            "fee/min": np.min(fee_distribution),
+            "fee/25-percentile": np.percentile(fee_distribution, 25),
+            "fee/50-percentile": np.percentile(fee_distribution, 50),
+            "fee/75-percentile": np.percentile(fee_distribution, 75),
+
+            "route_len/average": np.mean(route_len_distribution),
+            "route_len/variance": np.var(route_len_distribution),
+            "route_len/max": np.max(route_len_distribution),
+            "route_len/min": np.min(route_len_distribution),
+            "route_len/25-percentile": np.percentile(route_len_distribution, 25),
+            "route_len/50-percentile": np.percentile(route_len_distribution, 50),
+            "route_len/75-percentile": np.percentile(route_len_distribution, 75),
         }
         return result
 
@@ -96,7 +115,7 @@ def load_cloth_input(output_dir_name):
 
 
 output_dirs = find_output_dirs(output_root_dir_name)
-with open(output_root_dir_name + "summary.csv", "w", encoding="utf-8") as summary:
+with open(output_root_dir_name + "/summary.csv", "w", encoding="utf-8") as summary:
     rows = []
     for output_dir in output_dirs:
         row_data = {}
