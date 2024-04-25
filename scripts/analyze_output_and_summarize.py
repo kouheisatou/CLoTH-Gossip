@@ -6,7 +6,7 @@ import sys
 import numpy as np
 
 if len(sys.argv) < 1:
-    print("python3 analyze_output.py <output_dir>")
+    print("python3 analyze_output_and_summarize.py <output_dir>")
     exit(1)
 output_root_dir_name = sys.argv[1]
 

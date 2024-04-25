@@ -6,9 +6,11 @@ fi
 
 environment_dir="$2/environment"
 result_dir="$2"
+dijkstra_cache_filename="$3"
 
 mkdir -p "$environment_dir"
 mkdir -p "$result_dir"
+mkdir -p "$result_dir/log"
 
 rsync -av -q --exclude='result' --exclude='cmake-build-debug' --exclude='cloth.dSYM' --exclude='.idea' --exclude='.git' --exclude='.cmake' "." "$environment_dir"
 
@@ -20,12 +22,10 @@ done
 
 cp "$environment_dir/cloth_input.txt" "$2"
 cd "$environment_dir"
-cmake .
-make
+cmake . &> "$result_dir/log/cmake.log"
+make &> "$result_dir/log/make.log"
 
-GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/" "$3" &> "$result_dir/output.log"
+GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/" "$dijkstra_cache_filename" &> "$result_dir/log/cloth.log"
 cat "$result_dir/output.log"
-
-python3 scripts/analize_output.py "$result_dir/"
 
 rm -Rf "$environment_dir"

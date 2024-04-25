@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.22)
 project(CLoTH_Gossip C)
 
 set(CMAKE_C_STANDARD 11)
@@ -10,7 +10,7 @@ file(COPY channels_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY edges_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY nodes_ln.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY run-simulation.sh DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY scripts/analyze_output.py DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY scripts/analyze_output_and_summarize.py DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scripts)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/result)
 

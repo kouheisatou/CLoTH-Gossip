@@ -15,7 +15,7 @@ if [ "$#" -eq 2 ]; then
 fi
 
 seed=39
-max_processes=24
+max_processes=32
 
 queue=()
 running_processes=0
@@ -87,11 +87,11 @@ function display_progress() {
 
 for ((i = 2; i <= 4; i++)); do
     avg_pmt_amt=$(python3 -c "print('{:.0f}'.format(10**$i))")
-    for ((j = 0; j <= 10; j++)); do
-      payment_rate=$(python3 -c "print('{:.0f}'.format(10**$j))")
-      enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/average_payment_amount=$avg_pmt_amt/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,avg_pmt_amt=$avg_pmt_amt,pmt_rate=$payment_rate             payment_rate=$payment_rate n_payments=50000 mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
-      enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/average_payment_amount=$avg_pmt_amt/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,avg_pmt_amt=$avg_pmt_amt,pmt_rate=$payment_rate    payment_rate=$payment_rate n_payments=50000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
-      enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=$avg_pmt_amt/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=$avg_pmt_amt,pmt_rate=$payment_rate     payment_rate=$payment_rate n_payments=50000 mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1"
+    for j in $(seq 0.0 0.5 4.0); do
+      payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
+      enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/average_payment_amount=$avg_pmt_amt/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,avg_pmt_amt=$avg_pmt_amt,pmt_rate=$payment_rate             payment_rate=$payment_rate n_payments=500000 mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+      enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/average_payment_amount=$avg_pmt_amt/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,avg_pmt_amt=$avg_pmt_amt,pmt_rate=$payment_rate    payment_rate=$payment_rate n_payments=500000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+      enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=$avg_pmt_amt/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=$avg_pmt_amt,pmt_rate=$payment_rate     payment_rate=$payment_rate n_payments=500000 mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1"
     done
 
 done
@@ -104,6 +104,6 @@ while [ "${#queue[@]}" -gt 0 ] || [ "$running_processes" -gt 0 ]; do
 done
 wait
 echo -e "\nAll simulations have completed."
-python3 scripts/gen_csv_summary.py "$output_dir"
+python3 scripts/analyze_output_and_summarize.py "$output_dir"
 echo "START : $(date --date @"$start_time")"
 echo "  END : $(date)"
