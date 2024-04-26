@@ -248,6 +248,21 @@ show_2d_graph(
     y_axis="Time(variance) [s]",
     title="amt=10000",
 )
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "time/average",
+    series_key="routing_method",
+    fix={
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="Time(average) [s]",
+    title="amt=10000",
+)
 
 show_2d_graph(
     sys.argv[1],

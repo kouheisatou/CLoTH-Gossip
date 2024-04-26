@@ -4,6 +4,7 @@ import os
 import sys
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 if len(sys.argv) < 1:
     print("python3 analyze_output_and_summarize.py <output_dir>")
@@ -20,8 +21,23 @@ def find_output_dirs(root_dir):
     return files
 
 
+def save_histogram(data: list, title: str, x_label: str, y_label: str, filepath: str, bins):
+    fig, ax = plt.subplots()
+    ax.hist(data, bins=bins)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    ax.axvline(x=np.mean(data), color='green', linestyle='--', linewidth=1, label=f'Mean: {np.mean(data):.2f}')
+    ax.axvline(x=np.median(data), color='red', linestyle='--', linewidth=1, label=f'Median: {np.median(data):.2f}')
+    fig.legend()
+    fig.savefig(filepath)
+    plt.clf()
+    plt.close()
+
+
 # 1シミュレーションのoutputからその分析結果を得る
 def analyze_output(output_dir_name):
+    result = {}
     with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:
         payments = list(csv.DictReader(csv_pay))
 
@@ -62,7 +78,12 @@ def analyze_output(output_dir_name):
                 elif fail_no_path:
                     total_fail_no_path_num += 1
 
-        result = {
+        save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[s]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
+        save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution), 1))
+        save_histogram(fee_distribution, "Histogram of Fee", "Fee", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
+        save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution), 1))
+
+        result = result | {
             "success_rate": total_success_num / total_num,
             "fail_rate": total_fail_num / total_num,
             "fail_no_balance_rate": total_fail_no_balance_num / total_num,
@@ -100,7 +121,7 @@ def analyze_output(output_dir_name):
             "route_len/50-percentile": np.percentile(route_len_distribution, 50),
             "route_len/75-percentile": np.percentile(route_len_distribution, 75),
         }
-        return result
+    return result
 
 
 def load_cloth_input(output_dir_name):
