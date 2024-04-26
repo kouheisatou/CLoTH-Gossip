@@ -152,10 +152,22 @@ def show_2d_graph(csv_file: str,
     for series, line_data in data.items():
         if variance_key is not None:
             x, y, variance = zip(*line_data)
-            ax.errorbar(x, y, label=f'{series_key}={series}', marker=markers[count % len(markers)], yerr=list(map(lambda x: math.sqrt(x), (list(variance)))), capsize=3, )
+            ax.errorbar(x,
+                        y,
+                        label=f'{series_key}={series}',
+                        marker=markers[count % len(markers)],
+                        yerr=list(map(lambda x: math.sqrt(x), (list(variance)))),
+                        capsize=3,
+                        )
         elif errorbar_bottom_key is not None and errorbar_top_key is not None:
             x, y, errorbar_bottom, errorbar_top = zip(*line_data)
-            ax.errorbar(x, y, label=f'{series_key}={series}', marker=markers[count % len(markers)], yerr=[errorbar_bottom, errorbar_top], capsize=3, )
+            ax.errorbar(x,
+                        y,
+                        label=f'{series_key}={series}',
+                        marker=markers[count % len(markers)],
+                        yerr=[np.subtract(y, errorbar_bottom), np.subtract(errorbar_top, y)],
+                        capsize=3,
+                        )
         else:
             x, y = zip(*line_data)
             ax.plot(x, y, label=f'{series_key}={series}', marker=markers[count % len(markers)])
@@ -171,25 +183,6 @@ def show_2d_graph(csv_file: str,
     ax.legend()
     plt.show()
 
-
-# show_3d_graph(
-#     sys.argv[1],
-#     "average_payment_amount",
-#     "group_size",
-#     "Success.Mean",
-#     {
-#         "routing_method": ["group_routing"],
-#         "group_limit_rate": ["0.1000"],
-#         "group_cap_update": ["true"]
-#     },
-#     x_logarithmic_scale=True,
-#     y_logarithmic_scale=False,
-#     z_logarithmic_scale=False,
-#     x_axis="Log base 10 average payment amount [satoshi]",
-#     y_axis="Group size",
-#     z_axis="Success rate",
-#     title="",
-# )
 
 show_2d_graph(
     sys.argv[1],
@@ -220,7 +213,7 @@ show_2d_graph(
     },
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time [s]",
+    y_axis="Time(average,errorbar=variance) [s]",
     title="amt=10000",
 )
 show_2d_graph(
@@ -237,17 +230,14 @@ show_2d_graph(
     },
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time [s]",
+    y_axis="Time(average,errorbar=25-75percentile) [s]",
     title="amt=10000",
 )
-
 show_2d_graph(
     sys.argv[1],
     "payment_rate",
-    "time/average",
+    "time/variance",
     series_key="routing_method",
-    errorbar_bottom_key="time/min",
-    errorbar_top_key="time/max",
     fix={
         "average_payment_amount": ["10000"],
         "group_cap_update": ["true", ""],
@@ -255,6 +245,37 @@ show_2d_graph(
     },
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time [s]",
+    y_axis="Time(variance) [s]",
+    title="amt=10000",
+)
+
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "retry/average",
+    series_key="routing_method",
+    fix={
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="Retry num(average) [s]",
+    title="amt=10000",
+)
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "retry/variance",
+    series_key="routing_method",
+    fix={
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="Retry num(variance) [s]",
     title="amt=10000",
 )
