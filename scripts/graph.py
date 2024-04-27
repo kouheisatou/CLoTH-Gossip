@@ -201,24 +201,7 @@ show_2d_graph(
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
     y_axis="Success rate",
-    title="amt=10000",
-)
-
-show_2d_graph(
-    sys.argv[1],
-    "payment_rate",
-    "time/average",
-    series_key="routing_method",
-    variance_key="time/variance",
-    fix={
-        "average_payment_amount": ["10000"],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time(average,errorbar=variance) [s]",
-    title="amt=10000",
+    title="success_rate(amt=10000)",
 )
 show_2d_graph(
     sys.argv[1],
@@ -235,43 +218,14 @@ show_2d_graph(
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
     y_axis="Time(average,errorbar=25-75percentile) [s]",
-    title="amt=10000",
+    title="time(amt=10000)",
 )
-show_2d_graph(
-    sys.argv[1],
-    "payment_rate",
-    "time/variance",
-    series_key="routing_method",
-    fix={
-        "average_payment_amount": ["10000"],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time(variance) [s]",
-    title="amt=10000",
-)
-show_2d_graph(
-    sys.argv[1],
-    "payment_rate",
-    "time/average",
-    series_key="routing_method",
-    fix={
-        "average_payment_amount": ["10000"],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time(average) [s]",
-    title="amt=10000",
-)
-
 show_2d_graph(
     sys.argv[1],
     "payment_rate",
     "retry/average",
+    errorbar_bottom_key="retry/25-percentile",
+    errorbar_top_key="retry/75-percentile",
     series_key="routing_method",
     fix={
         "average_payment_amount": ["10000"],
@@ -280,21 +234,6 @@ show_2d_graph(
     },
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Retry num(average) [s]",
-    title="amt=10000",
-)
-show_2d_graph(
-    sys.argv[1],
-    "payment_rate",
-    "retry/variance",
-    series_key="routing_method",
-    fix={
-        "average_payment_amount": ["10000"],
-        "group_cap_update": ["true", ""],
-        "routing_method": ["ideal", "channel_update", "group_routing"]
-    },
-    x_logarithmic_scale=True,
-    x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Retry num(variance) [s]",
-    title="amt=10000",
+    y_axis="Retry num(average,errorbar=25-75percentile) [s]",
+    title="retry_num(amt=10000)",
 )
