@@ -15,7 +15,7 @@ if [ "$#" -eq 2 ]; then
 fi
 
 seed=39
-max_processes=8
+max_processes=32
 
 queue=()
 running_processes=0
@@ -111,6 +111,6 @@ while [ "${#queue[@]}" -gt 0 ] || [ "$running_processes" -gt 0 ]; do
 done
 wait
 echo -e "\nAll simulations have completed."
-python3 gen_csv_summary.py "$output_dir"
+python3 scripts/analyze_output_and_summarize.py "$output_dir"
 echo "START : $(date --date @"$start_time")"
 echo "  END : $(date)"
