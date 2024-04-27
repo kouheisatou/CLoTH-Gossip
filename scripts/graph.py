@@ -1,5 +1,6 @@
 import csv
 import math
+import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -165,7 +166,7 @@ def show_2d_graph(csv_file: str,
                         y,
                         label=f'{series_key}={series}',
                         marker=markers[count % len(markers)],
-                        yerr=[np.subtract(y, errorbar_bottom), np.subtract(errorbar_top, y)],
+                        yerr=[np.subtract(y, errorbar_bottom), np.add(errorbar_top, y)],
                         capsize=3,
                         )
         else:
@@ -181,6 +182,9 @@ def show_2d_graph(csv_file: str,
     plt.grid()
 
     ax.legend()
+
+    dirname, _ = os.path.split(csv_file)
+    plt.savefig(f"{dirname}/{title}.pdf")
     plt.show()
 
 
