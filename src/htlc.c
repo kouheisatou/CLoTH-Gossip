@@ -200,7 +200,7 @@ struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struc
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method) {
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params) {
   struct payment *payment, *shard1, *shard2;
   struct array *path, *shard1_path, *shard2_path;
   uint64_t shard1_amount, shard2_amount;
@@ -211,7 +211,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
   ++(payment->attempts);
 
-  if(simulation->current_time > payment->start_time + 60000) {
+  if(net_params.payment_timeout != -1 && simulation->current_time > payment->start_time + net_params.payment_timeout) {
     payment->end_time = simulation->current_time;
     payment->is_timeout = 1;
     return;

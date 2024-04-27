@@ -7,6 +7,7 @@ n_channels_per_node=
 capacity_per_channel=
 faulty_node_probability=0.0
 generate_payments_from_file=false
+payment_timeout=60000
 routing_method=group_routing
 group_size=5
 group_limit_rate=0.1

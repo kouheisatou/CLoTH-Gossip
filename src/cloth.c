@@ -272,6 +272,9 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
+    else if(strcmp(parameter, "payment_timeout")==0) {
+        net_params->payment_timeout=strtol(value, NULL, 10);
+    }
     else if(strcmp(parameter, "routing_method")==0){
       if(strcmp(value, "cloth_original")==0)
         net_params->routing_method=CLOTH_ORIGINAL;
@@ -602,7 +605,7 @@ int main(int argc, char *argv[]) {
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:
-      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method);
+      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method, net_params);
       break;
     case SENDPAYMENT:
       group_add_queue = send_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);

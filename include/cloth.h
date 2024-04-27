@@ -19,6 +19,7 @@ struct network_params{
   char nodes_filename[256];
   char channels_filename[256];
   char edges_filename[256];
+  unsigned int payment_timeout; // set -1 to disable payment timeout
   enum routing_method routing_method;
   unsigned int group_cap_update;
   unsigned int log_broadcast_msg;
