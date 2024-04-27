@@ -398,9 +398,24 @@ gsl_rng* initialize_random_generator(){
 }
 
 
-uint64_t calc_simulation_env_hash(struct network* network, struct array* payments){
+uint64_t calc_simulation_env_hash(struct network* network, struct array* payments, struct network_params* net_params){
 
     uint64_t hash = 0;
+    {
+        hash += *SHA512Hash((uint8_t*)(&(net_params->n_nodes)), sizeof(long));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->n_channels)), sizeof(long));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->capacity_per_channel)), sizeof(long));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->faulty_node_prob)), sizeof(double));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->network_from_file)), sizeof(unsigned int));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->routing_method)), sizeof(enum routing_method));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->log_broadcast_msg)), sizeof(unsigned int));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
+        hash += *SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
+        for(int i = 0; net_params->nodes_filename[i] != '\0'; i++) hash += *SHA512Hash((uint8_t*)(&(net_params->nodes_filename[i])), sizeof(char));
+        for(int i = 0; net_params->channels_filename[i] != '\0'; i++) hash += *SHA512Hash((uint8_t*)(&(net_params->channels_filename[i])), sizeof(char));
+        for(int i = 0; net_params->edges_filename[i] != '\0'; i++) hash += *SHA512Hash((uint8_t*)(&(net_params->edges_filename[i])), sizeof(char));
+    }
     for(long channel_id = 0; channel_id < array_len(network->channels); channel_id++){
         struct channel* c = array_get(network->channels, channel_id);
         hash += *SHA512Hash((uint8_t*)(&(c->id)), sizeof(uint64_t));
@@ -446,10 +461,10 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
 }
 
 
-void write_dijkstra_cache(char* dijkstra_cache_name, struct network* network, struct array* payments){
+void write_dijkstra_cache(char* dijkstra_cache_name, struct network* network, struct array* payments, struct network_params* net_params){
     FILE* dijkstra_cache = fopen(dijkstra_cache_name, "w");
     if(dijkstra_cache != NULL){
-        uint64_t hash = calc_simulation_env_hash(network, payments);
+        uint64_t hash = calc_simulation_env_hash(network, payments, net_params);
         fprintf(dijkstra_cache, "%lu\n", hash);
         for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
             if(paths[payment_id] == NULL) continue;
@@ -550,10 +565,10 @@ int main(int argc, char *argv[]) {
   if(dijkstra_cache == NULL){
       printf("no cache file\n");
       run_dijkstra_threads(network, payments, 0, net_params.routing_method);
-      write_dijkstra_cache(dijkstra_cache_name, network, payments);
+      write_dijkstra_cache(dijkstra_cache_name, network, payments, &net_params);
       printf("cache file created\n");
   } else {
-      uint64_t hash = calc_simulation_env_hash(network, payments);
+      uint64_t hash = calc_simulation_env_hash(network, payments, &net_params);
       uint64_t dijkstra_cache_env_hash;
       printf("cache file found\n");
       fscanf(dijkstra_cache, "%lu\n", &dijkstra_cache_env_hash);
@@ -570,7 +585,7 @@ int main(int argc, char *argv[]) {
           fclose(dijkstra_cache);
           printf("invalid cache\n");
           run_dijkstra_threads(network, payments, 0, net_params.routing_method);
-          write_dijkstra_cache(dijkstra_cache_name, network, payments);
+          write_dijkstra_cache(dijkstra_cache_name, network, payments, &net_params);
           printf("cache file created\n");
       }
   }
