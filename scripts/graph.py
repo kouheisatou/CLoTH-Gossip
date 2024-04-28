@@ -217,7 +217,7 @@ show_2d_graph(
     },
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Time(average,errorbar=25-75percentile) [s]",
+    y_axis="Time(average,errorbar=25-75percentile) [ms]",
     title="time(amt=10000)",
 )
 show_2d_graph(
@@ -234,6 +234,6 @@ show_2d_graph(
     },
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
-    y_axis="Retry num(average,errorbar=25-75percentile) [s]",
+    y_axis="Retry num(average,errorbar=25-75percentile) [ms]",
     title="retry_num(amt=10000)",
 )
