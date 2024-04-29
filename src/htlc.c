@@ -393,7 +393,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
 
   // success sending
   event_type = first_route_hop->to_node_id == payment->receiver ? RECEIVEPAYMENT : FORWARDPAYMENT;
-  next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator)));
+  next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
   next_event = new_event(next_event_time, event_type, first_route_hop->to_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
@@ -434,7 +434,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
     payment->error.hop = next_route_hop;
     prev_node_id = previous_route_hop->from_node_id;
     event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
-    next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator))) + OFFLINELATENCY;
+    next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator))) + OFFLINELATENCY;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return group_add_queue;
@@ -479,7 +479,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
     payment->no_balance_count += 1;
     prev_node_id = previous_route_hop->from_node_id;
     event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
-    next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
+    next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return group_add_queue;
@@ -499,7 +499,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   // success forwarding
   event_type = is_last_hop  ? RECEIVEPAYMENT : FORWARDPAYMENT;
   // interval for forwarding payment
-  next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator)));//next_channel->latency;
+  next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//next_channel->latency;
   next_event = new_event(next_event_time, event_type, next_route_hop->to_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
@@ -544,7 +544,7 @@ struct element* receive_payment(struct event* event, struct simulation* simulati
 
   prev_node_id = last_route_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVESUCCESS : FORWARDSUCCESS;
-  next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator)));//channel->latency;
+  next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
@@ -584,7 +584,7 @@ struct element* forward_success(struct event* event, struct simulation* simulati
 
   prev_node_id = prev_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVESUCCESS : FORWARDSUCCESS;
-  next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
+  next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
@@ -632,7 +632,7 @@ struct element* forward_fail(struct event* event, struct simulation* simulation,
   prev_hop = get_route_hop(event->node_id, payment->route->route_hops, 0);
   prev_node_id = prev_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
-  next_event_time = simulation->current_time + 100 + (long)(fabs(50 * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
+  next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 

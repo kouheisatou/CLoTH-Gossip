@@ -287,6 +287,12 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "payment_timeout")==0) {
         net_params->payment_timeout=strtol(value, NULL, 10);
     }
+    else if(strcmp(parameter, "average_payment_forward_interval")==0) {
+        net_params->average_payment_forward_interval=strtol(value, NULL, 10);
+    }
+    else if(strcmp(parameter, "variance_payment_forward_interval")==0) {
+        net_params->variance_payment_forward_interval=strtol(value, NULL, 10);
+    }
     else if(strcmp(parameter, "routing_method")==0){
       if(strcmp(value, "cloth_original")==0)
         net_params->routing_method=CLOTH_ORIGINAL;
