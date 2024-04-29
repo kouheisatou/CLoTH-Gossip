@@ -221,6 +221,21 @@ show_2d_graph(
 show_2d_graph(
     sys.argv[1],
     "payment_rate",
+    "retry_rate",
+    "routing_method",
+    {
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="retry_rate",
+    title="retry_rate",
+)
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
     "retry_no_balance_rate",
     "routing_method",
     {
