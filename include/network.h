@@ -121,7 +121,7 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network);
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance);
 
 struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time, FILE* csv_group_update);
 

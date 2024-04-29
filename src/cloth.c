@@ -67,21 +67,33 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
+  fprintf(csv_group_output, "id,edges,balances,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
-    float sum_cul = 0.0f;
     long n_members = array_len(group->edges);
     for(j=0; j< n_members; j++){
-        edge = array_get(group->edges, j);
-        sum_cul += (1.0f - ((float)group->group_cap / (float)edge->balance));
-        fprintf(csv_group_output, "%ld", edge->id);
+        struct edge* edge_snapshot = array_get(group->edges, j);
+        fprintf(csv_group_output, "%ld", edge_snapshot->id);
         if(j < n_members -1){
             fprintf(csv_group_output, "-");
         }else{
             fprintf(csv_group_output, ",");
         }
+    }
+    for(j=0; j< n_members; j++){
+        struct edge* edge_snapshot = array_get(group->edges, j);
+        fprintf(csv_group_output, "%lu", edge_snapshot->balance);
+        if(j < n_members -1){
+            fprintf(csv_group_output, "-");
+        }else{
+            fprintf(csv_group_output, ",");
+        }
+    }
+    float sum_cul = 0.0f;
+    for(j=0; j< n_members; j++){
+        struct edge* edge_snapshot = array_get(group->edges, j);
+        sum_cul += (1.0f - ((float)group->group_cap / (float)edge_snapshot->balance));
     }
     fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
   }
@@ -403,64 +415,77 @@ gsl_rng* initialize_random_generator(){
 
 uint64_t calc_simulation_env_hash(struct network* network, struct array* payments, struct network_params* net_params){
 
-    uint64_t hash = 0;
+    uint64_t hash_network_settings = 0;
     {
-        hash += *SHA512Hash((uint8_t*)(&(net_params->n_nodes)), sizeof(long));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->n_channels)), sizeof(long));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->capacity_per_channel)), sizeof(long));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->faulty_node_prob)), sizeof(double));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->network_from_file)), sizeof(unsigned int));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->routing_method)), sizeof(enum routing_method));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->log_broadcast_msg)), sizeof(unsigned int));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
-        hash += *SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
-        for(int i = 0; net_params->nodes_filename[i] != '\0'; i++) hash += *SHA512Hash((uint8_t*)(&(net_params->nodes_filename[i])), sizeof(char));
-        for(int i = 0; net_params->channels_filename[i] != '\0'; i++) hash += *SHA512Hash((uint8_t*)(&(net_params->channels_filename[i])), sizeof(char));
-        for(int i = 0; net_params->edges_filename[i] != '\0'; i++) hash += *SHA512Hash((uint8_t*)(&(net_params->edges_filename[i])), sizeof(char));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->n_nodes)), sizeof(long));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->n_channels)), sizeof(long));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->capacity_per_channel)), sizeof(long));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->faulty_node_prob)), sizeof(double));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->network_from_file)), sizeof(unsigned int));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->routing_method)), sizeof(enum routing_method));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->log_broadcast_msg)), sizeof(unsigned int));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
+        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
+        for(int i = 0; net_params->nodes_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->nodes_filename[i])), sizeof(char));
+        for(int i = 0; net_params->channels_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->channels_filename[i])), sizeof(char));
+        for(int i = 0; net_params->edges_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->edges_filename[i])), sizeof(char));
     }
+    printf("hash_network_sluttings=%lu\n", hash_network_settings);
+
+    uint64_t hash_network_channels = 0;
     for(long channel_id = 0; channel_id < array_len(network->channels); channel_id++){
         struct channel* c = array_get(network->channels, channel_id);
-        hash += *SHA512Hash((uint8_t*)(&(c->id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(c->node1)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(c->node2)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(c->edge1)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(c->edge2)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(c->capacity)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(c->is_closed)), sizeof(uint32_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->id)), sizeof(uint64_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->node1)), sizeof(uint64_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->node2)), sizeof(uint64_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->edge1)), sizeof(uint64_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->edge2)), sizeof(uint64_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->capacity)), sizeof(uint64_t));
+        hash_network_channels += *SHA512Hash((uint8_t*)(&(c->is_closed)), sizeof(uint32_t));
     }
+    printf("hash_network_channels=%lu\n", hash_network_channels);
+
+    uint64_t hash_network_nodes = 0;
     for(long node_id = 0; node_id < array_len(network->nodes); node_id++){
         struct node* n = array_get(network->nodes, node_id);
-        hash += *SHA512Hash((uint8_t*)(&(n->id)), sizeof(uint64_t));
+        hash_network_nodes += *SHA512Hash((uint8_t*)(&(n->id)), sizeof(uint64_t));
         for(long i = 0; i < array_len(n->open_edges); i++){
             struct edge* e = array_get(n->open_edges, i);
-            hash += *SHA512Hash((uint8_t*)(&(e->id)), sizeof(uint64_t));
+            hash_network_nodes += *SHA512Hash((uint8_t*)(&(e->id)), sizeof(uint64_t));
         }
     }
+    printf("hash_network_nodes=%lu\n", hash_network_nodes);
+
+    uint64_t hash_network_edges = 0;
     for(long edge_id = 0; edge_id < array_len(network->edges); edge_id++){
         struct edge* e = array_get(network->edges, edge_id);
-        hash += *SHA512Hash((uint8_t*)(&(e->id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->channel_id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->from_node_id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->to_node_id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->counter_edge_id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->policy.fee_base)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->policy.min_htlc)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->policy.timelock)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->balance)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->is_closed)), sizeof(uint32_t));
-        hash += *SHA512Hash((uint8_t*)(&(e->tot_flows)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->id)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->channel_id)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->from_node_id)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->to_node_id)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->counter_edge_id)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->policy.fee_base)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->policy.min_htlc)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->policy.timelock)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->balance)), sizeof(uint64_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->is_closed)), sizeof(uint32_t));
+        hash_network_edges += *SHA512Hash((uint8_t*)(&(e->tot_flows)), sizeof(uint64_t));
     }
+    printf("hash_network_edges=%lu\n", hash_network_edges);
+
+    uint64_t hash_network_payments = 0;
     for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
         struct payment* p = array_get(payments, payment_id);
-        hash += *SHA512Hash((uint8_t*)(&(p->id)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(p->sender)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(p->amount)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(p->start_time)), sizeof(uint64_t));
-        hash += *SHA512Hash((uint8_t*)(&(p->end_time)), sizeof(uint64_t));
-
+        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->id)), sizeof(uint64_t));
+        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->sender)), sizeof(uint64_t));
+        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->amount)), sizeof(uint64_t));
+        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->start_time)), sizeof(uint64_t));
+        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->end_time)), sizeof(uint64_t));
     }
-    return hash;
+    printf("hash_network_payments=%lu\n", hash_network_payments);
+
+    return hash_network_settings + hash_network_channels + hash_network_nodes + hash_network_edges + hash_network_payments;
 }
 
 
@@ -471,14 +496,26 @@ void write_dijkstra_cache(char* dijkstra_cache_name, struct network* network, st
         fprintf(dijkstra_cache, "%lu\n", hash);
         for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
             if(paths[payment_id] == NULL) continue;
-            struct array* route_hops = paths[payment_id];
-            for(long j = 0; j < array_len(route_hops); j++){
-                struct route_hop* hop = array_get(route_hops, j);
-                fprintf(dijkstra_cache, "%ld,%ld,%ld,%ld,%lu,%d\n", payment_id, hop->from_node_id, hop->edge_id, hop->to_node_id, hop->amount_to_forward, hop->timelock);
+            struct array* path_hops = paths[payment_id];
+            for(long j = 0; j < array_len(path_hops); j++){
+                struct path_hop* hop = array_get(path_hops, j);
+                fprintf(dijkstra_cache, "%ld,%ld,%ld,%ld\n", payment_id, hop->sender, hop->receiver, hop->edge);
             }
         }
         fclose(dijkstra_cache);
     }
+}
+
+
+void inflate_path_from_cache(FILE* dijkstra_cache){
+    while(1) {
+        long payment_id;
+        struct path_hop* hop = malloc(sizeof(struct route_hop));
+        if(fscanf(dijkstra_cache, "%ld,%ld,%ld,%ld\n", &payment_id, &(hop->sender), &(hop->receiver), &(hop->edge)) == EOF) break;
+        if(paths[payment_id] == NULL) paths[payment_id] = array_initialize(10);
+        paths[payment_id] = array_insert(paths[payment_id], hop);
+    }
+    fclose(dijkstra_cache);
 }
 
 
@@ -576,20 +613,13 @@ int main(int argc, char *argv[]) {
       printf("cache file found\n");
       fscanf(dijkstra_cache, "%lu\n", &dijkstra_cache_env_hash);
       if(hash == dijkstra_cache_env_hash){
-          while(1) {
-              long payment_id;
-              struct route_hop* hop = malloc(sizeof(struct route_hop));
-              if(fscanf(dijkstra_cache, "%ld,%ld,%ld,%ld,%lu,%d\n", &payment_id, &(hop->from_node_id), &(hop->edge_id), &(hop->to_node_id), &(hop->amount_to_forward), &(hop->timelock)) == EOF) break;
-              if(paths[payment_id] == NULL) paths[payment_id] = array_initialize(10);
-              paths[payment_id] = array_insert(paths[payment_id], hop);
-          }
-          fclose(dijkstra_cache);
+          inflate_path_from_cache(dijkstra_cache);
       }else{
           fclose(dijkstra_cache);
           printf("invalid cache\n");
           run_dijkstra_threads(network, payments, 0, net_params.routing_method);
           write_dijkstra_cache(dijkstra_cache_name, network, payments, &net_params);
-          printf("cache file created\n");
+          printf("cache file updated\n");
       }
   }
   clock_gettime(CLOCK_MONOTONIC, &finish);
