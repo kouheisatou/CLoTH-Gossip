@@ -381,7 +381,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
 
 struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
 
-    // calc min and max capacity
+    // update group cap
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
     for (int i = 0; i < array_len(group->edges); i++) {
@@ -452,12 +452,13 @@ struct element* update_group(struct group* group, struct network_params net_para
                 group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
 
                 // take edge balance snapshot of the group
-                if(edge->id == changed_edge_id){
-                    edge->balance = changed_edge_prev_balance;
-                }
                 struct edge *copy = malloc(sizeof(struct edge));
                 copy->id = edge->id;
-                copy->balance = edge->balance;
+                if(edge->id == changed_edge_id){
+                    copy->balance = changed_edge_prev_balance;
+                }else{
+                    copy->balance = edge->balance;
+                }
                 group->edges->element[i] = copy;
             }
 
