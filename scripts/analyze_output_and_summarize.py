@@ -79,9 +79,9 @@ def analyze_output(output_dir_name):
                     total_fail_no_path_num += 1
 
         save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[s]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
-        save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution), 1))
+        save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution)+2, 1))
         save_histogram(fee_distribution, "Histogram of Fee", "Fee", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
-        save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution), 1))
+        save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution)+2, 1))
 
         result = result | {
             "success_rate": total_success_num / total_num,
@@ -158,8 +158,10 @@ def analyze_output(output_dir_name):
             except Exception:
                 continue
 
-        save_histogram(group_survival_time_distribution, "Histogram of Group Survival Time", "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
-        save_histogram(group_capacity_distribution, "Histogram of Group Capacity", "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
+        if len(groups) != 0:
+            save_histogram(group_survival_time_distribution, "Histogram of Group Survival Time", "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
+            save_histogram(group_capacity_distribution, "Histogram of Group Capacity", "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
+            save_histogram(cul_distribution, "Histogram of CUL", "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
 
         result = result | {
             "group_survival_time/average": np.mean(group_survival_time_distribution) if len(groups) else "",
