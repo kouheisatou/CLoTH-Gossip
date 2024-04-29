@@ -137,7 +137,7 @@ def analyze_output(output_dir_name):
             if edge["group"] != "NULL":
                 edge_in_group_num += 1
         result = result | {
-            "group_cover_rate": edge_in_group_num,
+            "group_cover_rate": edge_in_group_num / len(edges),
         }
 
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
