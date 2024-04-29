@@ -201,8 +201,54 @@ show_2d_graph(
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
     y_axis="Success rate",
-    title="success_rate(amt=10000)",
+    title="success_rate",
 )
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "fail_no_path_rate",
+    "routing_method",
+    {
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="fail_no_path_rate",
+    title="fail_no_path_rate",
+)
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "retry_no_balance_rate",
+    "routing_method",
+    {
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="retry_no_balance_rate",
+    title="retry_no_balance_rate",
+)
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "retry_edge_occupied_rate",
+    "routing_method",
+    {
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="retry_edge_occupied_rate",
+    title="retry_edge_occupied_rate",
+)
+
 show_2d_graph(
     sys.argv[1],
     "payment_rate",
@@ -218,7 +264,7 @@ show_2d_graph(
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
     y_axis="Time(average,errorbar=25-75percentile) [ms]",
-    title="time(amt=10000)",
+    title="time",
 )
 show_2d_graph(
     sys.argv[1],
@@ -235,5 +281,5 @@ show_2d_graph(
     x_logarithmic_scale=True,
     x_axis="Log base 10 transactions per sec [satoshi]",
     y_axis="Retry num(average,errorbar=25-75percentile) [ms]",
-    title="retry_num(amt=10000)",
+    title="retry_num",
 )
