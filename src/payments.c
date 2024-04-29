@@ -28,6 +28,7 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->is_success = 0;
   p->offline_node_count = 0;
   p->no_balance_count = 0;
+  p->edge_occupied_count = 0;
   p->is_timeout = 0;
   p->end_time = 0;
   p->attempts = 0;

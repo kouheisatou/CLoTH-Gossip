@@ -356,6 +356,21 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
     exit(-1);
   }
 
+  // if the edge is in use
+  if(next_edge->using_payment_id != -1){
+      // fail payment
+      payment->edge_occupied_count += 1;
+      payment->error.type = EDGEOCCUPIED;
+      payment->error.hop = first_route_hop;
+      next_event_time = simulation->current_time;
+      next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
+      simulation->events = heap_insert(simulation->events, next_event, compare_event);
+      return group_add_queue;
+  }else{
+      // lock the edge
+      next_edge->using_payment_id = payment->id;
+  }
+
   /* simulate the case that the next node in the route is offline */
   is_next_node_offline = gsl_ran_discrete(simulation->random_generator, network->faulty_node_prob);
   if(is_next_node_offline){
@@ -374,7 +389,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
     payment->error.hop = first_route_hop;
     payment->no_balance_count += 1;
     next_event_time = simulation->current_time;
-    next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment );
+    next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return group_add_queue;
   }
@@ -411,7 +426,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   uint64_t next_event_time;
   unsigned long is_next_node_offline;
   struct node* node;
-  unsigned int is_last_hop, can_send_htlc;
+  unsigned int is_last_hop;
   struct edge *next_edge = NULL, *prev_edge;
 
   payment = event->payment;
@@ -471,9 +486,26 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   // STRICT FORWARDING
   prev_edge = array_get(network->edges,previous_route_hop->edge_id);
   next_edge = array_get(network->edges, next_route_hop->edge_id);
-  can_send_htlc = check_balance_and_policy(next_edge, prev_edge, previous_route_hop, next_route_hop);
+
+    // if the edge is in use
+    if(next_edge->using_payment_id != -1){
+        // fail payment
+        payment->edge_occupied_count += 1;
+        payment->error.type = EDGEOCCUPIED;
+        payment->error.hop = next_route_hop;
+        prev_node_id = previous_route_hop->from_node_id;
+        event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
+        next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
+        next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+        simulation->events = heap_insert(simulation->events, next_event, compare_event);
+        return group_add_queue;
+    }else{
+        // lock the edge
+        next_edge->using_payment_id = payment->id;
+    }
+
   // fail no balance
-  if(!can_send_htlc){
+  if(!check_balance_and_policy(next_edge, prev_edge, previous_route_hop, next_route_hop)){
     payment->error.type = NOBALANCE;
     payment->error.hop = next_route_hop;
     payment->no_balance_count += 1;
@@ -599,6 +631,13 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
   process_success_result(node, payment, simulation->current_time);
+
+    // unlock edges on path
+    for(int i = 0; i < array_len(payment->route->route_hops); i++){
+        struct route_hop* hop = array_get(payment->route->route_hops, i);
+        struct edge* edge = array_get(network->edges, hop->edge_id);
+        edge->using_payment_id = -1;
+    }
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
@@ -697,6 +736,13 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
     }
 
   process_fail_result(node, payment, simulation->current_time);
+
+    // unlock edges on path
+    for(int i = 0; i < array_len(payment->route->route_hops); i++){
+        struct route_hop* hop = array_get(payment->route->route_hops, i);
+        struct edge* edge = array_get(network->edges, hop->edge_id);
+        edge->using_payment_id = -1;
+    }
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);

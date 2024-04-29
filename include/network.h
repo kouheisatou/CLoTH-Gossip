@@ -64,6 +64,7 @@ struct edge {
   uint64_t tot_flows;
   struct group* group;
   struct element* channel_updates;
+  long using_payment_id;
 };
 
 

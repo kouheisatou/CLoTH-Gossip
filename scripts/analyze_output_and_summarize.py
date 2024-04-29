@@ -41,11 +41,14 @@ def analyze_output(output_dir_name):
     with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:
         payments = list(csv.DictReader(csv_pay))
 
-        total_num = len(payments)
+        total_payment_num = len(payments)
+        total_attempts_num = 0
         total_success_num = 0
         total_fail_num = 0
-        total_fail_no_balance_num = 0
         total_fail_no_path_num = 0
+        total_retry_num = 0
+        total_retry_no_balance_num = 0
+        total_retry_edge_occupied_num = 0
         time_distribution = []
         retry_distribution = []
         fee_distribution = []
@@ -53,14 +56,13 @@ def analyze_output(output_dir_name):
 
         for pay in payments:
             is_success = (pay["is_success"] == "1")
-            fail_no_path = (not is_success) and (pay["route"] == "-1")
-            fail_no_balance = (not is_success) and (pay["no_balance_count"] != "0")
 
             amount = int(pay["amount"])
             start_time = int(pay["start_time"])
             end_time = int(pay["end_time"])
             time = end_time - start_time
-            retry = int(pay["attempts"]) - 1
+            attempts = int(pay["attempts"])
+            retry = attempts - 1
 
             if is_success:
                 total_success_num += 1
@@ -71,23 +73,29 @@ def analyze_output(output_dir_name):
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
                 total_fail_num += 1
-                if fail_no_balance:
-                    total_fail_no_balance_num += 1
-                    time_distribution.append(time)
-                    route_len_distribution.append(len(pay['route'].split('-')))
-                elif fail_no_path:
-                    total_fail_no_path_num += 1
 
+            total_attempts_num += attempts
+            total_retry_num += retry
+            total_fail_no_path_num += (1 if (pay["route"] == "") else 0)
+            total_retry_no_balance_num += int(pay["no_balance_count"])
+            total_retry_edge_occupied_num += int(pay["edge_occupied_count"])
+            if pay["route"] != "":
+                time_distribution.append(time)
+                route_len_distribution.append(len(pay['route'].split('-')))
+
+        print(total_retry_edge_occupied_num)
         save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[s]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
-        save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution)+2, 1))
+        save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
         save_histogram(fee_distribution, "Histogram of Fee", "Fee", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
-        save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution)+2, 1))
+        save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
 
         result = result | {
-            "success_rate": total_success_num / total_num,
-            "fail_rate": total_fail_num / total_num,
-            "fail_no_balance_rate": total_fail_no_balance_num / total_num,
-            "fail_no_path_rate": total_fail_no_path_num / total_num,
+            "success_rate": total_success_num / total_payment_num,  # シミュレーション全体から見た送金成功率
+            "fail_rate": total_fail_num / total_payment_num,  # シミュレーション全体から見た送金失敗率
+            "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # シミュレーション全体から見たfail_no_pathによる送金失敗率
+            "retry_rate": total_retry_num / total_attempts_num,  # 送金試行1回あたりのリトライ発生回数
+            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 送金試行1回あたりのfail_no_balanceによるリトライ発生回数
+            "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_attempts_num,  # 送金試行1回あたりのfail_edge_occupiedによるリトライ発生回数
 
             "time/average": np.mean(time_distribution),
             "time/variance": np.var(time_distribution),
