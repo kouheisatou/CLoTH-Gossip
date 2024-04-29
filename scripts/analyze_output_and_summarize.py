@@ -83,7 +83,6 @@ def analyze_output(output_dir_name):
                 time_distribution.append(time)
                 route_len_distribution.append(len(pay['route'].split('-')))
 
-        print(total_retry_edge_occupied_num)
         save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[s]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
         save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
         save_histogram(fee_distribution, "Histogram of Fee", "Fee", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)

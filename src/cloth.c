@@ -437,7 +437,7 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
         for(int i = 0; net_params->channels_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->channels_filename[i])), sizeof(char));
         for(int i = 0; net_params->edges_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->edges_filename[i])), sizeof(char));
     }
-    printf("hash_network_sluttings=%lu\n", hash_network_settings);
+    printf("hash_network_settings=%lu\n", hash_network_settings);
 
     uint64_t hash_network_channels = 0;
     for(long channel_id = 0; channel_id < array_len(network->channels); channel_id++){
@@ -486,10 +486,8 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
         hash_network_payments += *SHA512Hash((uint8_t*)(&(p->id)), sizeof(uint64_t));
         hash_network_payments += *SHA512Hash((uint8_t*)(&(p->sender)), sizeof(uint64_t));
         hash_network_payments += *SHA512Hash((uint8_t*)(&(p->amount)), sizeof(uint64_t));
-        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->start_time)), sizeof(uint64_t));
-        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->end_time)), sizeof(uint64_t));
     }
-    printf("hash_network_payments=%lu\n", hash_network_payments);
+    printf("hash_payments=%lu\n", hash_network_payments);
 
     return hash_network_settings + hash_network_channels + hash_network_nodes + hash_network_edges + hash_network_payments;
 }
