@@ -49,6 +49,7 @@ struct channel {
   long edge2;
   uint64_t capacity;
   unsigned int is_closed;
+  long using_payment_id;
 };
 
 /* an edge represents one of the two direction of a payment channel */
@@ -64,7 +65,6 @@ struct edge {
   uint64_t tot_flows;
   struct group* group;
   struct element* channel_updates;
-  long using_payment_id;
 };
 
 

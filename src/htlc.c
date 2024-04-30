@@ -357,7 +357,8 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
   }
 
   // if the edge is in use
-  if(next_edge->using_payment_id != -1){
+  struct channel* c = array_get(network->channels, next_edge->channel_id);
+  if(c->using_payment_id != -1){
       // fail payment
       payment->edge_occupied_count += 1;
       payment->error.type = EDGEOCCUPIED;
@@ -368,7 +369,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
       return group_add_queue;
   }else{
       // lock the edge
-      next_edge->using_payment_id = payment->id;
+      c->using_payment_id = payment->id;
   }
 
   /* simulate the case that the next node in the route is offline */
@@ -488,7 +489,8 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   next_edge = array_get(network->edges, next_route_hop->edge_id);
 
     // if the edge is in use
-    if(next_edge->using_payment_id != -1){
+    struct channel* c = array_get(network->channels, next_edge->channel_id);
+    if(c->using_payment_id != -1){
         // fail payment
         payment->edge_occupied_count += 1;
         payment->error.type = EDGEOCCUPIED;
@@ -501,7 +503,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
         return group_add_queue;
     }else{
         // lock the edge
-        next_edge->using_payment_id = payment->id;
+        c->using_payment_id = payment->id;
     }
 
   // fail no balance
@@ -636,7 +638,8 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
     for(int i = 0; i < array_len(payment->route->route_hops); i++){
         struct route_hop* hop = array_get(payment->route->route_hops, i);
         struct edge* edge = array_get(network->edges, hop->edge_id);
-        edge->using_payment_id = -1;
+        struct channel* channel = array_get(network->channels, edge->channel_id);
+        channel->using_payment_id = -1;
     }
 }
 
@@ -741,7 +744,8 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
     for(int i = 0; i < array_len(payment->route->route_hops); i++){
         struct route_hop* hop = array_get(payment->route->route_hops, i);
         struct edge* edge = array_get(network->edges, hop->edge_id);
-        edge->using_payment_id = -1;
+        struct channel* channel = array_get(network->channels, edge->channel_id);
+        channel->using_payment_id = -1;
     }
 
   next_event_time = simulation->current_time;

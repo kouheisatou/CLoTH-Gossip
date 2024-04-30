@@ -30,6 +30,7 @@ struct channel* new_channel(long id, long direction1, long direction2, long node
   channel->node2 = node2;
   channel->capacity = capacity;
   channel->is_closed = 0;
+  channel->using_payment_id = -1;
   return channel;
 }
 
@@ -48,7 +49,6 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->is_closed = 0;
   edge->tot_flows = 0;
   edge->group = NULL;
-  edge->using_payment_id = -1;
   struct channel_update* channel_update = malloc(sizeof(struct channel_update));
   channel_update->htlc_maximum_msat = channel_capacity;
   channel_update->edge_id = edge->id;
