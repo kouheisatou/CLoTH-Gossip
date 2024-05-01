@@ -53,10 +53,17 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open channel_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_channel_output, "id,edge1,edge2,node1,node2,capacity,is_closed\n");
+  fprintf(csv_channel_output, "id,edge1,edge2,node1,node2,capacity,is_closed,total_lock_time\n");
   for(i=0; i<array_len(network->channels); i++) {
     channel = array_get(network->channels, i);
-    fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
+    uint64_t total_lock_time = 0;
+    for(struct element* iterator = channel->payment_history; iterator != NULL; iterator = iterator->next){
+        struct payment* p = iterator->data;
+        if(p->end_time != 0) {
+            total_lock_time += p->end_time - p->start_time;
+        }
+    }
+    fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d,%lu\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed, total_lock_time);
   }
   fclose(csv_channel_output);
 

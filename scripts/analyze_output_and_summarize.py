@@ -85,7 +85,7 @@ def analyze_output(output_dir_name):
 
         save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[s]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
         save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
-        save_histogram(fee_distribution, "Histogram of Fee", "Fee", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
+        save_histogram(fee_distribution, "Histogram of Fee", "Fee [satoshi]", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
         save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
 
         result = result | {
@@ -96,6 +96,7 @@ def analyze_output(output_dir_name):
             "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 送金試行1回あたりのfail_no_balanceによるリトライ発生回数
             "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_attempts_num,  # 送金試行1回あたりのfail_edge_occupiedによるリトライ発生回数
 
+            # 送金開始から送金が完了するまでにかかる時間
             "time/average": np.mean(time_distribution),
             "time/variance": np.var(time_distribution),
             "time/max": np.max(time_distribution),
@@ -106,6 +107,7 @@ def analyze_output(output_dir_name):
             "time/75-percentile": np.percentile(time_distribution, 75),
             "time/95-percentile": np.percentile(time_distribution, 95),
 
+            # 送金1回あたりのリトライ回数
             "retry/average": np.mean(retry_distribution),
             "retry/variance": np.var(retry_distribution),
             "retry/max": np.max(retry_distribution),
@@ -116,6 +118,7 @@ def analyze_output(output_dir_name):
             "retry/75-percentile": np.percentile(retry_distribution, 75),
             "retry/95-percentile": np.percentile(retry_distribution, 95),
 
+            # 送金手数料
             "fee/average": np.mean(fee_distribution),
             "fee/variance": np.var(fee_distribution),
             "fee/max": np.max(fee_distribution),
@@ -126,6 +129,7 @@ def analyze_output(output_dir_name):
             "fee/75-percentile": np.percentile(fee_distribution, 75),
             "fee/95-percentile": np.percentile(fee_distribution, 95),
 
+            # 送金経路長
             "route_len/average": np.mean(route_len_distribution),
             "route_len/variance": np.var(route_len_distribution),
             "route_len/max": np.max(route_len_distribution),
@@ -137,6 +141,25 @@ def analyze_output(output_dir_name):
             "route_len/95-percentile": np.percentile(route_len_distribution, 95),
         }
 
+    with open(output_dir_name + 'channels_output.csv', 'r') as csv_channel:
+        channels = list(csv.DictReader(csv_channel))
+        channel_lock_time_distribution = []
+        for channel in channels:
+            channel_lock_time_distribution.append(int(channel["total_lock_time"]))
+
+        save_histogram(channel_lock_time_distribution, "Histogram of Total Channel Lock Time", "Total Channel Lock Time [ms]", "Frequency", f"{output_dir_name}/channel_lock_time_histogram.pdf", 500)
+        result = result | {
+            "total_channel_lock_time/average": np.mean(channel_lock_time_distribution),
+            "total_channel_lock_time/variance": np.var(channel_lock_time_distribution),
+            "total_channel_lock_time/max": np.max(channel_lock_time_distribution),
+            "total_channel_lock_time/min": np.min(channel_lock_time_distribution),
+            "total_channel_lock_time/5-percentile": np.percentile(channel_lock_time_distribution, 5),
+            "total_channel_lock_time/25-percentile": np.percentile(channel_lock_time_distribution, 25),
+            "total_channel_lock_time/50-percentile": np.percentile(channel_lock_time_distribution, 50),
+            "total_channel_lock_time/75-percentile": np.percentile(channel_lock_time_distribution, 75),
+            "total_channel_lock_time/95-percentile": np.percentile(channel_lock_time_distribution, 95),
+        }
+
     with open(output_dir_name + 'edges_output.csv', 'r') as csv_group:
         edges = list(csv.DictReader(csv_group))
         edge_in_group_num = 0
@@ -144,7 +167,7 @@ def analyze_output(output_dir_name):
             if edge["group"] != "NULL":
                 edge_in_group_num += 1
         result = result | {
-            "group_cover_rate": edge_in_group_num / len(edges),
+            "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
         }
 
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:

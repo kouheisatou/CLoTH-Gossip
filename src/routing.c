@@ -232,12 +232,6 @@ int compare_distance(struct distance* a, struct distance* b) {
   else
     return 1;
 }
-int compare_distance_without_probability(struct distance* a, struct distance* b) {
-  if(a->distance>=b->distance)
-    return 1;
-  else
-    return -1;
-}
 
 /* get maximum and total balance of the edges of a node */
 void get_balance(struct node* node, uint64_t *max_balance, uint64_t *total_balance){
@@ -398,12 +392,12 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       edge = array_get(network->edges, edge->counter_edge_id);
 
       from_node_id = edge->from_node_id;
-      if(from_node_id == source){
-        if(edge->balance < amt_to_send)
-          continue;
+      channel = array_get(network->channels, edge->channel_id);
+      if(from_node_id == source){   // first hop
+        if(is_channel_locked(channel)) continue;    // exclude locked channel
+        if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
       }
-      else{
-        channel = array_get(network->channels, edge->channel_id);
+      else{   // intermediate edges
         // judge edge has enough capacity by group_capacity (proposed method)
         if(routing_method == GROUP_ROUTING){
             if(edge->group != NULL){
@@ -483,11 +477,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       distance[p][from_node_id].probability = tmp_probability;
       distance[p][from_node_id].next_edge = edge->id;
 
-      if(routing_method == CLOTH_ORIGINAL) {
-          distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
-      } else {
-          distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance_without_probability, is_key_equal);
-      }
+      distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
     }
   }
 

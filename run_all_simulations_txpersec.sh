@@ -79,13 +79,13 @@ function display_progress() {
             fi
             remaining_minutes=$(( estimated_completion_time / 60 ))
             remaining_seconds=$(( estimated_completion_time % 60 ))
-            printf "\rProgress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d\t" "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
+            printf "\rProgress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d          " "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
         fi
         sleep 1
     done
 }
 
-for j in $(seq 0.0 0.5 3.0); do
+for j in $(seq 0.0 0.2 3.4); do
     payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal           payment_timeout=-1 payment_rate=$payment_rate n_payments=50000 mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=10000 group_size=  group_limit_rate="
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update  payment_timeout=-1 payment_rate=$payment_rate n_payments=50000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=10000 group_size=  group_limit_rate="

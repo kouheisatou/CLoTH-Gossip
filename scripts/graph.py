@@ -263,6 +263,23 @@ show_2d_graph(
     y_axis="retry_edge_occupied_rate",
     title="retry_edge_occupied_rate",
 )
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "total_channel_lock_time/average",
+    "routing_method",
+    fix={
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    errorbar_bottom_key="total_channel_lock_time/5-percentile",
+    errorbar_top_key="total_channel_lock_time/95-percentile",
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="total_channel_lock_time(average,5-95percentile)",
+    title="total_channel_lock_time",
+)
 
 show_2d_graph(
     sys.argv[1],
