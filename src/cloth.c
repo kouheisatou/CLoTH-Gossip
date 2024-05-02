@@ -637,12 +637,24 @@ int main(int argc, char *argv[]) {
   time_spent_thread = finish.tv_sec - start.tv_sec;
   printf("Time consumed by initial dijkstra executions: %ld s\n", time_spent_thread);
 
-  printf("EXECUTION OF THE SIMULATION\n");
+  printf("\nEXECUTION OF THE SIMULATION\n");
+  printf("time,pmt_id,event_type,sender,receiver,amt,error,route\n");
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
   begin = clock();
   simulation->current_time = 1;
   while(heap_len(simulation->events) != 0) {
     event = heap_pop(simulation->events, compare_event);
+    printf("%lu,%lu,%d,%lu,%lu,%lu,%d,", simulation->current_time, event->payment->id, event->type, event->payment->sender, event->payment->receiver, event->payment->amount, event->payment->error.type);
+    if(event->payment->route != NULL) {
+        for (int i = 0; i < array_len(event->payment->route->route_hops); i++) {
+            struct route_hop *hop = array_get(event->payment->route->route_hops, i);
+            printf("%lu", hop->edge_id);
+            if (i < array_len(event->payment->route->route_hops) - 1) printf("-");
+            else printf("\n");
+        }
+    }else{
+        printf("NULL\n");
+    }
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:

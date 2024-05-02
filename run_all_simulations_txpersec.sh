@@ -86,7 +86,7 @@ function display_progress() {
 }
 
 # light simulation
-for j in $(seq 0.0 1.0 3.0); do
+for j in $(seq 0.0 0.5 3.0); do
     payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,n_payments=5000           payment_timeout=-1 payment_rate=$payment_rate n_payments=5000 mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=10000 group_size=  group_limit_rate="
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,n_payments=5000  payment_timeout=-1 payment_rate=$payment_rate n_payments=5000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=10000 group_size=  group_limit_rate="
@@ -110,5 +110,8 @@ done
 wait
 echo -e "\nAll simulations have completed."
 python3 scripts/analyze_output_and_summarize.py "$output_dir"
+python3 scripts/graph.py "$output_dir/summary.csv"
+end_time=$(date +%s)
 echo "START : $(date --date @"$start_time")"
-echo "  END : $(date)"
+echo "  END : $(date --date @"$end_time")"
+echo " TIME : $((end_time - start_time))"
