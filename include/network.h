@@ -49,6 +49,7 @@ struct channel {
   long edge2;
   uint64_t capacity;
   unsigned int is_closed;
+  unsigned int occupied;
   struct element* payment_history;
 };
 

@@ -57,15 +57,6 @@ unsigned int check_balance_and_policy(struct edge* edge, struct edge* prev_edge,
   return 1;
 }
 
-int is_channel_locked(struct channel* channel){
-    int is_locked = 0;
-    if(channel->payment_history != NULL){
-        struct payment* last_payment = channel->payment_history->data;
-        is_locked = last_payment->end_time == 0;
-    }
-    return is_locked;
-}
-
 /* retrieve a hop from a payment route */
 struct route_hop *get_route_hop(long node_id, struct array *route_hops, int is_sender) {
   struct route_hop *route_hop;
@@ -87,6 +78,19 @@ struct route_hop *get_route_hop(long node_id, struct array *route_hops, int is_s
     return NULL;
 
   return array_get(route_hops, index);
+}
+
+void lock_channel(struct channel* channel, struct payment* payment){
+    channel->occupied = 1;
+    channel->payment_history = push(channel->payment_history, payment);
+}
+void unlock_all_channels_of_route(struct route* route, struct network* network){
+    for(int i = 0; i < array_len(route->route_hops); i++){
+        struct route_hop* hop = array_get(route->route_hops, i);
+        struct edge* edge = array_get(network->edges, hop->edge_id);
+        struct channel* channel = array_get(network->channels, edge->channel_id);
+        channel->occupied = 0;
+    }
 }
 
 
@@ -487,7 +491,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
 
     // check channel lock
     struct channel* c = array_get(network->channels, next_edge->channel_id);
-    if(is_channel_locked(c)){
+    if(c->occupied){
         // fail payment because channel is occupied
         payment->edge_occupied_count += 1;
         payment->error.type = EDGEOCCUPIED;
@@ -500,7 +504,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
         return group_add_queue;
     }else{
         // lock current channel
-        c->payment_history = push(c->payment_history, payment);
+        lock_channel(c, payment);
     }
 
   // fail no balance
@@ -630,6 +634,9 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
   process_success_result(node, payment, simulation->current_time);
+
+    // unlock channel on path
+    unlock_all_channels_of_route(payment->route, network);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
@@ -728,6 +735,9 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
     }
 
   process_fail_result(node, payment, simulation->current_time);
+
+    // unlock channel on path
+    unlock_all_channels_of_route(payment->route, network);
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);

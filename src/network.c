@@ -30,6 +30,7 @@ struct channel* new_channel(long id, long direction1, long direction2, long node
   channel->node2 = node2;
   channel->capacity = capacity;
   channel->is_closed = 0;
+  channel->occupied = 0;
   channel->payment_history = NULL;
   return channel;
 }
