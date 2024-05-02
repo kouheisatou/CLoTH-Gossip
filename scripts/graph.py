@@ -315,3 +315,20 @@ show_2d_graph(
     y_axis="Retry num(average,errorbar=25-75percentile) [ms]",
     title="retry_num",
 )
+show_2d_graph(
+    sys.argv[1],
+    "payment_rate",
+    "total_channel_lock_time/average",
+    errorbar_bottom_key="total_channel_lock_time/25-percentile",
+    errorbar_top_key="total_channel_lock_time/75-percentile",
+    series_key="routing_method",
+    fix={
+        "average_payment_amount": ["10000"],
+        "group_cap_update": ["true", ""],
+        "routing_method": ["ideal", "channel_update", "group_routing"]
+    },
+    x_logarithmic_scale=True,
+    x_axis="Log base 10 transactions per sec [satoshi]",
+    y_axis="total_channel_lock_time(average,errorbar=25-75percentile) [ms]",
+    title="total_channel_lock_time",
+)
