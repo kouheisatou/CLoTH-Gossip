@@ -503,6 +503,7 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
         struct payment* p = array_get(payments, payment_id);
         hash_network_payments += *SHA512Hash((uint8_t*)(&(p->id)), sizeof(uint64_t));
         hash_network_payments += *SHA512Hash((uint8_t*)(&(p->sender)), sizeof(uint64_t));
+        hash_network_payments += *SHA512Hash((uint8_t*)(&(p->receiver)), sizeof(uint64_t));
         hash_network_payments += *SHA512Hash((uint8_t*)(&(p->amount)), sizeof(uint64_t));
     }
     printf("hash_payments=%lu\n", hash_network_payments);
