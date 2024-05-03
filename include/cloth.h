@@ -36,6 +36,7 @@ struct payments_params{
   double variance_amount;
   unsigned int payments_from_file;
   char payments_filename[256];
+  unsigned int log_all_events;
   unsigned int mpp;
 };
 
