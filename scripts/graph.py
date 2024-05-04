@@ -187,6 +187,9 @@ def show_2d_graph(csv_file: str,
     plt.savefig(f"{dirname}/{title}.pdf")
     # plt.show()
 
+    plt.clf()
+    plt.close()
+
 
 # for i in range(4, 5):  # for light simulation
 for i in range(1, 5):  # for full simulation

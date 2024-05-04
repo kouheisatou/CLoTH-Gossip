@@ -92,9 +92,9 @@ def analyze_output(output_dir_name):
             "success_rate": total_success_num / total_payment_num,  # シミュレーション全体から見た送金成功率
             "fail_rate": total_fail_num / total_payment_num,  # シミュレーション全体から見た送金失敗率
             "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # シミュレーション全体から見たfail_no_pathによる送金失敗率
-            "retry_rate": total_retry_num / total_attempts_num,  # 送金試行1回あたりのリトライ発生回数
-            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 送金試行1回あたりのfail_no_balanceによるリトライ発生回数
-            "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_attempts_num,  # 送金試行1回あたりのfail_edge_occupiedによるリトライ発生回数
+            "retry_rate": total_retry_num / total_payment_num,  # 送金1回あたりのリトライ発生回数
+            "retry_no_balance_rate": total_retry_no_balance_num / total_payment_num,  # 送金1回あたりのfail_no_balanceによるリトライ発生回数
+            "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_payment_num,  # 送金1回あたりのfail_edge_occupiedによるリトライ発生回数
 
             # 送金開始から送金が完了するまでにかかる時間
             "time/average": np.mean(time_distribution),
