@@ -184,7 +184,7 @@ def show_2d_graph(csv_file: str,
     ax.legend()
 
     dirname, _ = os.path.split(csv_file)
-    plt.savefig(f"{dirname}/{title}.pdf")
+    plt.savefig(f"{dirname}/{title}.pdf", bbox_inches="tight")
     # plt.show()
 
     plt.clf()
@@ -202,7 +202,7 @@ for i in range(1, 5):  # for full simulation
         {
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+            "routing_method": ["ideal", "channel_update", "group_routing"]
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
@@ -219,7 +219,7 @@ for i in range(1, 5):  # for full simulation
         fix={
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+            "routing_method": ["ideal", "channel_update", "group_routing"]
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
@@ -236,7 +236,7 @@ for i in range(1, 5):  # for full simulation
         fix={
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+            "routing_method": ["ideal", "channel_update", "group_routing"]
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
@@ -253,7 +253,7 @@ for i in range(1, 5):  # for full simulation
         fix={
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+            "routing_method": ["ideal", "channel_update", "group_routing"]
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
@@ -268,7 +268,7 @@ for i in range(1, 5):  # for full simulation
         fix={
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+            "routing_method": ["ideal", "channel_update", "group_routing"]
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
@@ -283,7 +283,7 @@ for i in range(1, 5):  # for full simulation
         fix={
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+            "routing_method": ["ideal", "channel_update", "group_routing"]
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
