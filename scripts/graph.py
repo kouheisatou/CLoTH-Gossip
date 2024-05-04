@@ -212,88 +212,10 @@ for i in range(1, 5):  # for full simulation
     show_2d_graph(
         sys.argv[1],
         "payment_rate",
-        "fail_no_path_rate",
-        "routing_method",
-        {
-            "average_payment_amount": [avg_pmt_rate],
-            "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
-        },
-        x_logarithmic_scale=True,
-        x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="fail_no_path_rate",
-        title=f"fail_no_path_rate (avg_pmt_amt={avg_pmt_rate})",
-    )
-    show_2d_graph(
-        sys.argv[1],
-        "payment_rate",
-        "retry_rate",
-        "routing_method",
-        {
-            "average_payment_amount": [avg_pmt_rate],
-            "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
-        },
-        x_logarithmic_scale=True,
-        x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="retry_rate",
-        title=f"retry_rate (avg_pmt_amt={avg_pmt_rate})",
-    )
-    show_2d_graph(
-        sys.argv[1],
-        "payment_rate",
-        "retry_no_balance_rate",
-        "routing_method",
-        {
-            "average_payment_amount": [avg_pmt_rate],
-            "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
-        },
-        x_logarithmic_scale=True,
-        x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="retry_no_balance_rate",
-        title=f"retry_no_balance_rate (avg_pmt_amt={avg_pmt_rate})",
-    )
-    show_2d_graph(
-        sys.argv[1],
-        "payment_rate",
-        "retry_edge_occupied_rate",
-        "routing_method",
-        {
-            "average_payment_amount": [avg_pmt_rate],
-            "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
-        },
-        x_logarithmic_scale=True,
-        x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="retry_edge_occupied_rate",
-        title=f"retry_edge_occupied_rate (avg_pmt_amt={avg_pmt_rate})",
-    )
-    show_2d_graph(
-        sys.argv[1],
-        "payment_rate",
-        "total_channel_lock_time/average",
-        "routing_method",
-        fix={
-            "average_payment_amount": [avg_pmt_rate],
-            "group_cap_update": ["true", ""],
-            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
-        },
-        errorbar_bottom_key="total_channel_lock_time/5-percentile",
-        errorbar_top_key="total_channel_lock_time/95-percentile",
-        x_logarithmic_scale=True,
-        x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="total_channel_lock_time(average,5-95percentile)",
-        title=f"total_channel_lock_time (avg_pmt_amt={avg_pmt_rate})",
-    )
-
-    show_2d_graph(
-        sys.argv[1],
-        "payment_rate",
         "time/average",
         series_key="routing_method",
-        errorbar_bottom_key="time/25-percentile",
-        errorbar_top_key="time/75-percentile",
+        errorbar_bottom_key="time/5-percentile",
+        errorbar_top_key="time/95-percentile",
         fix={
             "average_payment_amount": [avg_pmt_rate],
             "group_cap_update": ["true", ""],
@@ -301,15 +223,15 @@ for i in range(1, 5):  # for full simulation
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="Time(average,errorbar=25-75percentile) [ms]",
+        y_axis="Time(average,errorbar=5-95percentile) [ms]",
         title=f"time (avg_pmt_amt={avg_pmt_rate})",
     )
     show_2d_graph(
         sys.argv[1],
         "payment_rate",
         "retry/average",
-        errorbar_bottom_key="retry/25-percentile",
-        errorbar_top_key="retry/75-percentile",
+        errorbar_bottom_key="retry/5-percentile",
+        errorbar_top_key="retry/95-percentile",
         series_key="routing_method",
         fix={
             "average_payment_amount": [avg_pmt_rate],
@@ -318,15 +240,15 @@ for i in range(1, 5):  # for full simulation
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="Retry num(average,errorbar=25-75percentile) [ms]",
+        y_axis="Retry num(average,errorbar=5-95percentile)",
         title=f"retry_num (avg_pmt_amt={avg_pmt_rate})",
     )
     show_2d_graph(
         sys.argv[1],
         "payment_rate",
         "total_channel_lock_time/average",
-        errorbar_bottom_key="total_channel_lock_time/25-percentile",
-        errorbar_top_key="total_channel_lock_time/75-percentile",
+        errorbar_bottom_key="total_channel_lock_time/5-percentile",
+        errorbar_top_key="total_channel_lock_time/95-percentile",
         series_key="routing_method",
         fix={
             "average_payment_amount": [avg_pmt_rate],
@@ -335,6 +257,36 @@ for i in range(1, 5):  # for full simulation
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="total_channel_lock_time(average,errorbar=25-75percentile) [ms]",
+        y_axis="total_channel_lock_time(average,errorbar=5-95percentile) [ms]",
         title=f"total_channel_lock_time (avg_pmt_amt={avg_pmt_rate})",
+    )
+    show_2d_graph(
+        sys.argv[1],
+        "payment_rate",
+        "route_len/average",
+        series_key="routing_method",
+        fix={
+            "average_payment_amount": [avg_pmt_rate],
+            "group_cap_update": ["true", ""],
+            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+        },
+        x_logarithmic_scale=True,
+        x_axis="Log base 10 transactions per sec [satoshi]",
+        y_axis="route_len",
+        title=f"route_len (avg_pmt_amt={avg_pmt_rate})",
+    )
+    show_2d_graph(
+        sys.argv[1],
+        "payment_rate",
+        "fail_timeout_rate",
+        series_key="routing_method",
+        fix={
+            "average_payment_amount": [avg_pmt_rate],
+            "group_cap_update": ["true", ""],
+            "routing_method": ["ideal", "channel_update", "group_routing", "cloth_original"]
+        },
+        x_logarithmic_scale=True,
+        x_axis="Log base 10 transactions per sec [satoshi]",
+        y_axis="fail_timeout_rate",
+        title=f"fail_timeout_rate (avg_pmt_amt={avg_pmt_rate})",
     )

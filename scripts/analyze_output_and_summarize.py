@@ -42,8 +42,8 @@ def analyze_output(output_dir_name):
         payments = list(csv.DictReader(csv_pay))
 
         total_payment_num = len(payments)
-        total_attempts_num = 0
         total_success_num = 0
+        total_timeout_num = 0
         total_fail_num = 0
         total_fail_no_path_num = 0
         total_retry_num = 0
@@ -72,9 +72,10 @@ def analyze_output(output_dir_name):
                 fee_distribution.append(total_fee)
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
+                if pay["timeout_exp"] == "1":
+                    total_timeout_num += 1
                 total_fail_num += 1
 
-            total_attempts_num += attempts
             total_retry_num += retry
             total_fail_no_path_num += (1 if (pay["route"] == "") else 0)
             total_retry_no_balance_num += int(pay["no_balance_count"])
@@ -92,6 +93,7 @@ def analyze_output(output_dir_name):
             "success_rate": total_success_num / total_payment_num,  # シミュレーション全体から見た送金成功率
             "fail_rate": total_fail_num / total_payment_num,  # シミュレーション全体から見た送金失敗率
             "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # シミュレーション全体から見たfail_no_pathによる送金失敗率
+            "fail_timeout_rate": total_timeout_num / total_payment_num,  # シミュレーション全体から見たtimeoutによる送金失敗率
             "retry_rate": total_retry_num / total_payment_num,  # 送金1回あたりのリトライ発生回数
             "retry_no_balance_rate": total_retry_no_balance_num / total_payment_num,  # 送金1回あたりのfail_no_balanceによるリトライ発生回数
             "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_payment_num,  # 送金1回あたりのfail_edge_occupiedによるリトライ発生回数
@@ -148,7 +150,10 @@ def analyze_output(output_dir_name):
             channel_lock_time_distribution.append(int(channel["total_lock_time"]))
 
         save_histogram(channel_lock_time_distribution, "Histogram of Total Channel Lock Time", "Total Channel Lock Time [ms]", "Frequency", f"{output_dir_name}/channel_lock_time_histogram.pdf", 500)
+
         result = result | {
+
+            # 各チャネルのロックされていた時間合計
             "total_channel_lock_time/average": np.mean(channel_lock_time_distribution),
             "total_channel_lock_time/variance": np.var(channel_lock_time_distribution),
             "total_channel_lock_time/max": np.max(channel_lock_time_distribution),
