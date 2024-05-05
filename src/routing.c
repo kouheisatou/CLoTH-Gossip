@@ -330,6 +330,92 @@ double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock){
   return timelock_penalty + ((double) fee);
 }
 
+uint64_t estimate_capacity(struct edge* edge, struct network* network, enum routing_method routing_method){
+    struct channel* channel = array_get(network->channels, edge->channel_id);
+    struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
+
+    uint64_t estimated_capacity;
+
+    // intermediate edges
+    // judge edge has enough capacity by group_capacity (proposed method)
+    if(routing_method == GROUP_ROUTING){
+        if(edge->group != NULL && counter_edge->group != NULL){
+            if(edge->group->group_cap > counter_edge->group->group_cap){
+                estimated_capacity = edge->group->group_cap;
+            }else{
+                estimated_capacity = channel->capacity - counter_edge->group->group_cap;
+            }
+        }else if(edge->group != NULL && counter_edge->group == NULL){
+            estimated_capacity = edge->group->group_cap;
+        }else if(counter_edge->group != NULL && edge->group == NULL){
+            estimated_capacity = channel->capacity - counter_edge->group->group_cap;
+        }else{
+            estimated_capacity = estimate_capacity(edge, network, CHANNEL_UPDATE);
+        }
+    }
+
+    // judge by channel_update (conventional method)
+    else if (routing_method == CHANNEL_UPDATE){
+
+        // search for valid channel_updates that is less than channel_capacity starting from the latest
+        struct channel_update* valid_channel_update = NULL;
+        if(edge->channel_updates != NULL) {
+            for(struct element* iterator = edge->channel_updates; iterator->next != NULL; iterator = iterator->next){
+                valid_channel_update = iterator->data;
+
+                // if the valid_channel_update value does not exceed channel_capacity
+                if(valid_channel_update->htlc_maximum_msat < channel->capacity) break;
+
+                // oldest channel_update
+                if(iterator->next == NULL) valid_channel_update = edge->channel_updates->data;
+            }
+        }
+
+        // same as valid_channel_update
+        struct channel_update* valid_counter_edges_channel_update = NULL;
+        if(counter_edge->channel_updates != NULL){
+            for(struct element* iterator = counter_edge->channel_updates; iterator->next != NULL; iterator = iterator->next){
+                valid_counter_edges_channel_update = iterator->data;
+                if(valid_counter_edges_channel_update->htlc_maximum_msat < channel->capacity) break;
+                if(iterator->next == NULL) valid_channel_update = counter_edge->channel_updates->data;
+            }
+        }
+
+        if(valid_channel_update != NULL && valid_counter_edges_channel_update != NULL){
+            if(valid_channel_update->time > valid_counter_edges_channel_update->time){
+                estimated_capacity = valid_channel_update->htlc_maximum_msat;
+            }else{
+                estimated_capacity = channel->capacity - valid_counter_edges_channel_update->htlc_maximum_msat;
+            }
+        }else if(valid_channel_update != NULL && valid_counter_edges_channel_update == NULL){
+            estimated_capacity = valid_channel_update->htlc_maximum_msat;
+        }else if(valid_counter_edges_channel_update != NULL && valid_channel_update == NULL){
+            estimated_capacity = channel->capacity - valid_counter_edges_channel_update->htlc_maximum_msat;
+        }else{
+            estimated_capacity = channel->capacity;
+        }
+    }
+
+    // judge by channel capacity (cloth method)
+    else if (routing_method == CLOTH_ORIGINAL){
+        estimated_capacity = channel->capacity;
+    }
+
+    // judge by edge capacity (ideal for routing but no privacy)
+    else if (routing_method == IDEAL){
+        estimated_capacity = edge->balance;
+    }
+
+    else {
+        printf("invalid routing method\n");
+        exit(1);
+    }
+
+    if(estimated_capacity < 0) estimated_capacity = channel->capacity;
+
+    return estimated_capacity;
+}
+
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
 struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method) {
   struct distance *d=NULL, to_node_dist;
@@ -396,50 +482,12 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       if(from_node_id == source){   // first hop
         if(channel->occupied) continue;    // exclude locked channel
         if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
-      }
-      else{   // intermediate edges
-        // judge edge has enough capacity by group_capacity (proposed method)
-        if(routing_method == GROUP_ROUTING){
-            if(edge->group != NULL){
-                if(edge->group->group_cap < amt_to_send) continue;
-            }else{
-                if(edge->channel_updates != NULL) {
-                    struct channel_update* channel_update = edge->channel_updates->data;
-                    if(channel_update->htlc_maximum_msat < channel->capacity) {
-                        if (channel_update->htlc_maximum_msat < amt_to_send) continue;
-                    }else{
-                        if(channel->capacity < amt_to_send) continue;
-                    }
-                }else{
-                    if(channel->capacity < amt_to_send) continue;
-                }
-            }
-        }
-        // judge by channel_update (conventional method)
-        else if (routing_method == CHANNEL_UPDATE){
-            if(edge->channel_updates != NULL) {
-                struct channel_update* channel_update = edge->channel_updates->data;
-                if(channel_update->htlc_maximum_msat < channel->capacity) {
-                    if (channel_update->htlc_maximum_msat < amt_to_send) continue;
-                }else{
-                    if(channel->capacity < amt_to_send) continue;
-                }
-            }else{
-                if(channel->capacity < amt_to_send) continue;
-            }
-        }
-        // judge by channel capacity (cloth method)
-        else if (routing_method == CLOTH_ORIGINAL){
-            if(channel->capacity < amt_to_send) continue;
-        }
-        // judge by edge capacity (ideal for routing but no privacy)
-        else if (routing_method == IDEAL){
-            if(edge->balance < amt_to_send) continue;
-        }
+      }else{
+          uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);
+          if(estimated_capacity < amt_to_send) continue;
       }
 
-      if(amt_to_send < edge->policy.min_htlc)
-        continue;
+      if(amt_to_send < edge->policy.min_htlc) continue;
 
       edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
 
