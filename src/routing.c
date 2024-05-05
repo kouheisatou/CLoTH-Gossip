@@ -332,23 +332,14 @@ double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock){
 
 uint64_t estimate_capacity(struct edge* edge, struct network* network, enum routing_method routing_method){
     struct channel* channel = array_get(network->channels, edge->channel_id);
-    struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
 
     uint64_t estimated_capacity;
 
     // intermediate edges
     // judge edge has enough capacity by group_capacity (proposed method)
     if(routing_method == GROUP_ROUTING){
-        if(edge->group != NULL && counter_edge->group != NULL){
-            if(edge->group->group_cap > counter_edge->group->group_cap){
-                estimated_capacity = edge->group->group_cap;
-            }else{
-                estimated_capacity = channel->capacity - counter_edge->group->group_cap;
-            }
-        }else if(edge->group != NULL && counter_edge->group == NULL){
+        if(edge->group != NULL){
             estimated_capacity = edge->group->group_cap;
-        }else if(counter_edge->group != NULL && edge->group == NULL){
-            estimated_capacity = channel->capacity - counter_edge->group->group_cap;
         }else{
             estimated_capacity = estimate_capacity(edge, network, CHANNEL_UPDATE);
         }
@@ -356,6 +347,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 
     // judge by channel_update (conventional method)
     else if (routing_method == CHANNEL_UPDATE){
+        struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
 
         // search for valid channel_updates that is less than channel_capacity starting from the latest
         struct channel_update* valid_channel_update = NULL;
