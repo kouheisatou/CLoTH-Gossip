@@ -43,13 +43,14 @@ def analyze_output(output_dir_name):
         payments = list(csv.DictReader(csv_pay))
 
         total_payment_num = len(payments)
+        total_attempts_num = 0
         total_success_num = 0
         total_timeout_num = 0
-        total_fail_num = 0
         total_fail_no_path_num = 0
         total_retry_num = 0
         total_retry_no_balance_num = 0
         total_retry_edge_occupied_num = 0
+        total_fail_no_alternative_path_num = 0
         time_distribution = []
         retry_distribution = []
         fee_distribution = []
@@ -71,21 +72,21 @@ def analyze_output(output_dir_name):
                 total_success_num += 1
                 total_fee = int(pay["total_fee"])
                 retry_distribution.append(retry)
-                time_distribution.append(time)
                 fee_distribution.append(total_fee)
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
-                if pay["timeout_exp"] == "1":
+                if (pay["route"] == "") and (attempts == 1):
+                    total_fail_no_path_num += 1
+                elif pay["timeout_exp"] == 1:
                     total_timeout_num += 1
-                total_fail_num += 1
+                else:
+                    total_fail_no_alternative_path_num += 1
 
+            total_attempts_num += attempts
             total_retry_num += retry
-            total_fail_no_path_num += (1 if (pay["route"] == "") else 0)
             total_retry_no_balance_num += int(pay["no_balance_count"])
             total_retry_edge_occupied_num += int(pay["edge_occupied_count"])
-            if pay["route"] != "":
-                time_distribution.append(time)
-                route_len_distribution.append(len(pay['route'].split('-')))
+            time_distribution.append(time)
 
         save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
         save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
@@ -93,13 +94,14 @@ def analyze_output(output_dir_name):
         save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
 
         result = result | {
-            "success_rate": total_success_num / total_payment_num,  # シミュレーション全体から見た送金成功率
-            "fail_rate": total_fail_num / total_payment_num,  # シミュレーション全体から見た送金失敗率
-            "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # シミュレーション全体から見たfail_no_pathによる送金失敗率
-            "fail_timeout_rate": total_timeout_num / total_payment_num,  # シミュレーション全体から見たtimeoutによる送金失敗率
-            "retry_rate": total_retry_num / total_payment_num,  # 送金1回あたりのリトライ発生回数
-            "retry_no_balance_rate": total_retry_no_balance_num / total_payment_num,  # 送金1回あたりのfail_no_balanceによるリトライ発生回数
-            "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_payment_num,  # 送金1回あたりのfail_edge_occupiedによるリトライ発生回数
+            "success_rate": total_success_num / total_payment_num,  # 送金成功率
+            "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # 送金前に送金経路なしと判断され送金失敗した確率
+            "fail_timeout_rate": total_timeout_num / total_payment_num,  # timeoutによる送金失敗率
+            "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num,  # 送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
+
+            "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりのリトライ発生回数
+            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによるリトライ発生回数
+            "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_attempts_num,  # 試行1回あたりのfail_edge_occupiedによるリトライ発生回数
 
             # 送金開始から送金が完了するまでにかかる時間
             "time/average": np.mean(time_distribution),
