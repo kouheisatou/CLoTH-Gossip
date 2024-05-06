@@ -37,6 +37,7 @@ def save_histogram(data: list, title: str, x_label: str, y_label: str, filepath:
 
 # 1シミュレーションのoutputからその分析結果を得る
 def analyze_output(output_dir_name):
+    simulation_end_time = 0
     result = {}
     with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:
         payments = list(csv.DictReader(csv_pay))
@@ -56,13 +57,15 @@ def analyze_output(output_dir_name):
 
         for pay in payments:
             is_success = (pay["is_success"] == "1")
-
             amount = int(pay["amount"])
             start_time = int(pay["start_time"])
             end_time = int(pay["end_time"])
             time = end_time - start_time
             attempts = int(pay["attempts"])
             retry = attempts - 1
+
+            if simulation_end_time < end_time:
+                simulation_end_time = end_time
 
             if is_success:
                 total_success_num += 1
@@ -154,15 +157,18 @@ def analyze_output(output_dir_name):
         result = result | {
 
             # 各チャネルのロックされていた時間合計
-            "total_channel_lock_time/average": np.mean(channel_lock_time_distribution),
-            "total_channel_lock_time/variance": np.var(channel_lock_time_distribution),
-            "total_channel_lock_time/max": np.max(channel_lock_time_distribution),
-            "total_channel_lock_time/min": np.min(channel_lock_time_distribution),
-            "total_channel_lock_time/5-percentile": np.percentile(channel_lock_time_distribution, 5),
-            "total_channel_lock_time/25-percentile": np.percentile(channel_lock_time_distribution, 25),
-            "total_channel_lock_time/50-percentile": np.percentile(channel_lock_time_distribution, 50),
-            "total_channel_lock_time/75-percentile": np.percentile(channel_lock_time_distribution, 75),
-            "total_channel_lock_time/95-percentile": np.percentile(channel_lock_time_distribution, 95),
+            "total_channel_locked_time/average": np.mean(channel_lock_time_distribution),
+            "total_channel_locked_time/variance": np.var(channel_lock_time_distribution),
+            "total_channel_locked_time/max": np.max(channel_lock_time_distribution),
+            "total_channel_locked_time/min": np.min(channel_lock_time_distribution),
+            "total_channel_locked_time/5-percentile": np.percentile(channel_lock_time_distribution, 5),
+            "total_channel_locked_time/25-percentile": np.percentile(channel_lock_time_distribution, 25),
+            "total_channel_locked_time/50-percentile": np.percentile(channel_lock_time_distribution, 50),
+            "total_channel_locked_time/75-percentile": np.percentile(channel_lock_time_distribution, 75),
+            "total_channel_locked_time/95-percentile": np.percentile(channel_lock_time_distribution, 95),
+
+            # チャネルがロックされていた時間はシミュレーション全体でどれぐらいの割合を占めるのか
+            "channel_locked_time_ratio": np.mean(channel_lock_time_distribution) / simulation_end_time,
         }
 
     with open(output_dir_name + 'edges_output.csv', 'r') as csv_group:

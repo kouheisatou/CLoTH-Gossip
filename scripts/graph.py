@@ -246,9 +246,9 @@ for i in range(1, 5):  # for full simulation
     show_2d_graph(
         sys.argv[1],
         "payment_rate",
-        "total_channel_lock_time/average",
-        errorbar_bottom_key="total_channel_lock_time/5-percentile",
-        errorbar_top_key="total_channel_lock_time/95-percentile",
+        "total_channel_locked_time/average",
+        errorbar_bottom_key="total_channel_locked_time/5-percentile",
+        errorbar_top_key="total_channel_locked_time/95-percentile",
         series_key="routing_method",
         fix={
             "average_payment_amount": [avg_pmt_rate],
@@ -257,8 +257,8 @@ for i in range(1, 5):  # for full simulation
         },
         x_logarithmic_scale=True,
         x_axis="Log base 10 transactions per sec [satoshi]",
-        y_axis="total_channel_lock_time(average,errorbar=5-95percentile) [ms]",
-        title=f"total_channel_lock_time (avg_pmt_amt={avg_pmt_rate})",
+        y_axis="total_channel_locked_time(average,errorbar=5-95percentile) [ms]",
+        title=f"total_channel_locked_time (avg_pmt_amt={avg_pmt_rate})",
     )
     show_2d_graph(
         sys.argv[1],
