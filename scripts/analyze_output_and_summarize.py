@@ -22,7 +22,6 @@ def find_output_dirs(root_dir):
 
 
 def save_histogram(data: list, title: str, x_label: str, y_label: str, filepath: str, bins):
-    return
     fig, ax = plt.subplots()
     ax.hist(data, bins=bins)
     ax.set_xlabel(x_label)
@@ -173,7 +172,15 @@ def analyze_output(output_dir_name):
             "total_channel_locked_time/95-percentile": np.percentile(channel_lock_time_distribution, 95),
 
             # チャネルがロックされていた時間はシミュレーション全体でどれぐらいの割合を占めるのか
-            "channel_locked_time_ratio": np.mean(channel_lock_time_distribution) / simulation_end_time,
+            "channel_locked_time_ratio/average": np.mean(channel_lock_time_distribution) / simulation_end_time,
+            "channel_locked_time_ratio/variance": np.var(channel_lock_time_distribution) / simulation_end_time,
+            "channel_locked_time_ratio/max": np.max(channel_lock_time_distribution) / simulation_end_time,
+            "channel_locked_time_ratio/min": np.min(channel_lock_time_distribution) / simulation_end_time,
+            "channel_locked_time_ratio/5-percentile": np.percentile(channel_lock_time_distribution, 5) / simulation_end_time,
+            "channel_locked_time_ratio/25-percentile": np.percentile(channel_lock_time_distribution, 25) / simulation_end_time,
+            "channel_locked_time_ratio/50-percentile": np.percentile(channel_lock_time_distribution, 50) / simulation_end_time,
+            "channel_locked_time_ratio/75-percentile": np.percentile(channel_lock_time_distribution, 75) / simulation_end_time,
+            "channel_locked_time_ratio/95-percentile": np.percentile(channel_lock_time_distribution, 95) / simulation_end_time,
         }
 
     with open(output_dir_name + 'edges_output.csv', 'r') as csv_group:
