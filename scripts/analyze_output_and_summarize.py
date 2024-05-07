@@ -21,12 +21,11 @@ def find_output_dirs(root_dir):
     return files
 
 
-def save_histogram(data: list, title: str, x_label: str, y_label: str, filepath: str, bins):
+def save_histogram(data: list, x_label: str, y_label: str, filepath: str, bins):
     fig, ax = plt.subplots()
     ax.hist(data, bins=bins)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
-    ax.set_title(title)
     ax.axvline(x=np.mean(data), color='green', linestyle='--', linewidth=1, label=f'Mean: {np.mean(data):.2f}')
     ax.axvline(x=np.median(data), color='red', linestyle='--', linewidth=1, label=f'Median: {np.median(data):.2f}')
     fig.legend()
@@ -35,9 +34,21 @@ def save_histogram(data: list, title: str, x_label: str, y_label: str, filepath:
     plt.close()
 
 
+def save_scatter(data_x: list, data_y: list, x_label: str, y_label: str, filepath: str):
+    fig, ax = plt.subplots()
+    ax.scatter(data_x, data_y)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    fig.savefig(filepath)
+    plt.clf()
+    plt.close()
+
+
 # 1シミュレーションのoutputからその分析結果を得る
 def analyze_output(output_dir_name):
-    simulation_end_time = 0
+    simulation_time = 0
     result = {}
     with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:
         payments = list(csv.DictReader(csv_pay))
@@ -65,8 +76,8 @@ def analyze_output(output_dir_name):
             attempts = int(pay["attempts"])
             retry = attempts - 1
 
-            if simulation_end_time < end_time:
-                simulation_end_time = end_time
+            if simulation_time < end_time:
+                simulation_time = end_time
 
             if is_success:
                 total_success_num += 1
@@ -88,13 +99,13 @@ def analyze_output(output_dir_name):
             total_retry_edge_occupied_num += int(pay["edge_occupied_count"])
             time_distribution.append(time)
 
-        save_histogram(time_distribution, "Histogram of Transaction Elapsed Time", "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
-        save_histogram(retry_distribution, "Histogram of Retry Num", "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
-        save_histogram(fee_distribution, "Histogram of Fee", "Fee [satoshi]", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
-        save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
+        save_histogram(time_distribution, "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
+        save_histogram(retry_distribution, "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
+        save_histogram(fee_distribution, "Fee [satoshi]", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
+        save_histogram(route_len_distribution, "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
 
         result = result | {
-            "simulation_end_time": simulation_end_time,  # シミュレーション時間
+            "simulation_time": simulation_time,  # シミュレーション時間
 
             "success_rate": total_success_num / total_payment_num,  # 送金成功率
             "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # 送金前に送金経路なしと判断され送金失敗した確率
@@ -150,47 +161,62 @@ def analyze_output(output_dir_name):
             "route_len/95-percentile": np.percentile(route_len_distribution, 95),
         }
 
-    with open(output_dir_name + 'channels_output.csv', 'r') as csv_channel:
-        channels = list(csv.DictReader(csv_channel))
-        channel_lock_time_distribution = []
-        for channel in channels:
-            channel_lock_time_distribution.append(int(channel["total_lock_time"]))
-
-        save_histogram(channel_lock_time_distribution, "Histogram of Total Channel Lock Time", "Total Channel Lock Time [ms]", "Frequency", f"{output_dir_name}/channel_lock_time_histogram.pdf", 500)
-
-        result = result | {
-
-            # 各チャネルのロックされていた時間合計
-            "total_channel_locked_time/average": np.mean(channel_lock_time_distribution),
-            "total_channel_locked_time/variance": np.var(channel_lock_time_distribution),
-            "total_channel_locked_time/max": np.max(channel_lock_time_distribution),
-            "total_channel_locked_time/min": np.min(channel_lock_time_distribution),
-            "total_channel_locked_time/5-percentile": np.percentile(channel_lock_time_distribution, 5),
-            "total_channel_locked_time/25-percentile": np.percentile(channel_lock_time_distribution, 25),
-            "total_channel_locked_time/50-percentile": np.percentile(channel_lock_time_distribution, 50),
-            "total_channel_locked_time/75-percentile": np.percentile(channel_lock_time_distribution, 75),
-            "total_channel_locked_time/95-percentile": np.percentile(channel_lock_time_distribution, 95),
-
-            # チャネルがロックされていた時間はシミュレーション全体でどれぐらいの割合を占めるのか
-            "channel_locked_time_ratio/average": np.mean(channel_lock_time_distribution) / simulation_end_time,
-            "channel_locked_time_ratio/variance": np.var(channel_lock_time_distribution) / simulation_end_time,
-            "channel_locked_time_ratio/max": np.max(channel_lock_time_distribution) / simulation_end_time,
-            "channel_locked_time_ratio/min": np.min(channel_lock_time_distribution) / simulation_end_time,
-            "channel_locked_time_ratio/5-percentile": np.percentile(channel_lock_time_distribution, 5) / simulation_end_time,
-            "channel_locked_time_ratio/25-percentile": np.percentile(channel_lock_time_distribution, 25) / simulation_end_time,
-            "channel_locked_time_ratio/50-percentile": np.percentile(channel_lock_time_distribution, 50) / simulation_end_time,
-            "channel_locked_time_ratio/75-percentile": np.percentile(channel_lock_time_distribution, 75) / simulation_end_time,
-            "channel_locked_time_ratio/95-percentile": np.percentile(channel_lock_time_distribution, 95) / simulation_end_time,
-        }
-
+    edge_fee = {}  # edge_idとそのエッジの手数料の紐付け
     with open(output_dir_name + 'edges_output.csv', 'r') as csv_group:
         edges = list(csv.DictReader(csv_group))
         edge_in_group_num = 0
         for edge in edges:
+            edge_fee[edge["id"]] = {"fee_base": edge["fee_base"], "fee_proportional": edge["fee_proportional"]}
             if edge["group"] != "NULL":
                 edge_in_group_num += 1
         result = result | {
             "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
+        }
+
+    with open(output_dir_name + 'channels_output.csv', 'r') as csv_channel:
+        channels = list(csv.DictReader(csv_channel))
+        channel_locked_time_distribution = []  # チャネルロック合計時間ヒストグラムのグラフデータ
+        base_fee_distribution = []  # チャネルの手数料とチャネルロック合計時間の相関関係グラフデータ
+        proportional_fee_distribution = []  # チャネルの手数料とチャネルロック合計時間の相関関係グラフデータ
+        for channel in channels:
+            locked_time = int(channel["total_lock_time"])
+            channel_locked_time_distribution.append(locked_time)
+            base_fee_distribution.append(int(edge_fee[channel["edge1"]]["fee_base"]))
+            proportional_fee_distribution.append(int(edge_fee[channel["edge1"]]["fee_proportional"]))
+            channel_locked_time_distribution.append(locked_time)
+            base_fee_distribution.append(int(edge_fee[channel["edge2"]]["fee_base"]))
+            proportional_fee_distribution.append(int(edge_fee[channel["edge2"]]["fee_proportional"]))
+
+        # save_scatter(base_fee_distribution, channel_locked_time_distribution, "Base fee [satoshi]", "Total Chanel Locked Time [ms]", f"{output_dir_name}/base_fee_scatter.pdf")
+        # save_scatter(proportional_fee_distribution, channel_locked_time_distribution, "Base fee [satoshi]", "Total Chanel Locked Time [ms]", f"{output_dir_name}/proportional_fee_scatter.pdf")
+        save_histogram(channel_locked_time_distribution, "Total Channel Locked Time [ms]", "Frequency", f"{output_dir_name}/channel_lock_time_histogram.pdf", 500)
+
+
+        result = result | {
+            # "correlation_locktime_basefee": np.corrcoef(channel_locked_time_distribution, base_fee_distribution)[0, 1],  # チャネルの手数料(base_fee)とチャネルロック合計時間の相関係数
+            # "correlation_locktime_propfee": np.corrcoef(channel_locked_time_distribution, proportional_fee_distribution)[0, 1],  # チャネルの手数料(proportional_fee)とチャネルロック合計時間の相関係数
+
+            # 各チャネルのロックされていた時間合計
+            "total_channel_locked_time/average": np.mean(channel_locked_time_distribution),
+            "total_channel_locked_time/variance": np.var(channel_locked_time_distribution),
+            "total_channel_locked_time/max": np.max(channel_locked_time_distribution),
+            "total_channel_locked_time/min": np.min(channel_locked_time_distribution),
+            "total_channel_locked_time/5-percentile": np.percentile(channel_locked_time_distribution, 5),
+            "total_channel_locked_time/25-percentile": np.percentile(channel_locked_time_distribution, 25),
+            "total_channel_locked_time/50-percentile": np.percentile(channel_locked_time_distribution, 50),
+            "total_channel_locked_time/75-percentile": np.percentile(channel_locked_time_distribution, 75),
+            "total_channel_locked_time/95-percentile": np.percentile(channel_locked_time_distribution, 95),
+
+            # チャネルがロックされていた時間はシミュレーション全体でどれぐらいの割合を占めるのか
+            "channel_locked_time_ratio/average": np.mean(channel_locked_time_distribution) / simulation_time,
+            "channel_locked_time_ratio/variance": np.var(channel_locked_time_distribution) / simulation_time,
+            "channel_locked_time_ratio/max": np.max(channel_locked_time_distribution) / simulation_time,
+            "channel_locked_time_ratio/min": np.min(channel_locked_time_distribution) / simulation_time,
+            "channel_locked_time_ratio/5-percentile": np.percentile(channel_locked_time_distribution, 5) / simulation_time,
+            "channel_locked_time_ratio/25-percentile": np.percentile(channel_locked_time_distribution, 25) / simulation_time,
+            "channel_locked_time_ratio/50-percentile": np.percentile(channel_locked_time_distribution, 50) / simulation_time,
+            "channel_locked_time_ratio/75-percentile": np.percentile(channel_locked_time_distribution, 75) / simulation_time,
+            "channel_locked_time_ratio/95-percentile": np.percentile(channel_locked_time_distribution, 95) / simulation_time,
         }
 
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
@@ -212,9 +238,9 @@ def analyze_output(output_dir_name):
                 continue
 
         if len(groups) != 0:
-            save_histogram(group_survival_time_distribution, "Histogram of Group Survival Time", "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
-            save_histogram(group_capacity_distribution, "Histogram of Group Capacity", "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
-            save_histogram(cul_distribution, "Histogram of CUL", "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
+            save_histogram(group_survival_time_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
+            save_histogram(group_capacity_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
+            save_histogram(cul_distribution, "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
 
         result = result | {
             "group_survival_time/average": np.mean(group_survival_time_distribution) if len(groups) else "",
