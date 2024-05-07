@@ -22,6 +22,7 @@ def find_output_dirs(root_dir):
 
 
 def save_histogram(data: list, title: str, x_label: str, y_label: str, filepath: str, bins):
+    return
     fig, ax = plt.subplots()
     ax.hist(data, bins=bins)
     ax.set_xlabel(x_label)
@@ -94,6 +95,8 @@ def analyze_output(output_dir_name):
         save_histogram(route_len_distribution, "Histogram of Route Length", "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
 
         result = result | {
+            "simulation_end_time": simulation_end_time,  # シミュレーション時間
+
             "success_rate": total_success_num / total_payment_num,  # 送金成功率
             "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # 送金前に送金経路なしと判断され送金失敗した確率
             "fail_timeout_rate": total_timeout_num / total_payment_num,  # timeoutによる送金失敗率
