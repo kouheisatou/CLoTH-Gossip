@@ -61,7 +61,6 @@ def analyze_output(output_dir_name):
         total_fail_no_path_num = 0
         total_retry_num = 0
         total_retry_no_balance_num = 0
-        total_retry_edge_occupied_num = 0
         total_fail_no_alternative_path_num = 0
         time_distribution = []
         retry_distribution = []
@@ -97,7 +96,6 @@ def analyze_output(output_dir_name):
             total_attempts_num += attempts
             total_retry_num += retry
             total_retry_no_balance_num += int(pay["no_balance_count"])
-            total_retry_edge_occupied_num += int(pay["edge_occupied_count"])
             time_distribution.append(time)
 
         save_histogram(time_distribution, "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
@@ -115,7 +113,6 @@ def analyze_output(output_dir_name):
 
             "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりのリトライ発生回数
             "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによるリトライ発生回数
-            "retry_edge_occupied_rate": total_retry_edge_occupied_num / total_attempts_num,  # 試行1回あたりのfail_edge_occupiedによるリトライ発生回数
 
             # 送金開始から送金が完了するまでにかかる時間
             "time/average": np.mean(time_distribution),
@@ -240,6 +237,7 @@ def load_cloth_input(output_dir_name):
             if line and not line.startswith('#'):
                 key, value = line.split('=')
                 cloth_input[key.strip()] = value.strip()
+    cloth_input["throughput"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"])
     return cloth_input
 
 
