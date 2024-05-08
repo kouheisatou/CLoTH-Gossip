@@ -53,17 +53,10 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open channel_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_channel_output, "id,edge1,edge2,node1,node2,capacity,is_closed,total_lock_time\n");
+  fprintf(csv_channel_output, "id,edge1,edge2,node1,node2,capacity,is_closed\n");
   for(i=0; i<array_len(network->channels); i++) {
     channel = array_get(network->channels, i);
-    uint64_t total_lock_time = 0;
-    for(struct element* iterator = channel->payment_history; iterator != NULL; iterator = iterator->next){
-        struct payment* p = iterator->data;
-        if(p->end_time != 0) {
-            total_lock_time += p->end_time - p->start_time;
-        }
-    }
-    fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d,%lu\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed, total_lock_time);
+    fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
   }
   fclose(csv_channel_output);
 
@@ -150,11 +143,11 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open payment_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,end_time,mpp,is_success,no_balance_count,edge_occupied_count,offline_node_count,timeout_exp,attempts,route,total_fee\n");
+  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee\n");
   for(i=0; i<array_len(payments); i++)  {
     payment = array_get(payments, i);
     if (payment->id == -1) continue;
-    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->edge_occupied_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
+    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
     route = payment->route;
     if(route==NULL)
       fprintf(csv_payment_output, ",");

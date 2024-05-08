@@ -472,7 +472,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       from_node_id = edge->from_node_id;
       channel = array_get(network->channels, edge->channel_id);
       if(from_node_id == source){   // first hop
-        if(channel->occupied) continue;    // exclude locked channel
+//        if(channel->occupied) continue;    // exclude locked channel
         if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
       }else{
           uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);

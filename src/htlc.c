@@ -80,18 +80,18 @@ struct route_hop *get_route_hop(long node_id, struct array *route_hops, int is_s
   return array_get(route_hops, index);
 }
 
-void lock_channel(struct channel* channel, struct payment* payment){
-    channel->occupied = 1;
-    channel->payment_history = push(channel->payment_history, payment);
-}
-void unlock_all_channels_of_route(struct route* route, struct network* network){
-    for(int i = 0; i < array_len(route->route_hops); i++){
-        struct route_hop* hop = array_get(route->route_hops, i);
-        struct edge* edge = array_get(network->edges, hop->edge_id);
-        struct channel* channel = array_get(network->channels, edge->channel_id);
-        channel->occupied = 0;
-    }
-}
+//void lock_channel(struct channel* channel, struct payment* payment){
+//    channel->occupied = 1;
+//    channel->payment_history = push(channel->payment_history, payment);
+//}
+//void unlock_all_channels_of_route(struct route* route, struct network* network){
+//    for(int i = 0; i < array_len(route->route_hops); i++){
+//        struct route_hop* hop = array_get(route->route_hops, i);
+//        struct edge* edge = array_get(network->edges, hop->edge_id);
+//        struct channel* channel = array_get(network->channels, edge->channel_id);
+//        channel->occupied = 0;
+//    }
+//}
 
 
 /* FUNCTIONS MANAGING NODE PAIR RESULTS */
@@ -186,10 +186,10 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
       set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
     }
   }
-  else if(payment->error.type == EDGEOCCUPIED){
-      set_node_pair_result_fail(node->results, error_hop->from_node_id, error_hop->to_node_id, 0, current_time);
-      set_node_pair_result_fail(node->results, error_hop->to_node_id, error_hop->from_node_id, 0, current_time);
-  }
+//  else if(payment->error.type == EDGEOCCUPIED){
+//      set_node_pair_result_fail(node->results, error_hop->from_node_id, error_hop->to_node_id, 0, current_time);
+//      set_node_pair_result_fail(node->results, error_hop->to_node_id, error_hop->from_node_id, 0, current_time);
+//  }
 }
 
 
@@ -489,23 +489,21 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   prev_edge = array_get(network->edges,previous_route_hop->edge_id);
   next_edge = array_get(network->edges, next_route_hop->edge_id);
 
-    // check channel lock
-    struct channel* c = array_get(network->channels, next_edge->channel_id);
-    if(c->occupied){
-        // fail payment because channel is occupied
-        payment->edge_occupied_count += 1;
-        payment->error.type = EDGEOCCUPIED;
-        payment->error.hop = next_route_hop;
-        prev_node_id = previous_route_hop->from_node_id;
-        event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
-        next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
-        next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
-        simulation->events = heap_insert(simulation->events, next_event, compare_event);
-        return group_add_queue;
-    }else{
-        // lock current channel
-        lock_channel(c, payment);
-    }
+//    if(c->occupied){
+//        // fail payment because channel is occupied
+//        payment->edge_occupied_count += 1;
+//        payment->error.type = EDGEOCCUPIED;
+//        payment->error.hop = next_route_hop;
+//        prev_node_id = previous_route_hop->from_node_id;
+//        event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
+//        next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
+//        next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+//        simulation->events = heap_insert(simulation->events, next_event, compare_event);
+//        return group_add_queue;
+//    }else{
+//        // lock current channel
+//        lock_channel(c, payment);
+//    }
 
   // fail no balance
   if(!check_balance_and_policy(next_edge, prev_edge, previous_route_hop, next_route_hop)){
@@ -636,7 +634,7 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
   process_success_result(node, payment, simulation->current_time);
 
     // unlock channel on path
-    unlock_all_channels_of_route(payment->route, network);
+//    unlock_all_channels_of_route(payment->route, network);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
@@ -739,7 +737,7 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
   process_fail_result(node, payment, simulation->current_time);
 
     // unlock channel on path
-    unlock_all_channels_of_route(payment->route, network);
+//    unlock_all_channels_of_route(payment->route, network);
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);

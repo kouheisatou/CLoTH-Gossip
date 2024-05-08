@@ -174,51 +174,6 @@ def analyze_output(output_dir_name):
             "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
         }
 
-    with open(output_dir_name + 'channels_output.csv', 'r') as csv_channel:
-        channels = list(csv.DictReader(csv_channel))
-        channel_locked_time_distribution = []  # チャネルロック合計時間ヒストグラムのグラフデータ
-        base_fee_distribution = []  # チャネルの手数料とチャネルロック合計時間の相関関係グラフデータ
-        proportional_fee_distribution = []  # チャネルの手数料とチャネルロック合計時間の相関関係グラフデータ
-        for channel in channels:
-            locked_time = int(channel["total_lock_time"])
-            channel_locked_time_distribution.append(locked_time)
-            base_fee_distribution.append(int(edge_fee[channel["edge1"]]["fee_base"]))
-            proportional_fee_distribution.append(int(edge_fee[channel["edge1"]]["fee_proportional"]))
-            channel_locked_time_distribution.append(locked_time)
-            base_fee_distribution.append(int(edge_fee[channel["edge2"]]["fee_base"]))
-            proportional_fee_distribution.append(int(edge_fee[channel["edge2"]]["fee_proportional"]))
-
-        # save_scatter(base_fee_distribution, channel_locked_time_distribution, "Base fee [satoshi]", "Total Chanel Locked Time [ms]", f"{output_dir_name}/base_fee_scatter.pdf")
-        # save_scatter(proportional_fee_distribution, channel_locked_time_distribution, "Base fee [satoshi]", "Total Chanel Locked Time [ms]", f"{output_dir_name}/proportional_fee_scatter.pdf")
-        save_histogram(channel_locked_time_distribution, "Total Channel Locked Time [ms]", "Frequency", f"{output_dir_name}/channel_lock_time_histogram.pdf", 500)
-
-        result = result | {
-            # "correlation_locktime_basefee": np.corrcoef(channel_locked_time_distribution, base_fee_distribution)[0, 1],  # チャネルの手数料(base_fee)とチャネルロック合計時間の相関係数
-            # "correlation_locktime_propfee": np.corrcoef(channel_locked_time_distribution, proportional_fee_distribution)[0, 1],  # チャネルの手数料(proportional_fee)とチャネルロック合計時間の相関係数
-
-            # 各チャネルのロックされていた時間合計
-            "total_channel_locked_time/average": np.mean(channel_locked_time_distribution),
-            "total_channel_locked_time/variance": np.var(channel_locked_time_distribution),
-            "total_channel_locked_time/max": np.max(channel_locked_time_distribution),
-            "total_channel_locked_time/min": np.min(channel_locked_time_distribution),
-            "total_channel_locked_time/5-percentile": np.percentile(channel_locked_time_distribution, 5),
-            "total_channel_locked_time/25-percentile": np.percentile(channel_locked_time_distribution, 25),
-            "total_channel_locked_time/50-percentile": np.percentile(channel_locked_time_distribution, 50),
-            "total_channel_locked_time/75-percentile": np.percentile(channel_locked_time_distribution, 75),
-            "total_channel_locked_time/95-percentile": np.percentile(channel_locked_time_distribution, 95),
-
-            # チャネルがロックされていた時間はシミュレーション全体でどれぐらいの割合を占めるのか
-            "channel_locked_time_ratio/average": np.mean(channel_locked_time_distribution) / simulation_time,
-            "channel_locked_time_ratio/variance": np.var(channel_locked_time_distribution) / simulation_time,
-            "channel_locked_time_ratio/max": np.max(channel_locked_time_distribution) / simulation_time,
-            "channel_locked_time_ratio/min": np.min(channel_locked_time_distribution) / simulation_time,
-            "channel_locked_time_ratio/5-percentile": np.percentile(channel_locked_time_distribution, 5) / simulation_time,
-            "channel_locked_time_ratio/25-percentile": np.percentile(channel_locked_time_distribution, 25) / simulation_time,
-            "channel_locked_time_ratio/50-percentile": np.percentile(channel_locked_time_distribution, 50) / simulation_time,
-            "channel_locked_time_ratio/75-percentile": np.percentile(channel_locked_time_distribution, 75) / simulation_time,
-            "channel_locked_time_ratio/95-percentile": np.percentile(channel_locked_time_distribution, 95) / simulation_time,
-        }
-
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
         groups = list(csv.DictReader(csv_group))
 
