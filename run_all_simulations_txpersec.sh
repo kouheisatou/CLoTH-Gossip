@@ -89,9 +89,9 @@ function display_progress() {
 for j in $(seq 2.0 0.5 6.0); do
     payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
 #    avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com
-    avg_pmt_amt="10000"  # value such that success_rate=0.8~0.6 when payment_rate=10
-#    n_payments="1000000"
-    n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
+    avg_pmt_amt="1000"  # value such that success_rate=0.8~0.6 when payment_rate=10
+    n_payments="1000000"
+#    n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
     timeout="60000"  # based on CLoTH implementation
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt           payment_timeout=$timeout payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_timeout=$timeout payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
