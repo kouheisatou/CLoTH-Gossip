@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -191,7 +192,6 @@ def analyze_output(output_dir_name):
         # save_scatter(proportional_fee_distribution, channel_locked_time_distribution, "Base fee [satoshi]", "Total Chanel Locked Time [ms]", f"{output_dir_name}/proportional_fee_scatter.pdf")
         save_histogram(channel_locked_time_distribution, "Total Channel Locked Time [ms]", "Frequency", f"{output_dir_name}/channel_lock_time_histogram.pdf", 500)
 
-
         result = result | {
             # "correlation_locktime_basefee": np.corrcoef(channel_locked_time_distribution, base_fee_distribution)[0, 1],  # チャネルの手数料(base_fee)とチャネルロック合計時間の相関係数
             # "correlation_locktime_propfee": np.corrcoef(channel_locked_time_distribution, proportional_fee_distribution)[0, 1],  # チャネルの手数料(proportional_fee)とチャネルロック合計時間の相関係数
@@ -288,19 +288,31 @@ def load_cloth_input(output_dir_name):
     return cloth_input
 
 
-output_dirs = find_output_dirs(output_root_dir_name)
-with open(output_root_dir_name + "/summary.csv", "w", encoding="utf-8") as summary:
-    rows = []
-    for output_dir in output_dirs:
-        row_data = {}
-        row_data.update(load_cloth_input(output_dir))
-        row_data.update(analyze_output(output_dir))
-        rows.append(row_data)
-        print(output_dir)
+def process_output_dir(output_dir):
+    row_data = {}
+    row_data.update(load_cloth_input(output_dir))
+    row_data.update(analyze_output(output_dir))
+    print(output_dir)
+    return row_data
 
-    fieldnames = rows[0].keys()
-    writer = csv.DictWriter(summary, fieldnames=fieldnames)
-    writer.writeheader()
-    for row in rows:
-        writer.writerow(row)
-        print(row)
+
+if __name__ == "__main__":
+    output_root_dir_name = sys.argv[1]
+    output_dirs = find_output_dirs(output_root_dir_name)
+
+    num_processes = os.cpu_count()
+
+    with ProcessPoolExecutor(max_workers=num_processes) as executor:
+        futures = [executor.submit(process_output_dir, output_dir) for output_dir in output_dirs]
+
+        rows = []
+        for future in futures:
+            rows.append(future.result())
+
+    with open(output_root_dir_name + "/summary.csv", "w", encoding="utf-8") as summary:
+        fieldnames = rows[0].keys() if rows else []
+        writer = csv.DictWriter(summary, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+            print(row)
