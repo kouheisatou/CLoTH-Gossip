@@ -1,5 +1,4 @@
 import csv
-import json
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -7,6 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from matplotlib import pyplot as plt
 
+csv.field_size_limit(200_000_000)
 if len(sys.argv) < 1:
     print("python3 analyze_output_and_summarize.py <output_dir>")
     exit(1)
