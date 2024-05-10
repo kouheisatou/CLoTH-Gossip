@@ -5,16 +5,17 @@ if [[ "$#" -lt 1 ]]; then
   exit 0
 fi
 
-output_dir="$1/$(date "+%Y%m%d%H%M%S")"
+seed="$1"
+
+output_dir="$2/$(date "+%Y%m%d%H%M%S")"
 mkdir "$output_dir"
 
 dijkstra_cache_dir="$output_dir/dijkstra_cache"
 mkdir "$dijkstra_cache_dir"
-if [ "$#" -eq 2 ]; then
-    cp -r "$2/." "$dijkstra_cache_dir/"
+if [ "$#" -eq 3 ]; then
+    cp -r "$3/." "$dijkstra_cache_dir/"
 fi
 
-seed=39
 max_processes=32
 
 queue=()
@@ -87,21 +88,28 @@ function display_progress() {
 
 avg_pmt_amt="10000"  # value such that success_rate=0.8~0.6 when payment_rate=10
 #avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com
-n_payments="1000000"
-#n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
-timeout="60000"  # based on CLoTH implementation
-for j in $(seq 0.0 0.5 4.0); do
+n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
+for j in $(seq 0.0 0.2 2.8); do
     payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt           payment_timeout=$timeout payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_timeout=$timeout payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt   payment_timeout=$timeout payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1"
-#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_timeout=$timeout payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt   payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1"
+#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
 done
-
-# for creating cache
-#enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=1             $dijkstra_cache_dir/method=ideal,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt           payment_timeout=$timeout payment_rate=1 n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="    # 172.20.86.209
-#enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=1    $dijkstra_cache_dir/method=channel_update,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_timeout=$timeout payment_rate=1 n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="    # 172.20.86.223
-#enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=1     $dijkstra_cache_dir/method=group_routing,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt   payment_timeout=$timeout payment_rate=1 n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1" # 172.20.86.228
+for j in $(seq 3.0 0.05 4.0); do
+    payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt   payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1"
+#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+done
+for j in $(seq 4.2 0.2 5.0); do
+    payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt   payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=5 group_limit_rate=0.1"
+#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=  group_limit_rate="
+done
 
 # Process the queue
 display_progress &
