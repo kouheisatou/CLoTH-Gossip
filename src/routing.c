@@ -202,7 +202,7 @@ double get_probability(long from_node_id, long to_node_id, uint64_t amount, long
   return calculate_probability(results, to_node_id, MAXMILLISATOSHI, node_probability, current_time);
 }
 
-
+// Based on paper "Comparing Lightning Routing Protocols to Routing Protocols with Splitting" section 2.1.
 uint64_t get_probability_based_dist(double weight, double probability){
   const double min_probability = 0.00001;
   if(probability < min_probability)
@@ -324,6 +324,7 @@ struct array* get_best_edges(long to_node_id, uint64_t amount, long source_node_
 }
 
 /* get the weight of an edge which depends on the timelock and fee required in the edge */
+// Based on paper "Comparing Lightning Routing Protocols to Routing Protocols with Splitting" section 2.1.
 double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock){
   double timelock_penalty;
   timelock_penalty = amount*((double)timelock)*RISKFACTOR/((double)1000000000);
