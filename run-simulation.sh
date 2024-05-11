@@ -28,6 +28,6 @@ make &> "$result_dir/log/make.log"
 
 GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" "$dijkstra_cache_filename" &> "$result_dir/log/cloth.log"
 cat "$result_dir/output.log"
-echo "seed=$seed" >> "$environment_dir/cloth_input.txt"
+echo "seed=$seed" >> "$result_dir/cloth_input.txt"
 
 rm -Rf "$environment_dir"
