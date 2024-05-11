@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ "$#" -lt 1 ]]; then
-  echo "./run_all_simulations.sh <output_dir> <import_from_dijkstra_cache_dir>"
+  echo "./run_all_simulations.sh <seed> <output_dir> <import_from_dijkstra_cache_dir>"
   exit 0
 fi
 

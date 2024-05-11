@@ -4,6 +4,7 @@ then
     exit
 fi
 
+seed="$1"
 environment_dir="$2/environment"
 result_dir="$2"
 dijkstra_cache_filename="$3"
@@ -25,7 +26,8 @@ cd "$environment_dir"
 cmake . &> "$result_dir/log/cmake.log"
 make &> "$result_dir/log/make.log"
 
-GSL_RNG_SEED=$1  ./CLoTH_Gossip "$result_dir/" "$dijkstra_cache_filename" &> "$result_dir/log/cloth.log"
+GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" "$dijkstra_cache_filename" &> "$result_dir/log/cloth.log"
 cat "$result_dir/output.log"
+echo "seed=$seed" >> "$environment_dir/cloth_input.txt"
 
 rm -Rf "$environment_dir"
