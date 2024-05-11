@@ -342,7 +342,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
         if(edge->group != NULL){
             estimated_capacity = edge->group->group_cap;
         }else{
-            estimated_capacity = estimate_capacity(edge, network, CHANNEL_UPDATE);
+            estimated_capacity = channel->capacity;
         }
     }
 
