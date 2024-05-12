@@ -348,7 +348,6 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 
     // judge by channel_update (conventional method)
     else if (routing_method == CHANNEL_UPDATE){
-        struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
 
         // search for valid channel_updates that is less than channel_capacity starting from the latest
         struct channel_update* valid_channel_update = NULL;
@@ -364,26 +363,8 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
             }
         }
 
-        // same as valid_channel_update
-        struct channel_update* valid_counter_edges_channel_update = NULL;
-        if(counter_edge->channel_updates != NULL){
-            for(struct element* iterator = counter_edge->channel_updates; iterator->next != NULL; iterator = iterator->next){
-                valid_counter_edges_channel_update = iterator->data;
-                if(valid_counter_edges_channel_update->htlc_maximum_msat < channel->capacity) break;
-                if(iterator->next == NULL) valid_channel_update = counter_edge->channel_updates->data;
-            }
-        }
-
-        if(valid_channel_update != NULL && valid_counter_edges_channel_update != NULL){
-            if(valid_channel_update->time > valid_counter_edges_channel_update->time){
-                estimated_capacity = valid_channel_update->htlc_maximum_msat;
-            }else{
-                estimated_capacity = channel->capacity - valid_counter_edges_channel_update->htlc_maximum_msat;
-            }
-        }else if(valid_channel_update != NULL && valid_counter_edges_channel_update == NULL){
+        if(valid_channel_update != NULL){
             estimated_capacity = valid_channel_update->htlc_maximum_msat;
-        }else if(valid_counter_edges_channel_update != NULL && valid_channel_update == NULL){
-            estimated_capacity = channel->capacity - valid_counter_edges_channel_update->htlc_maximum_msat;
         }else{
             estimated_capacity = channel->capacity;
         }
