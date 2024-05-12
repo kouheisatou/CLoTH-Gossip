@@ -236,10 +236,11 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
   // find path
   if(routing_method == CLOTH_ORIGINAL) {
-      if (payment->attempts == 1)
+      if (payment->attempts == 1) {
           path = paths[payment->id];
-      else
+      }else {
           path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
+      }
   } else {
 
       if (payment->attempts == 1) {
@@ -251,29 +252,14 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
               for (int i = 0; i < array_len(path); i++) {
                   struct route_hop *hop = array_get(path, i);
                   struct edge *edge = array_get(network->edges, hop->edge_id);
-                  if (routing_method == GROUP_ROUTING) {
+                  uint64_t estimated_cap;
+                  if (i == 0) {
                       // if first edge of the path (directory connected edge to source node)
-                      if (i == 0) {
-                          if (edge->balance < path_cap) path_cap = edge->balance;
-                      } else {
-                          if (edge->group != NULL) {
-                              struct group *group = edge->group;
-                              if (group->group_cap < path_cap) path_cap = group->group_cap;
-                          } else {
-                              struct channel *channel = array_get(network->channels, edge->channel_id);
-                              if (channel->capacity < path_cap) path_cap = channel->capacity;
-                          }
-                      }
-                  } else if (routing_method == CHANNEL_UPDATE) {
-                      if (i == 0) {
-                          if (edge->balance < path_cap) path_cap = edge->balance;
-                      } else {
-                          struct channel *channel = array_get(network->channels, edge->channel_id);
-                          if (channel->capacity < path_cap) path_cap = channel->capacity;
-                      }
-                  } else if (routing_method == IDEAL) {
-                      if(edge->balance < path_cap) path_cap = edge->balance;
+                      estimated_cap = edge->balance;
+                  } else {
+                      estimated_cap = estimate_capacity(edge, network, routing_method);
                   }
+                  if (estimated_cap < path_cap) path_cap = estimated_cap;
               }
 
               // calc total fee

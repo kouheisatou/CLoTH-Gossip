@@ -385,8 +385,6 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
         exit(1);
     }
 
-    if(estimated_capacity < 0) estimated_capacity = channel->capacity;
-
     return estimated_capacity;
 }
 

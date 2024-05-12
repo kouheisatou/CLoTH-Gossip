@@ -70,6 +70,8 @@ enum pathfind_error{
 
 void initialize_dijkstra(long n_nodes, long n_edges, struct array* payments);
 
+uint64_t estimate_capacity(struct edge* edge, struct network* network, enum routing_method routing_method);
+
 void run_dijkstra_threads(struct network* network, struct array* payments, uint64_t current_time, enum routing_method routing_method);
 
 struct array* dijkstra(long source, long destination, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method);
