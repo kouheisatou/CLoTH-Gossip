@@ -667,6 +667,7 @@ int main(int argc, char *argv[]) {
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
   begin = clock();
   simulation->current_time = 1;
+  long completed_payments = 0;
   while(heap_len(simulation->events) != 0) {
     event = heap_pop(simulation->events, compare_event);
 
@@ -725,6 +726,20 @@ int main(int argc, char *argv[]) {
       printf("ERROR wrong event type\n");
       exit(-1);
     }
+
+    struct payment* p = array_get(payments, event->payment->id);
+    if(p->end_time != 0){
+        completed_payments++;
+        char progress_filename[512];
+        strcpy(progress_filename, output_dir_name);
+        strcat(progress_filename, "progress");
+        FILE* progress_file = fopen(progress_filename, "w");
+        if(progress_file != NULL){
+            fprintf(progress_file, "%f", (float)completed_payments / (float)array_len(payments));
+        }
+        fclose(progress_file);
+    }
+
     free(event);
   }
   printf("\n");
