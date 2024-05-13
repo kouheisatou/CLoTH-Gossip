@@ -19,7 +19,7 @@
 #include "../include/cloth.h"
 #include "../include/network.h"
 #include "../include/event.h"
-#include "hash.h"
+#include "../include/hash.h"
 
 /* This file contains the main, where the simulation logic is executed;
    additionally, it contains the the initialization functions,
