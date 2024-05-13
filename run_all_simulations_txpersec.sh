@@ -21,7 +21,7 @@ max_processes=32
 queue=()
 running_processes=0
 completed_simulations=0
-completed_simulations_tmp_file="$output_dir/completed_simulations"
+completed_simulations_tmp_file="$output_dir/completed_simulations.tmp"
 total_simulations=0
 start_time=$(date +%s)
 
@@ -56,16 +56,13 @@ function display_progress() {
     echo "$completed_simulations_from_tmp_file" > "$completed_simulations_tmp_file"
 
     while [ "$completed_simulations_from_tmp_file" -lt "$total_simulations" ]; do
-
-        simulation_progress_files=$(find "$output_dir" -type f -name "progress")
-        if [ ${#file_list[@]} -gt 0 ]; then
-            for file in "${simulation_progress_files[@]}"; do
-                progress=$(cat "$file")
-                progress=$(echo "$progress*100" | bc)
-                progress=$(printf "%.0f" "$progress")
-                echo "${file} : ${progress}%"
-            done
-        fi
+        IFS=$'\n' read -r -d '' -a simulation_progress_files <<< $(find "$output_dir" -type f -name "progress.tmp")
+        for file in "${simulation_progress_files[@]}"; do
+            progress=$(cat "$file")
+            progress=$(echo "$progress*100" | bc)
+            progress=$(printf "%.0f" "$progress")
+            printf "%3d%% %s\n" "$progress" "$file"
+        done
 
         text=$(cat "$completed_simulations_tmp_file")
         if [ -n "$text" ]; then
@@ -76,7 +73,7 @@ function display_progress() {
         progress_bar=$(printf "%0.s#" $(seq 1 $((completed_simulations_from_tmp_file * 100 / total_simulations / 2))))
 
         if [ "$completed_simulations_from_tmp_file" -eq 0 ]; then
-            printf "\rProgress: [%-50s] 0%%\t%d/%d\t Time remaining --:--\t" "" "$completed_simulations_from_tmp_file" "$total_simulations"
+            printf "Progress: [%-50s] 0%%\t%d/%d\t Time remaining --:--\n" "" "$completed_simulations_from_tmp_file" "$total_simulations"
         else
             elapsed_time=$(( $(date +%s) - start_time ))
             estimated_completion_time=$(python3 -c "print(int($elapsed_time / $progress - $elapsed_time))")
@@ -90,7 +87,7 @@ function display_progress() {
             fi
             remaining_minutes=$(( estimated_completion_time / 60 ))
             remaining_seconds=$(( estimated_completion_time % 60 ))
-            printf "\rProgress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d          " "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
+            printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d\n" "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
         fi
         sleep 1
     done
