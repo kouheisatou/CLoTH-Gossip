@@ -125,34 +125,29 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     attempt->error_type = pmt->error.type;
   }
   attempt->is_succeeded = is_succeeded;
+  long route_len = array_len(pmt->route->route_hops);
+  attempt->route_edges = malloc(sizeof(long) * route_len);
+  attempt->route_edge_caps = malloc(sizeof(uint64_t) * route_len);
+  attempt->route_group_caps = malloc(sizeof(uint64_t) * route_len);
+  attempt->route_channel_update_values = malloc(sizeof(uint64_t) * route_len);
 
-  long route_edges[array_len(pmt->route->route_hops)];
-  uint64_t route_edge_caps[array_len(pmt->route->route_hops)];
-  uint64_t route_group_caps[array_len(pmt->route->route_hops)];
-  uint64_t route_channel_update_values[array_len(pmt->route->route_hops)];
-
-  for(int i = 0; i < array_len(pmt->route->route_hops); i++){
+  for(int i = 0; i < route_len; i++){
     struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
     struct edge* e = array_get(network->edges, route_hop->edge_id);
-    route_edges[i] = route_hop->edge_id;
-    route_edge_caps[i] = e->balance;
+    attempt->route_edges[i] = route_hop->edge_id;
+    attempt->route_edge_caps[i] = e->balance;
     if(e->group != NULL){
-      route_group_caps[i] = e->group->group_cap;
+      attempt->route_group_caps[i] = e->group->group_cap;
     }else{
-      route_group_caps[i] = 0;
+      attempt->route_group_caps[i] = 0;
     }
     if(e->channel_updates != NULL){
       struct channel_update* channel_update = e->channel_updates->data;
-      route_channel_update_values[i] = channel_update->htlc_maximum_msat;
+      attempt->route_channel_update_values[i] = channel_update->htlc_maximum_msat;
     }else{
-      route_channel_update_values[i] = 0;
+      attempt->route_channel_update_values[i] = 0;
     }
   }
-
-  attempt->route_edges = route_edges;
-  attempt->route_edge_caps = route_edge_caps;
-  attempt->route_group_caps = route_group_caps;
-  attempt->route_channel_update_values = route_channel_update_values;
 
   pmt->history = push(pmt->history, attempt);
 }
