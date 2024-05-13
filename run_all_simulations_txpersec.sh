@@ -56,12 +56,14 @@ function display_progress() {
     echo "$completed_simulations_from_tmp_file" > "$completed_simulations_tmp_file"
 
     while [ "$completed_simulations_from_tmp_file" -lt "$total_simulations" ]; do
+        progress_summary=""
+
         IFS=$'\n' read -r -d '' -a simulation_progress_files <<< $(find "$output_dir" -type f -name "progress.tmp")
         for file in "${simulation_progress_files[@]}"; do
             progress=$(cat "$file")
             progress=$(echo "$progress*100" | bc)
             progress=$(printf "%.0f" "$progress")
-            printf "%3d%% %s\n" "$progress" "$file"
+            progress_summary="$progress_summary$(printf "%3d%% %s" "$progress" "$file")\n"
         done
 
         text=$(cat "$completed_simulations_tmp_file")
@@ -70,10 +72,11 @@ function display_progress() {
         fi
 
         progress=$(python3 -c "print($completed_simulations_from_tmp_file / $total_simulations)")
-        progress_bar=$(printf "%0.s#" $(seq 1 $((completed_simulations_from_tmp_file * 100 / total_simulations / 2))))
+        progress_bar_len=$(printf "%0.s#" $(seq 1 $((completed_simulations_from_tmp_file * 100 / total_simulations / 2))))
+        progress_bar=""
 
         if [ "$completed_simulations_from_tmp_file" -eq 0 ]; then
-            printf "Progress: [%-50s] 0%%\t%d/%d\t Time remaining --:--\n" "" "$completed_simulations_from_tmp_file" "$total_simulations"
+            progress_bar=$(printf "Progress: [%-50s] 0%%\t%d/%d\t Time remaining --:--" "" "$completed_simulations_from_tmp_file" "$total_simulations")
         else
             elapsed_time=$(( $(date +%s) - start_time ))
             estimated_completion_time=$(python3 -c "print(int($elapsed_time / $progress - $elapsed_time))")
@@ -87,14 +90,17 @@ function display_progress() {
             fi
             remaining_minutes=$(( estimated_completion_time / 60 ))
             remaining_seconds=$(( estimated_completion_time % 60 ))
-            printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d\n" "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
+            progress_bar=$(printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d" "$progress_bar_len" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds")
         fi
-        sleep 1
+
+        echo -e "\n$progress_summary$progress_bar"
+
+        sleep 10
     done
 }
 
-#avg_pmt_amt="10000000"  # value such that success_rate=0.8~0.6 when payment_rate=10
-avg_pmt_amt="1000000"  # value such that success_rate=0.95 when payment_rate=10
+avg_pmt_amt="10000000"  # value such that success_rate=0.8~0.6 when payment_rate=10
+#avg_pmt_amt="1000000"  # value such that success_rate=0.95 when payment_rate=10
 n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
 #avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com, $11.84(August 2023)
 #n_payments="5000000"  # resistant payment_rate=5.0x10^6
