@@ -55,8 +55,10 @@ function display_progress() {
         done_simulations=0
         for file in "${simulation_progress_files[@]}"; do
             progress=$(cat "$file")
-            if [ $(python3 -c "print($progress==1)") = "True" ]; then
+            if [ "$progress" = "1" ]; then
               done_simulations=$((done_simulations + 1))
+            elif [ "$progress" = "" ]; then
+              progress="0"
             fi
             total_progress=$(printf "%.5f" "$(echo "scale=4; $total_progress + $progress / $total_simulations" | bc)")
             progress_summary="$progress_summary$(printf "%3d%% %s" "$(printf "%.0f" "$(echo "$progress*100" | bc)")" "$file")\n"
