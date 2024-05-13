@@ -143,7 +143,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open payment_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee\n");
+  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
   for(i=0; i<array_len(payments); i++)  {
     payment = array_get(payments, i);
     if (payment->id == -1) continue;
@@ -162,7 +162,20 @@ void write_output(struct network* network, struct array* payments, char output_d
       }
       fprintf(csv_payment_output, "%ld",route->total_fee);
     }
-    fprintf(csv_payment_output,"\n");
+    fprintf(csv_payment_output, "\"[");
+    for(struct element* iterator = payment->history; iterator->next != NULL; iterator = iterator->next){
+      struct attempt* attempt = iterator->data;
+      fprintf(csv_payment_output, "{attempts=%d,time=%lu,error_edge=%lu,error_type=%d,route=[", attempt->attempts, attempt->time, attempt->error_edge_id, attempt->error_type);
+      for(j = 0; j < array_len(payment->route->route_hops); j++){
+        fprintf(csv_payment_output, "{id=%lu,cap=%lu,group_cap=%lu,channel_update=%lu}", attempt->route_edges[j], attempt->route_edge_caps[j], attempt->route_group_caps[j], attempt->route_channel_update_values[j]);
+        if(j != array_len(payment->route->route_hops)-1) fprintf(csv_payment_output, ",");
+        else fprintf(csv_payment_output, "]");
+      }
+      fprintf(csv_payment_output, "}");
+      if(iterator->next != NULL) fprintf(csv_payment_output, ",");
+      else fprintf(csv_payment_output, "]");
+    }
+    fprintf(csv_payment_output, "\"\n");
   }
   fclose(csv_payment_output);
 

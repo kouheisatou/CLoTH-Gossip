@@ -60,3 +60,4 @@ dijkstra_cache*
 dijkstra_cache/*
 .DS_Store
 tasks.json
+.vscode

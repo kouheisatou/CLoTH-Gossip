@@ -619,6 +619,8 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
   event->payment->end_time = simulation->current_time;
   process_success_result(node, payment, simulation->current_time);
 
+  add_attempt_history(payment, simulation->current_time, 1);
+
     // unlock channel on path
 //    unlock_all_channels_of_route(payment->route, network);
 }
@@ -721,6 +723,8 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
     }
 
   process_fail_result(node, payment, simulation->current_time);
+
+  add_attempt_history(payment, simulation->current_time, 0);
 
     // unlock channel on path
 //    unlock_all_channels_of_route(payment->route, network);

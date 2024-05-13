@@ -37,6 +37,7 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->is_shard = 0;
   p->shards_id[0] = p->shards_id[1] = -1;
   return p;
+  p->history = NULL;
 }
 
 
@@ -110,4 +111,42 @@ struct array* initialize_payments(struct payments_params pay_params, long n_node
   if(!(pay_params.payments_from_file))
     generate_random_payments(pay_params, n_nodes, random_generator);
   return generate_payments(pay_params);
+}
+
+void add_attempt_history(struct payment* pmt, uint64_t time, short is_succeeded){
+  struct attempt* attempt;
+  attempt->attempts = pmt->attempts;
+  attempt->time = time;
+  if(is_succeeded){
+    attempt->error_edge_id = pmt->error.hop->edge_id;
+    attempt->error_type = pmt->error.type;
+  }else{
+    attempt->error_edge_id = 0;
+    attempt->error_type = NOERROR;
+  }
+  attempt->is_succeeded = is_succeeded;
+
+  long route_edges[array_len(pmt->route->route_hops)];
+  uint64_t route_edge_caps[array_len(pmt->route->route_hops)];
+  uint64_t route_group_caps[array_len(pmt->route->route_hops)];
+  uint64_t route_channel_update_values[array_len(pmt->route->route_hops)];
+
+  for(int i = 0; i < array_len(pmt->route->route_hops); i++){
+    struct edge* e = array_get(pmt->route->route_hops, i);
+    route_edges[i] = e->id;
+    route_edge_caps[i] = e->balance;
+    if(e->group != NULL){
+      route_group_caps[i] = e->group->group_cap;
+    }else{
+      route_group_caps[i] = 0;
+    }
+    if(e->channel_updates != NULL){
+      struct channel_update* channel_update = e->channel_updates->data;
+      route_channel_update_values[i] = channel_update->htlc_maximum_msat;
+    }else{
+      route_channel_update_values[i] = 0;
+    }
+  }
+
+  pmt->history = push(pmt->history, attempt);
 }
