@@ -728,7 +728,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct payment* p = array_get(payments, event->payment->id);
-    if(p->end_time != 0 && completed_payments % 100 == 0){
+    if(p->end_time != 0){
         completed_payments++;
         FILE* progress_file = fopen("progress.tmp", "w");
         if(progress_file != NULL){

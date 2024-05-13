@@ -93,7 +93,7 @@ function display_progress() {
             progress_bar=$(printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d" "$progress_bar_len" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds")
         fi
 
-        echo -e "\n$progress_summary$progress_bar"
+        echo -e "$progress_summary$progress_bar"
 
         sleep 10
     done
@@ -104,6 +104,7 @@ avg_pmt_amt="10000000"  # value such that success_rate=0.8~0.6 when payment_rate
 n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
 #avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com, $11.84(August 2023)
 #n_payments="5000000"  # resistant payment_rate=5.0x10^6
+var_pmt_amt="1000"
 #for j in $(seq 3.0 0.5 7.0); do
 for j in $(seq 0.0 0.2 2.8); do
     var_pmt_amt=$(python3 -c "print('{:.0f}'.format(($avg_pmt_amt)/10))")
