@@ -150,7 +150,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
     route = payment->route;
     if(route==NULL)
-      fprintf(csv_payment_output, ",");
+      fprintf(csv_payment_output, ",,");
     else {
       hops = route->route_hops;
       for(j=0; j<array_len(hops); j++) {
@@ -160,22 +160,28 @@ void write_output(struct network* network, struct array* payments, char output_d
         else
           fprintf(csv_payment_output,"%ld-",hop->edge_id);
       }
-      fprintf(csv_payment_output, "%ld",route->total_fee);
+      fprintf(csv_payment_output, "%ld,",route->total_fee);
     }
-    fprintf(csv_payment_output, "\"[");
-    for(struct element* iterator = payment->history; iterator != NULL; iterator = iterator->next){
-      struct attempt* attempt = iterator->data;
-      fprintf(csv_payment_output, "{attempts=%d,time=%lu,error_edge=%lu,error_type=%d,route=[", attempt->attempts, attempt->time, attempt->error_edge_id, attempt->error_type);
-      for(j = 0; j < array_len(payment->route->route_hops); j++){
-        fprintf(csv_payment_output, "{id=%lu,cap=%lu,group_cap=%lu,channel_update=%lu}", attempt->route_edges[j], attempt->route_edge_caps[j], attempt->route_group_caps[j], attempt->route_channel_update_values[j]);
-        if(j != array_len(payment->route->route_hops)-1) fprintf(csv_payment_output, ",");
-        else fprintf(csv_payment_output, "]");
-      }
-      fprintf(csv_payment_output, "}");
-      if(iterator->next != NULL) fprintf(csv_payment_output, ",");
-      else fprintf(csv_payment_output, "]");
+    if(payment->history != NULL) {
+        fprintf(csv_payment_output, "\"[");
+        for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
+            struct attempt *attempt = iterator->data;
+            fprintf(csv_payment_output,
+                    "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"route\"\":[",
+                    attempt->attempts, attempt->is_succeeded, attempt->time, attempt->error_edge_id,
+                    attempt->error_type);
+            for (j = 0; j < array_len(payment->route->route_hops); j++) {
+                fprintf(csv_payment_output,"{\"\"id\"\":%lu,\"\"cap\"\":%lu,\"\"group_cap\"\":%lu,\"\"channel_update\"\":%lu}", attempt->route_edges[j], attempt->route_edge_caps[j], attempt->route_group_caps[j], attempt->route_channel_update_values[j]);
+                if (j != array_len(payment->route->route_hops) - 1) fprintf(csv_payment_output, ",");
+                else fprintf(csv_payment_output, "]");
+            }
+            fprintf(csv_payment_output, "}");
+            if (iterator->next != NULL) fprintf(csv_payment_output, ",");
+            else fprintf(csv_payment_output, "]");
+        }
+        fprintf(csv_payment_output, "\"");
     }
-    fprintf(csv_payment_output, "\"\n");
+    fprintf(csv_payment_output, "\n");
   }
   fclose(csv_payment_output);
 
