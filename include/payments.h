@@ -45,10 +45,10 @@ struct payment {
 };
 
 struct attempt {
-  short attempts;
+  int attempts;
   uint64_t time;
   long error_edge_id;
-  enum pathfind_error error_type;
+  enum payment_error_type error_type;
   long* route_edges;
   uint64_t* route_edge_caps;
   uint64_t* route_group_caps;
@@ -58,6 +58,6 @@ struct attempt {
 
 struct payment* new_payment(long id, long sender, long receiver, uint64_t amount, uint64_t start_time);
 struct array* initialize_payments(struct payments_params pay_params, long n_nodes, gsl_rng* random_generator);
-void add_attempt_history(struct payment* pmt, uint64_t time, short is_successed);
+void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded);
 
 #endif

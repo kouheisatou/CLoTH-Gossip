@@ -163,7 +163,7 @@ void write_output(struct network* network, struct array* payments, char output_d
       fprintf(csv_payment_output, "%ld",route->total_fee);
     }
     fprintf(csv_payment_output, "\"[");
-    for(struct element* iterator = payment->history; iterator->next != NULL; iterator = iterator->next){
+    for(struct element* iterator = payment->history; iterator != NULL; iterator = iterator->next){
       struct attempt* attempt = iterator->data;
       fprintf(csv_payment_output, "{attempts=%d,time=%lu,error_edge=%lu,error_type=%d,route=[", attempt->attempts, attempt->time, attempt->error_edge_id, attempt->error_type);
       for(j = 0; j < array_len(payment->route->route_hops); j++){

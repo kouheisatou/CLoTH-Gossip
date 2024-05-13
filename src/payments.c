@@ -113,16 +113,16 @@ struct array* initialize_payments(struct payments_params pay_params, long n_node
   return generate_payments(pay_params);
 }
 
-void add_attempt_history(struct payment* pmt, uint64_t time, short is_succeeded){
-  struct attempt* attempt;
+void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded){
+  struct attempt* attempt = malloc(sizeof(struct attempt));
   attempt->attempts = pmt->attempts;
   attempt->time = time;
   if(is_succeeded){
-    attempt->error_edge_id = pmt->error.hop->edge_id;
-    attempt->error_type = pmt->error.type;
-  }else{
     attempt->error_edge_id = 0;
     attempt->error_type = NOERROR;
+  }else{
+    attempt->error_edge_id = pmt->error.hop->edge_id;
+    attempt->error_type = pmt->error.type;
   }
   attempt->is_succeeded = is_succeeded;
 
@@ -132,8 +132,9 @@ void add_attempt_history(struct payment* pmt, uint64_t time, short is_succeeded)
   uint64_t route_channel_update_values[array_len(pmt->route->route_hops)];
 
   for(int i = 0; i < array_len(pmt->route->route_hops); i++){
-    struct edge* e = array_get(pmt->route->route_hops, i);
-    route_edges[i] = e->id;
+    struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
+    struct edge* e = array_get(network->edges, route_hop->edge_id);
+    route_edges[i] = route_hop->edge_id;
     route_edge_caps[i] = e->balance;
     if(e->group != NULL){
       route_group_caps[i] = e->group->group_cap;
@@ -147,6 +148,11 @@ void add_attempt_history(struct payment* pmt, uint64_t time, short is_succeeded)
       route_channel_update_values[i] = 0;
     }
   }
+
+  attempt->route_edges = route_edges;
+  attempt->route_edge_caps = route_edge_caps;
+  attempt->route_group_caps = route_group_caps;
+  attempt->route_channel_update_values = route_channel_update_values;
 
   pmt->history = push(pmt->history, attempt);
 }
