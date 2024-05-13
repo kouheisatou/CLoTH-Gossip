@@ -749,7 +749,10 @@ int main(int argc, char *argv[]) {
     struct payment* p = array_get(payments, event->payment->id);
     if(p->end_time != 0){
         completed_payments++;
-        FILE* progress_file = fopen("progress.tmp", "w");
+        char progress_filename[512];
+        strcpy(progress_filename, output_dir_name);
+        strcat(progress_filename, "progress.tmp");
+        FILE* progress_file = fopen(progress_filename, "w");
         if(progress_file != NULL){
             fprintf(progress_file, "%f", (float)completed_payments / (float)array_len(payments));
         }

@@ -27,10 +27,8 @@ cmake . &> "$result_dir/log/cmake.log"
 make &> "$result_dir/log/make.log"
 
 GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" "$dijkstra_cache_filename" &> "$result_dir/log/cloth.log"
-if [ $? -eq 0 ]; then
-  echo "seed=$seed" >> "$result_dir/cloth_input.txt"
-  rm -Rf "$environment_dir"
-else
-  echo "error $?"
-  echo "seed=$seed" >> "$result_dir/cloth_input.txt"
-fi
+cat "$result_dir/output.log"
+echo "seed=$seed" >> "$result_dir/cloth_input.txt"
+echo "1" > "$result_dir/progress.tmp"
+
+rm -Rf "$environment_dir"

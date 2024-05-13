@@ -20,8 +20,6 @@ max_processes=32
 
 queue=()
 running_processes=0
-completed_simulations=0
-completed_simulations_tmp_file="$output_dir/completed_simulations.tmp"
 total_simulations=0
 start_time=$(date +%s)
 
@@ -39,8 +37,6 @@ function process_queue() {
 
     wait -n || true
     ((running_processes--))
-    ((completed_simulations++))
-    echo "$completed_simulations" > "$completed_simulations_tmp_file"
 }
 
 function display_progress() {
@@ -48,54 +44,39 @@ function display_progress() {
         return 0
     fi
 
-    last_updated=0
-    last_estimated_time=0
-    count=0
+    done_simulations=0
 
-    completed_simulations_from_tmp_file=0
-    echo "$completed_simulations_from_tmp_file" > "$completed_simulations_tmp_file"
-
-    while [ "$completed_simulations_from_tmp_file" -lt "$total_simulations" ]; do
+    while [ "$done_simulations" -lt "$total_simulations" ]; do
         progress_summary=""
+        total_progress=0
 
+        # read each simulation progresses
         IFS=$'\n' read -r -d '' -a simulation_progress_files <<< $(find "$output_dir" -type f -name "progress.tmp")
+        done_simulations=0
         for file in "${simulation_progress_files[@]}"; do
             progress=$(cat "$file")
-            progress=$(echo "$progress*100" | bc)
-            progress=$(printf "%.0f" "$progress")
-            progress_summary="$progress_summary$(printf "%3d%% %s" "$progress" "$file")\n"
+            if [ $(python3 -c "print($progress==1)") = "True" ]; then
+              done_simulations=$((done_simulations + 1))
+            fi
+            total_progress=$(printf "%.5f" "$(echo "scale=4; $total_progress + $progress / $total_simulations" | bc)")
+            progress_summary="$progress_summary$(printf "%3d%% %s" "$(printf "%.0f" "$(echo "$progress*100" | bc)")" "$file")\n"
         done
 
-        text=$(cat "$completed_simulations_tmp_file")
-        if [ -n "$text" ]; then
-            completed_simulations_from_tmp_file="$text"
-        fi
-
-        progress=$(python3 -c "print($completed_simulations_from_tmp_file / $total_simulations)")
-        progress_bar_len=$(printf "%0.s#" $(seq 1 $((completed_simulations_from_tmp_file * 100 / total_simulations / 2))))
+        # build progress bar
+        progress_bar_len=$(printf "%0.s#" $(seq 1 $(printf "%.0f" "$(echo "$total_progress * 100 / 2" | bc)")))
         progress_bar=""
-
-        if [ "$completed_simulations_from_tmp_file" -eq 0 ]; then
-            progress_bar=$(printf "Progress: [%-50s] 0%%\t%d/%d\t Time remaining --:--" "" "$completed_simulations_from_tmp_file" "$total_simulations")
+        if [ $(python3 -c "print($total_progress==0)") = "True" ]; then
+            progress_bar=$(printf "Progress: [%-50s] 0%%\t%d/%d\t Time remaining --:--" "" "$done_simulations" "$total_simulations")
         else
             elapsed_time=$(( $(date +%s) - start_time ))
-            estimated_completion_time=$(python3 -c "print(int($elapsed_time / $progress - $elapsed_time))")
-            if [ "$completed_simulations_from_tmp_file" -eq "$last_updated" ]; then
-                estimated_completion_time=$((last_estimated_time - count))
-                count=$((count + 1))
-            else
-                last_updated="$completed_simulations_from_tmp_file"
-                last_estimated_time="$estimated_completion_time"
-                count=0
-            fi
+            estimated_completion_time=$(python3 -c "print(int($elapsed_time / $total_progress - $elapsed_time))")
             remaining_minutes=$(( estimated_completion_time / 60 ))
             remaining_seconds=$(( estimated_completion_time % 60 ))
-            progress_bar=$(printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d" "$progress_bar_len" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds")
+            progress_bar=$(printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d" "$progress_bar_len" "$(echo "scale=1; $total_progress * 100" | bc)" "$done_simulations" "$total_simulations" "$remaining_minutes" "$remaining_seconds")
         fi
 
         echo -e "$progress_summary$progress_bar"
-
-        sleep 10
+        sleep 1
     done
 }
 
@@ -105,21 +86,21 @@ n_payments="50000"  # based on simulation settings used by CLoTH paper https://w
 #avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com, $11.84(August 2023)
 #n_payments="5000000"  # resistant payment_rate=5.0x10^6
 var_pmt_amt="1000"  # based on cloth default setting
-#for j in $(seq 3.0 0.5 7.0); do
-for j in $(seq 0.0 0.2 2.8); do
+for j in $(seq 3.0 0.5 7.0); do
+#for j in $(seq 0.0 0.2 2.8); do
     payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt   payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=5 group_limit_rate=0.1"
 #    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
 done
-for j in $(seq 3.0 0.05 5.0); do
-    payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt   payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=5 group_limit_rate=0.1"
-#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
-done
+#for j in $(seq 3.0 0.05 5.0); do
+#    payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
+#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
+#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
+#    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/payment_rate=$payment_rate     $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt   payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=5 group_limit_rate=0.1"
+##    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/payment_rate=$payment_rate    $dijkstra_cache_dir/method=cloth_original,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
+#done
 
 # Process the queue
 display_progress &
