@@ -338,7 +338,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 
     // intermediate edges
     // judge edge has enough capacity by group_capacity (proposed method)
-    if(routing_method == GROUP_ROUTING){
+    if(routing_method == GROUP){
         if(edge->group != NULL){
             estimated_capacity = edge->group->group_cap;
         }else{
@@ -346,32 +346,8 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
         }
     }
 
-    // judge by channel_update (conventional method)
-    else if (routing_method == CHANNEL_UPDATE){
-
-        // search for valid channel_updates that is less than channel_capacity starting from the latest
-        struct channel_update* valid_channel_update = NULL;
-        if(edge->channel_updates != NULL) {
-            for(struct element* iterator = edge->channel_updates; iterator->next != NULL; iterator = iterator->next){
-                valid_channel_update = iterator->data;
-
-                // if the valid_channel_update value does not exceed channel_capacity
-                if(valid_channel_update->htlc_maximum_msat < channel->capacity) break;
-
-                // oldest channel_update
-                if(iterator->next == NULL) valid_channel_update = edge->channel_updates->data;
-            }
-        }
-
-        if(valid_channel_update != NULL){
-            estimated_capacity = valid_channel_update->htlc_maximum_msat;
-        }else{
-            estimated_capacity = channel->capacity;
-        }
-    }
-
     // judge by channel capacity (cloth method)
-    else if (routing_method == CLOTH_ORIGINAL){
+    else if (routing_method == GOSSIP){
         estimated_capacity = channel->capacity;
     }
 
@@ -450,16 +426,18 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       edge = array_get(network->edges, edge->counter_edge_id);
 
       from_node_id = edge->from_node_id;
-      channel = array_get(network->channels, edge->channel_id);
-      if(from_node_id == source){   // first hop
-//        if(channel->occupied) continue;    // exclude locked channel
-        if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
-      }else{
-          uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);
-          if(estimated_capacity < amt_to_send) continue;
+      if(from_node_id == source){
+        if(edge->balance < amt_to_send)
+          continue;
+      }
+      else{
+        channel = array_get(network->channels, edge->channel_id);
+        if(channel->capacity < amt_to_send)
+          continue;
       }
 
-      if(amt_to_send < edge->policy.min_htlc) continue;
+      if(amt_to_send < edge->policy.min_htlc)
+        continue;
 
       edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
 

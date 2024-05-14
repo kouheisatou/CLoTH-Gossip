@@ -7,7 +7,7 @@
 #include <gsl/gsl_randist.h>
 
 enum routing_method{
-    CLOTH_ORIGINAL, CHANNEL_UPDATE, GROUP_ROUTING, IDEAL
+    GOSSIP, GROUP, IDEAL
 };
 
 struct network_params{
@@ -24,7 +24,6 @@ struct network_params{
   unsigned int variance_payment_forward_interval;
   enum routing_method routing_method;
   unsigned int group_cap_update;
-  unsigned int log_broadcast_msg;
   int group_size;
   float group_limit_rate;
 };
@@ -36,7 +35,6 @@ struct payments_params{
   double variance_amount;
   unsigned int payments_from_file;
   char payments_filename[256];
-  unsigned int log_all_events;
   unsigned int mpp;
 };
 

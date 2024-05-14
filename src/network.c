@@ -50,11 +50,6 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->is_closed = 0;
   edge->tot_flows = 0;
   edge->group = NULL;
-  struct channel_update* channel_update = malloc(sizeof(struct channel_update));
-  channel_update->htlc_maximum_msat = channel_capacity;
-  channel_update->edge_id = edge->id;
-  channel_update->time = 0;
-  edge->channel_updates = push(NULL, channel_update);
   return edge;
 }
 
@@ -380,23 +375,25 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, struct network* network){
 
     // update group cap
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
+    uint64_t* edge_balance_snapshot = malloc(array_len(group->edges) * sizeof(uint64_t));
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
         if(edge->balance < min) min = edge->balance;
         if(edge->balance > max) max = edge->balance;
+        edge_balance_snapshot[i] = edge->balance;
     }
 
     struct group_update* group_update = malloc(sizeof(struct group_update));
     group_update->group_id = group->id;
-    group_update->group_cap = group->group_cap;
     group_update->time = current_time;
     group_update->triggered_node_id = triggered_node_id;
     group_update->type = type;
+    group_update->edge_balances = edge_balance_snapshot;
 
     // close if edge capacity is out of limit
     if (min < group->min_cap_limit || group->max_cap_limit < max) {
@@ -415,11 +412,6 @@ struct element* update_group(struct group* group, struct network_params net_para
                 group->group_cap = group->min_cap_limit;
             }
 
-            // log group_update msg
-            if(net_params.log_broadcast_msg && current_time != 0) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
             break;
         }
         case UPDATE: {
@@ -431,11 +423,6 @@ struct element* update_group(struct group* group, struct network_params net_para
                 group->group_cap = min;
             }else{
                 group->group_cap = group->min_cap_limit;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg && net_params.group_cap_update) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
             }
 
             break;
@@ -451,32 +438,18 @@ struct element* update_group(struct group* group, struct network_params net_para
                 struct edge *edge = array_get(group->edges, i);
                 edge->group = NULL;
                 group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
-
-                // take edge balance snapshot of the group
-                struct edge *copy = malloc(sizeof(struct edge));
-                copy->id = edge->id;
-                if(edge->id == changed_edge_id){
-                    copy->balance = changed_edge_prev_balance;
-                }else{
-                    copy->balance = edge->balance;
-                }
-                group->edges->element[i] = copy;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
             }
 
             // reconstruction
-            group_add_queue = construct_group(group_add_queue, network, net_params, current_time, csv_group_update);
+            group_add_queue = construct_group(group_add_queue, network, net_params, current_time);
 
             break;
         }
     }
 
-    // release memory
-    free(group_update);
+    // record group_update
+    group_update->group_cap = group->group_cap;
+    group->group_updates = push(group->group_updates, group_update);
 
     return group_add_queue;
 }
@@ -501,7 +474,7 @@ int can_join_group(struct group* group, struct edge* edge){
     return 1;
 }
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time, FILE* csv_group_update){
+struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time){
 
     if(group_add_queue == NULL) return group_add_queue;
 
@@ -510,24 +483,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         struct edge* requesting_edge = iterator->data;
 
         // init group
-        struct group* group = malloc(sizeof(struct group));
-        group->edges = array_initialize(net_params.group_size);
-        group->edges = array_insert(group->edges, requesting_edge);
-        uint64_t max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(requesting_edge->balance > max_cap_limit){
-            group->max_cap_limit = INT64_MAX;   // overflow
-        }else{
-            group->max_cap_limit = max_cap_limit;
-        }
-        uint64_t min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(requesting_edge->balance < min_cap_limit) {
-            group->min_cap_limit = 0;   // overflow
-        }else{
-            group->min_cap_limit = min_cap_limit;
-        }
-        group->id = array_len(network->groups);
-        group->is_closed = 0;
-        group->constructed_time = current_time;
+        struct group* group = new_group(requesting_edge, net_params, network, current_time);
 
         // search the closest balance edge from neighbor
         struct element* bottom = iterator;
@@ -564,7 +520,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
         // register group
         if(array_len(group->edges) == net_params.group_size){
-            group_add_queue = update_group(group, net_params, current_time, group_add_queue, requesting_edge->id, CONSTRUCT, csv_group_update, network, -1, 0);
+            group_add_queue = update_group(group, net_params, current_time, group_add_queue, requesting_edge->id, CONSTRUCT, network);
             network->groups = array_insert(network->groups, group);
             for(int i = 0; i < array_len(group->edges); i++){
                 struct edge* group_member_edge = array_get(group->edges, i);
@@ -588,42 +544,6 @@ long get_edge_balance(struct edge* e){
     return e->balance;
 }
 
-void free_network(struct network* network){
-    for(long i = 0; i < array_len(network->groups); i++){
-        struct group* g = array_get(network->groups, i);
-        if(g->is_closed){
-            for(long j = 0; j < array_len(g->edges); j++){
-                free(array_get(g->edges, j));
-            }
-        }
-        array_free(g->edges);
-        free(g);
-    }
-    for(long i = 0; i < array_len(network->channels); i++){
-        free(array_get(network->channels, i));
-    }
-    for(long i = 0; i < array_len(network->edges); i++){
-        struct edge* e = array_get(network->edges, i);
-        for(struct element* iterator = e->channel_updates; iterator != NULL; iterator = iterator->next){
-            free(iterator->data);
-        }
-        list_free(e->channel_updates);
-        free(e);
-    }
-    for(long i = 0; i < array_len(network->nodes); i++){
-        struct node* n = array_get(network->nodes, i);
-        array_free(n->open_edges);
-        for(long j = 0; j < array_len(network->nodes); j++){
-            for(struct element* iterator = n->results[j]; iterator != NULL; iterator = iterator->next){
-                free(iterator->data);
-            }
-            list_free(n->results[j]);
-        }
-        free(n->results);
-        free(n);
-    }
-}
-
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt) {
     struct edge_snapshot* snapshot = malloc(sizeof(struct edge_snapshot));
     snapshot->id = e->id;
@@ -636,13 +556,38 @@ struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt) {
         snapshot->is_included_in_group = 0;
         snapshot->group_cap = 0;
     }
-    if(e->channel_updates != NULL) {
-        struct channel_update* cu = e->channel_updates->data;
-        snapshot->does_channel_update_exist = 1;
-        snapshot->last_channle_update_value = cu->htlc_maximum_msat;
-    }else {
-        snapshot->does_channel_update_exist = 0;
-        snapshot->last_channle_update_value = 0;
-    }
+    // todo replace with method using by node_result
+    // if(e->channel_updates != NULL) {
+    //     struct channel_update* cu = e->channel_updates->data;
+    //     snapshot->does_channel_update_exist = 1;
+    //     snapshot->last_channle_update_value = cu->htlc_maximum_msat;
+    // }else {
+    //     snapshot->does_channel_update_exist = 0;
+    //     snapshot->last_channle_update_value = 0;
+    // }
     return snapshot;
+}
+
+struct group* new_group(struct edge* requesting_edge, struct network_params net_params, struct network* network, uint64_t current_time) {
+    struct group* group = malloc(sizeof(struct group));
+    group->edges = array_initialize(net_params.group_size);
+    group->edges = array_insert(group->edges, requesting_edge);
+    uint64_t max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+    if(requesting_edge->balance > max_cap_limit){
+        group->max_cap_limit = INT64_MAX;   // overflow
+    }else{
+        group->max_cap_limit = max_cap_limit;
+    }
+    uint64_t min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+    if(requesting_edge->balance < min_cap_limit) {
+        group->min_cap_limit = 0;   // overflow
+    }else{
+        group->min_cap_limit = min_cap_limit;
+    }
+    group->id = array_len(network->groups);
+    group->is_closed = 0;
+    group->constructed_time = current_time;
+    group->group_updates = NULL;
+
+    return group;
 }

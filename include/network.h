@@ -36,6 +36,7 @@ struct policy {
 struct node {
   long id;
   struct array* open_edges;
+  // list<list<struct node_pair_result>>: known capacity about edges connected to this node
   struct element **results;
   unsigned int explored;
 };
@@ -65,7 +66,6 @@ struct edge {
   unsigned int is_closed;
   uint64_t tot_flows;
   struct group* group;
-  struct element* channel_updates;
 };
 
 
@@ -80,19 +80,13 @@ struct edge_snapshot {
 };
 
 
-struct channel_update {
-    long edge_id;
-    uint64_t time;
-    uint64_t htlc_maximum_msat;
-};
-
-
 struct group_update {
     long group_id;
     long triggered_node_id;
     uint64_t time;
     uint64_t group_cap;
     enum group_update_type type;
+    uint64_t* edge_balances;
 };
 
 
@@ -106,6 +100,7 @@ struct group {
     uint64_t group_cap;
     uint64_t is_closed; // if not zero, it describes closed time
     uint64_t constructed_time;
+    struct element* group_updates;
 };
 
 
@@ -134,16 +129,16 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance);
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, struct network* network);
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time, FILE* csv_group_update);
+struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time);
 
 int edge_equal(struct edge* e1, struct edge* e2);
 
 long get_edge_balance(struct edge* e);
 
-void free_network(struct network* network);
-
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt);
+
+struct group* new_group(struct edge* requesting_edge, struct network_params net_params, struct network* network, uint64_t current_time);
 
 #endif

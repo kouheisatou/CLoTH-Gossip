@@ -17,6 +17,8 @@
 #include "../include/htlc.h"
 #include "../include/list.h"
 #include "../include/cloth.h"
+
+#include "utils.h"
 #include "../include/network.h"
 #include "../include/event.h"
 #include "../include/hash.h"
@@ -67,33 +69,32 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,balances,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
+  fprintf(csv_group_output, "id,edges,group_update_history,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
+    fprintf(csv_group_output, "\"[");
     long n_members = array_len(group->edges);
     for(j=0; j< n_members; j++){
-        struct edge* edge_snapshot = array_get(group->edges, j);
-        fprintf(csv_group_output, "%ld", edge_snapshot->id);
-        if(j < n_members -1){
-            fprintf(csv_group_output, "-");
-        }else{
-            fprintf(csv_group_output, ",");
-        }
+      edge = array_get(group->edges, j);
+      fprintf(csv_group_output, "%ld", edge->id);
+      if(j != n_members -1){
+        fprintf(csv_group_output, ",");
+      }
     }
-    for(j=0; j< n_members; j++){
-        struct edge* edge_snapshot = array_get(group->edges, j);
-        fprintf(csv_group_output, "%lu", edge_snapshot->balance);
-        if(j < n_members -1){
-            fprintf(csv_group_output, "-");
-        }else{
-            fprintf(csv_group_output, ",");
-        }
+    fprintf(csv_group_output, "]\",\"[");
+    for(struct element* iterator = group->group_updates; iterator != NULL; iterator = iterator->next) {
+      struct group_update* group_update = iterator->data;
+      write_group_update_json(group_update, csv_group_output, network);
+      if(iterator->next != NULL) {
+        fprintf(csv_group_output, ",");
+      }
     }
+    fprintf(csv_group_output, "]\",");
     float sum_cul = 0.0f;
+    struct group_update* latest_group_update = group->group_updates->data;
     for(j=0; j< n_members; j++){
-        struct edge* edge_snapshot = array_get(group->edges, j);
-        sum_cul += (1.0f - ((float)group->group_cap / (float)edge_snapshot->balance));
+      sum_cul += (1.0f - ((float)latest_group_update->group_cap / (float)latest_group_update->edge_balances[j]));
     }
     fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
   }
@@ -106,28 +107,10 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,group\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
     fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
-    char channel_updates_text[1000000] = "";
-    for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
-        struct channel_update *channel_update = iterator->data;
-        char temp[1000000];
-        int written = 0;
-        if(iterator->next != NULL) {
-            written = snprintf(temp, sizeof(temp), "-%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
-        }else{
-            written = snprintf(temp, sizeof(temp), "%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
-        }
-        // Check if the output was truncated
-        if (written < 0 || (size_t)written >= sizeof(temp)) {
-            fprintf(stderr, "Error: Buffer overflow detected.\n");
-            exit(1);
-        }
-        strncpy(channel_updates_text, temp, sizeof(channel_updates_text) - 1);
-    }
-    fprintf(csv_edge_output, "%s,", channel_updates_text);
     if(edge->group == NULL){
         fprintf(csv_edge_output, "NULL\n");
     }else{
@@ -167,19 +150,7 @@ void write_output(struct network* network, struct array* payments, char output_d
         fprintf(csv_payment_output, "\"[");
         for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
             struct attempt *attempt = iterator->data;
-            fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"route\"\":[", attempt->attempts, attempt->is_succeeded, attempt->time, attempt->error_edge_id, attempt->error_type);
-            for (j = 0; j < array_len(attempt->route); j++) {
-                struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
-                edge = array_get(network->edges, edge_snapshot->id);
-                channel = array_get(network->channels, edge->channel_id);
-                fprintf(csv_payment_output,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,sent_amt:%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
-                if(edge_snapshot->is_included_in_group) fprintf(csv_payment_output,"\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
-                else fprintf(csv_payment_output,"\"\"group_cap\"\":,");
-                if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-                else fprintf(csv_payment_output,"\"\"channel_update\"\":}");
-                if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
-            }
-            fprintf(csv_payment_output, "]}");
+            write_attempt_json(attempt, csv_payment_output, network);
             if (iterator->next != NULL) fprintf(csv_payment_output, ",");
             else fprintf(csv_payment_output, "]");
         }
@@ -317,12 +288,10 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         net_params->variance_payment_forward_interval=strtol(value, NULL, 10);
     }
     else if(strcmp(parameter, "routing_method")==0){
-      if(strcmp(value, "cloth_original")==0)
-        net_params->routing_method=CLOTH_ORIGINAL;
-      else if(strcmp(value, "channel_update")==0)
-        net_params->routing_method=CHANNEL_UPDATE;
-      else if(strcmp(value, "group_routing")==0)
-        net_params->routing_method=GROUP_ROUTING;
+      if(strcmp(value, "gossip")==0)
+        net_params->routing_method=GOSSIP;
+      else if(strcmp(value, "group")==0)
+        net_params->routing_method=GROUP;
       else if(strcmp(value, "ideal")==0)
         net_params->routing_method=IDEAL;
       else{
@@ -338,17 +307,6 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         net_params->group_cap_update=0;
       else
         net_params->group_cap_update=-1;
-    }
-    else if(strcmp(parameter, "log_broadcast_msg")==0){
-      if(strcmp(value, "true")==0)
-        net_params->log_broadcast_msg=1;
-      else if(strcmp(value, "false")==0)
-        net_params->log_broadcast_msg=0;
-      else{
-        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
-        fclose(input_file);
-        exit(-1);
-      }
     }
     else if(strcmp(parameter, "group_size")==0){
         if(strcmp(value, "")==0) net_params->group_size = -1;
@@ -376,17 +334,6 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);
     }
-    else if(strcmp(parameter, "log_all_events")==0){
-        if(strcmp(value, "true")==0)
-            pay_params->log_all_events=1;
-        else if(strcmp(value, "false")==0)
-            pay_params->log_all_events=0;
-        else{
-            fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
-            fclose(input_file);
-            exit(-1);
-        }
-    }
     else{
       fprintf(stderr, "ERROR: unknown parameter <%s>\n", parameter);
       fclose(input_file);
@@ -394,7 +341,7 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     }
   }
   // check invalid group settings
-  if(net_params->routing_method == GROUP_ROUTING){
+  if(net_params->routing_method == GROUP){
       if(net_params->group_limit_rate < 0 || net_params->group_limit_rate > 1){
           fprintf(stderr, "ERROR: wrong value of parameter <group_limit_rate> in <cloth_input.txt>.\n");
           exit(-1);
@@ -464,7 +411,6 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->network_from_file)), sizeof(unsigned int));
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->routing_method)), sizeof(enum routing_method));
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
-        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->log_broadcast_msg)), sizeof(unsigned int));
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
         for(int i = 0; net_params->nodes_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->nodes_filename[i])), sizeof(char));
@@ -595,33 +541,6 @@ int main(int argc, char *argv[]) {
 
   simulation = malloc(sizeof(struct simulation));
 
-  // init broadcast msg log file
-  FILE* csv_group_update = NULL;
-  FILE* csv_channel_update = NULL;
-  if(net_params.log_broadcast_msg){
-      char output_filename[512];
-
-      // group_update log
-      strcpy(output_filename, output_dir_name);
-      strcat(output_filename, "group_updates.csv");
-      csv_group_update = fopen(output_filename, "w");
-      if(csv_group_update == NULL){
-          printf("ERROR cannot open group_updates.csv\n");
-          exit(-1);
-      }
-      fprintf(csv_group_update, "time,group_id,type,triggered_node_id,group_cap,queue_length,edge_balances_in_queue\n");
-
-      // channel_update log
-      strcpy(output_filename, output_dir_name);
-      strcat(output_filename, "channel_updates.csv");
-      csv_channel_update = fopen(output_filename, "w");
-      if(csv_channel_update == NULL){
-          printf("ERROR cannot open group_updates.csv\n");
-          exit(-1);
-      }
-      fprintf(csv_channel_update, "time,edge_id,htlc_maximum_msat\n");
-  }
-
   simulation->random_generator = initialize_random_generator();
   printf("NETWORK INITIALIZATION\n");
   network = initialize_network(net_params, simulation->random_generator);
@@ -630,11 +549,29 @@ int main(int argc, char *argv[]) {
 
     // add edge which is not a member of any group to group_add_queue
     struct element* group_add_queue = NULL;
-    if(net_params.routing_method == GROUP_ROUTING) {
+    if(net_params.routing_method == GROUP) {
         for (int i = 0; i < n_edges; i++) {
             group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
-        group_add_queue = construct_group(group_add_queue, network, net_params, 0, csv_group_update);
+        group_add_queue = construct_group(group_add_queue, network, net_params, 0);
+    }
+    if(net_params.routing_method == GROUP || net_params.routing_method == IDEAL) {
+      // initialize node topology
+      for(int i = 0; i < n_nodes; i++) {
+        struct node* from_node = array_get(network->nodes, i);
+        for(int j = 0; j < array_len(from_node->open_edges); j++) {
+          struct edge* edge = array_get(network->edges, j);
+          struct node* to_node = array_get(from_node->open_edges, j);
+          if(net_params.routing_method == GROUP) {
+            if(edge->group != NULL) {
+              set_node_pair_result_success(from_node->results, from_node->id, to_node->id, edge->group->group_cap, 0);
+            }
+          }
+          else if (net_params.routing_method == IDEAL) {
+            set_node_pair_result_success(from_node->results, from_node->id, to_node->id, edge->balance, 0);
+          }
+        }
+      }
     }
 
   printf("PAYMENTS INITIALIZATION\n");
@@ -674,73 +611,37 @@ int main(int argc, char *argv[]) {
 
   printf("EXECUTION OF THE SIMULATION\n");
 
-  FILE *csv_events;
-  if(pay_params.log_all_events) {
-      char csv_events_filename[512];
-      strcpy(csv_events_filename, output_dir_name);
-      strcat(csv_events_filename, "events.csv");
-      csv_events = fopen(csv_events_filename, "w");
-      if (csv_events == NULL) {
-          printf("ERROR cannot open events.csv\n");
-          exit(-1);
-      }
-      fprintf(csv_events, "time,pmt_id,event_type,sender,receiver,amt,error,attempts,elapsed_time,route\n");
-  }
-
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
   begin = clock();
   simulation->current_time = 1;
   long completed_payments = 0;
   while(heap_len(simulation->events) != 0) {
     event = heap_pop(simulation->events, compare_event);
-
-    if(pay_params.log_all_events) {
-        // write event to file
-        fprintf(csv_events, "%lu,%lu,%d,%lu,%lu,%lu,%d,%d,", simulation->current_time, event->payment->id, event->type,
-                event->payment->sender, event->payment->receiver, event->payment->amount, event->payment->error.type,
-                event->payment->attempts);
-        if (event->type != 0) {
-            fprintf(csv_events, "%lu,", simulation->current_time - event->payment->start_time);
-        } else {
-            fprintf(csv_events, ",");
-        }
-        if (event->payment->route != NULL) {
-            for (int i = 0; i < array_len(event->payment->route->route_hops); i++) {
-                struct route_hop *hop = array_get(event->payment->route->route_hops, i);
-                fprintf(csv_events, "%lu", hop->edge_id);
-                if (i < array_len(event->payment->route->route_hops) - 1) fprintf(csv_events, "-");
-                else fprintf(csv_events, "\n");
-            }
-        } else {
-            fprintf(csv_events, "\n");
-        }
-    }
-
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:
-      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method, net_params);
+      find_path(event, simulation, network, &payments, pay_params.mpp, net_params);
       break;
     case SENDPAYMENT:
-      group_add_queue = send_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);
+      send_payment(event, simulation, network, net_params);
       break;
     case FORWARDPAYMENT:
-      group_add_queue = forward_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);
+      forward_payment(event, simulation, network, net_params);
       break;
     case RECEIVEPAYMENT:
-      group_add_queue = receive_payment(event, simulation, network, group_add_queue, net_params, csv_group_update);
+      receive_payment(event, simulation, network, net_params);
       break;
     case FORWARDSUCCESS:
-      group_add_queue = forward_success(event, simulation, network, group_add_queue, net_params, csv_group_update);
+      forward_success(event, simulation, network, net_params);
       break;
     case RECEIVESUCCESS:
-      receive_success(event, simulation, network);
+      group_add_queue = receive_success(event, simulation, network, net_params, group_add_queue);
       break;
     case FORWARDFAIL:
-      group_add_queue = forward_fail(event, simulation, network, group_add_queue, net_params, csv_group_update);
+      forward_fail(event, simulation, network, net_params);
       break;
     case RECEIVEFAIL:
-      group_add_queue = receive_fail(event, simulation, network, group_add_queue, net_params, csv_group_update, csv_channel_update);
+      group_add_queue = receive_fail(event, simulation, network, net_params, group_add_queue);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);
@@ -775,12 +676,6 @@ int main(int argc, char *argv[]) {
   printf("Time consumed by simulation events: %lf s\n", time_spent);
 
   write_output(network, payments, output_dir_name);
-
-    list_free(group_add_queue);
-    free_network(network);
-    free(simulation->random_generator);
-    heap_free(simulation->events);
-  free(simulation);
 
   return 0;
 }

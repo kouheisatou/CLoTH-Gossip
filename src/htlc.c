@@ -80,24 +80,12 @@ struct route_hop *get_route_hop(long node_id, struct array *route_hops, int is_s
   return array_get(route_hops, index);
 }
 
-//void lock_channel(struct channel* channel, struct payment* payment){
-//    channel->occupied = 1;
-//    channel->payment_history = push(channel->payment_history, payment);
-//}
-//void unlock_all_channels_of_route(struct route* route, struct network* network){
-//    for(int i = 0; i < array_len(route->route_hops); i++){
-//        struct route_hop* hop = array_get(route->route_hops, i);
-//        struct edge* edge = array_get(network->edges, hop->edge_id);
-//        struct channel* channel = array_get(network->channels, edge->channel_id);
-//        channel->occupied = 0;
-//    }
-//}
-
 
 /* FUNCTIONS MANAGING NODE PAIR RESULTS */
 
 /* set the result of a node pair as success: it means that a payment was successfully forwarded in an edge connecting the two nodes of the node pair.
  This information is used by the sender node to find a route that maximizes the possibilities of successfully sending a payment */
+// success_amoount : Value that can be sent if it is less than this
 void set_node_pair_result_success(struct element** results, long from_node_id, long to_node_id, uint64_t success_amount, uint64_t success_time){
   struct node_pair_result* result;
 
@@ -122,6 +110,7 @@ void set_node_pair_result_success(struct element** results, long from_node_id, l
 
 /* set the result of a node pair as success: it means that a payment failed when passing through  an edge connecting the two nodes of the node pair.
    This information is used by the sender node to find a route that maximizes the possibilities of successfully sending a payment */
+// fail_amoount : A value that will fail if sent more than this
 void set_node_pair_result_fail(struct element** results, long from_node_id, long to_node_id, uint64_t fail_amount, uint64_t fail_time){
   struct node_pair_result* result;
 
@@ -149,19 +138,38 @@ void set_node_pair_result_fail(struct element** results, long from_node_id, long
 }
 
 /* process a payment which succeeded */
-void process_success_result(struct node* node, struct payment *payment, uint64_t current_time){
+void process_success_result(struct node* node, struct payment *payment, uint64_t current_time, enum routing_method routing_method, struct element* group_add_queue, struct network* network){
   struct route_hop* hop;
   int i;
   struct array* route_hops;
   route_hops = payment->route->route_hops;
   for(i=0; i<array_len(route_hops); i++){
     hop = array_get(route_hops, i);
-    set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+    struct edge* edge = array_get(network->edges, hop->edge_id);
+
+    // conventional method
+    if (routing_method == GOSSIP) {
+      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+    }
+
+    // proposed method
+    else if (routing_method == GROUP) {
+      if(edge->group != NULL) {
+        set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->group->group_cap, current_time);
+      }
+    }
+
+    // ideal situation, for comparation with proposed or conventional method
+    else if (routing_method == IDEAL) {
+      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->balance, current_time);
+    }
   }
 }
 
 /* process a payment which failed (different processments depending on the error type) */
-void process_fail_result(struct node* node, struct payment *payment, uint64_t current_time){
+// record amount on fail
+// same as process of broadcasting channel_update
+void process_fail_result(struct node* node, struct payment *payment, uint64_t current_time, enum routing_method routing_method, struct network* network){
   struct route_hop* hop, *error_hop;
   int i;
   struct array* route_hops;
@@ -179,17 +187,32 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
     route_hops = payment->route->route_hops;
     for(i=0; i<array_len(route_hops); i++){
       hop = array_get(route_hops, i);
-      if(hop->edge_id == error_hop->edge_id) {
-        set_node_pair_result_fail(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
-        break;
+      struct edge* edge = array_get(network->edges, hop->edge_id);
+
+      // conventional method
+      // using gossip message and notify send amt
+      if(routing_method == GOSSIP) {
+        if(hop->edge_id == error_hop->edge_id) {
+          set_node_pair_result_fail(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+          break;
+        }
+        set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
       }
-      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+
+      // proposed method
+      else if(routing_method == GROUP) {
+        if(edge->group != NULL) {
+          set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->group->group_cap, current_time);
+        }
+      }
+
+      // ideal situation, high efficienty but no privacy
+      // notify accuarate edge cap realtime
+      else if (routing_method == IDEAL) {
+        set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->balance, current_time);
+      }
     }
   }
-//  else if(payment->error.type == EDGEOCCUPIED){
-//      set_node_pair_result_fail(node->results, error_hop->from_node_id, error_hop->to_node_id, 0, current_time);
-//      set_node_pair_result_fail(node->results, error_hop->to_node_id, error_hop->from_node_id, 0, current_time);
-//  }
 }
 
 
@@ -217,7 +240,7 @@ struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struc
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params) {
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, struct network_params net_params) {
   struct payment *payment, *shard1, *shard2;
   struct array *path, *shard1_path, *shard2_path;
   uint64_t shard1_amount, shard2_amount;
@@ -234,50 +257,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  // find path
-  if(routing_method == CLOTH_ORIGINAL) {
-      if (payment->attempts == 1) {
-          path = paths[payment->id];
-      }else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
-      }
-  } else {
-
-      if (payment->attempts == 1) {
-          path = paths[payment->id];
-          if (path != NULL) {
-
-              // calc path capacity
-              uint64_t path_cap = INT64_MAX;
-              for (int i = 0; i < array_len(path); i++) {
-                  struct route_hop *hop = array_get(path, i);
-                  struct edge *edge = array_get(network->edges, hop->edge_id);
-                  uint64_t estimated_cap;
-                  if (i == 0) {
-                      // if first edge of the path (directory connected edge to source node)
-                      estimated_cap = edge->balance;
-                  } else {
-                      estimated_cap = estimate_capacity(edge, network, routing_method);
-                  }
-                  if (estimated_cap < path_cap) path_cap = estimated_cap;
-              }
-
-              // calc total fee
-              struct route *route = transform_path_into_route(path, payment->amount, network);
-              uint64_t fee = route->total_fee;
-              free_route(route);
-
-              // if path capacity is not enough to send the payment, find new path
-              if (path_cap < payment->amount + fee) {
-                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
-              }
-          } else {
-              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
-          }
-      } else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
-      }
-  }
+  if (payment->attempts==1)
+    path = paths[payment->id];
+  else
+    path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method);
 
   if (path != NULL) {
     generate_send_payment_event(payment, path, simulation, network);
@@ -288,34 +271,32 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
     shard1_amount = payment->amount/2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, routing_method);
+    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method);
     if(shard1_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, routing_method);
+    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method);
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
     // if shard1_path and shard2_path is same route, return
-    if(routing_method != CLOTH_ORIGINAL) {
-        long shard1_path_len = array_len(shard1_path);
-        long shard2_path_len = array_len(shard2_path);
-        if (shard1_path_len == shard2_path_len) {
-            int duplicated = 0;
-            for (int i = 0; i < shard1_path_len; i++) {
-                struct route_hop *shard1_hop = array_get(shard1_path, i);
-                for (int j = 0; j < shard2_path_len; j++) {
-                    struct route_hop *shard2_hop = array_get(shard2_path, j);
-                    if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
-                }
+    long shard1_path_len = array_len(shard1_path);
+    long shard2_path_len = array_len(shard2_path);
+    if (shard1_path_len == shard2_path_len) {
+        int duplicated = 0;
+        for (int i = 0; i < shard1_path_len; i++) {
+            struct route_hop *shard1_hop = array_get(shard1_path, i);
+            for (int j = 0; j < shard2_path_len; j++) {
+                struct route_hop *shard2_hop = array_get(shard2_path, j);
+                if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
             }
-            // all hop of shade1_path is same as shade2_path's, return
-            if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
-                payment->end_time = simulation->current_time;
-                return;
-            }
+        }
+        // all hop of shade1_path is same as shade2_path's, return
+        if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
+            payment->end_time = simulation->current_time;
+            return;
         }
     }
     shard1_id = array_len(*payments);
@@ -334,10 +315,11 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
   // no path
   payment->end_time = simulation->current_time;
+  return;
 }
 
 /* send an HTLC for the payment (behavior of the payment sender) */
-struct element* send_payment(struct event* event, struct simulation* simulation, struct network *network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
+void send_payment(struct event* event, struct simulation* simulation, struct network *network, struct network_params net_params) {
   struct payment* payment;
   uint64_t next_event_time;
   struct route* route;
@@ -368,7 +350,7 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
     next_event_time = simulation->current_time + OFFLINELATENCY;
     next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return group_add_queue;
+    return;
   }
 
   // fail no balance
@@ -379,18 +361,10 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
     next_event_time = simulation->current_time;
     next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return group_add_queue;
+    return;
   }
 
-  // update balance
-  uint64_t prev_balance = next_edge->balance;
   next_edge->balance -= first_route_hop->amount_to_forward;
-
-  // update group capacity
-  if(next_edge->group != NULL) {
-    group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update, network, next_edge->id, prev_balance);
-  }
-
 
   next_edge->tot_flows += 1;
 
@@ -399,12 +373,10 @@ struct element* send_payment(struct event* event, struct simulation* simulation,
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
   next_event = new_event(next_event_time, event_type, first_route_hop->to_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
-    return group_add_queue;
 }
 
 /* forward an HTLC for the payment (behavior of an intermediate hop node in a route) */
-struct element* forward_payment(struct event *event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
+void forward_payment(struct event *event, struct simulation* simulation, struct network* network, struct network_params net_params) {
   struct payment* payment;
   struct route* route;
   struct route_hop* next_route_hop, *previous_route_hop;
@@ -440,7 +412,7 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
     next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator))) + OFFLINELATENCY;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return group_add_queue;
+    return;
   }
 
   // BEGIN -- NON-STRICT FORWARDING (cannot simulate it because the current blokchain height is needed)
@@ -475,22 +447,6 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   prev_edge = array_get(network->edges,previous_route_hop->edge_id);
   next_edge = array_get(network->edges, next_route_hop->edge_id);
 
-//    if(c->occupied){
-//        // fail payment because channel is occupied
-//        payment->edge_occupied_count += 1;
-//        payment->error.type = EDGEOCCUPIED;
-//        payment->error.hop = next_route_hop;
-//        prev_node_id = previous_route_hop->from_node_id;
-//        event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
-//        next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
-//        next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
-//        simulation->events = heap_insert(simulation->events, next_event, compare_event);
-//        return group_add_queue;
-//    }else{
-//        // lock current channel
-//        lock_channel(c, payment);
-//    }
-
   // fail no balance
   if(!check_balance_and_policy(next_edge, prev_edge, previous_route_hop, next_route_hop)){
     payment->error.type = NOBALANCE;
@@ -501,17 +457,10 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
     next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
-    return group_add_queue;
+    return;
   }
 
-  // update balance
-  uint64_t prev_balance = next_edge->balance;
   next_edge->balance -= next_route_hop->amount_to_forward;
-
-  // update group capacity
-    if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update, network, next_edge->id, prev_balance);
-    }
 
   next_edge->tot_flows += 1;
 
@@ -521,12 +470,10 @@ struct element* forward_payment(struct event *event, struct simulation* simulati
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//next_channel->latency;
   next_event = new_event(next_event_time, event_type, next_route_hop->to_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
-    return group_add_queue;
 }
 
 /* receive a payment (behavior of the payment receiver node) */
-struct element* receive_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
+void receive_payment(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params) {
   long  prev_node_id;
   struct route* route;
   struct payment* payment;
@@ -550,14 +497,7 @@ struct element* receive_payment(struct event* event, struct simulation* simulati
     exit(-1);
   }
 
-  // update balance
-  uint64_t prev_balance = backward_edge->balance;
   backward_edge->balance += last_route_hop->amount_to_forward;
-
-  // update group capacity
-    if(backward_edge->group != NULL) {
-        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update, network, backward_edge->id, prev_balance);
-    }
 
   payment->is_success = 1;
 
@@ -566,12 +506,10 @@ struct element* receive_payment(struct event* event, struct simulation* simulati
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
-    return group_add_queue;
 }
 
 /* forward an HTLC success back to the payment sender (behavior of a intermediate hop node in the route) */
-struct element* forward_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
+void forward_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params) {
   struct route_hop* prev_hop;
   struct payment* payment;
   struct edge* forward_edge, * backward_edge;
@@ -592,41 +530,45 @@ struct element* forward_success(struct event* event, struct simulation* simulati
     exit(-1);
   }
 
-  // update balance
-  uint64_t prev_balance = backward_edge->balance;
   backward_edge->balance += prev_hop->amount_to_forward;
-
-  // update group capacity
-    if(backward_edge->group != NULL) {
-        group_add_queue = update_group(backward_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update, network, backward_edge->id, prev_balance);
-    }
 
   prev_node_id = prev_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVESUCCESS : FORWARDSUCCESS;
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
-    return group_add_queue;
 }
 
 /* receive an HTLC success (behavior of the payment sender node) */
-void receive_success(struct event* event, struct simulation* simulation, struct network* network) {
+struct element* receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue) {
   struct node* node;
   struct payment* payment;
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
-  process_success_result(node, payment, simulation->current_time);
 
+  // update groups on route
+  if(net_params.routing_method == GROUP) {
+    for(int i = 0; i < array_len(payment->route->route_hops); i++) {
+      struct route_hop* hop = array_get(payment->route->route_hops, i);
+      struct edge* edge = array_get(network->edges, hop->edge_id);
+      if (edge->group != NULL) {
+        group_add_queue = update_group(edge->group, net_params, simulation->current_time, group_add_queue, payment->sender, UPDATE, network);
+      }
+    }
+  }
+
+  // update node topology by result
+  process_success_result(node, payment, simulation->current_time, net_params.routing_method, group_add_queue, network);
+
+  // record payment attempt history
   add_attempt_history(payment, network, simulation->current_time, 1);
 
-    // unlock channel on path
-//    unlock_all_channels_of_route(payment->route, network);
+  return group_add_queue;
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
-struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update) {
+void forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params) {
   struct payment* payment;
   struct route_hop* next_hop, *prev_hop;
   struct edge* next_edge;
@@ -647,11 +589,7 @@ struct element* forward_fail(struct event* event, struct simulation* simulation,
   }
 
   /* since the payment failed, the balance must be brought back to the state before the payment occurred */
-  uint64_t prev_balance = next_edge->balance;
   next_edge->balance += next_hop->amount_to_forward;
-    if(next_edge->group != NULL) {
-        group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, ((struct route_hop*)array_get(payment->route->route_hops, 0))->from_node_id, UPDATE, csv_group_update, network, next_edge->id, prev_balance);
-    }
 
   prev_hop = get_route_hop(event->node_id, payment->route->route_hops, 0);
   prev_node_id = prev_hop->from_node_id;
@@ -659,15 +597,13 @@ struct element* forward_fail(struct event* event, struct simulation* simulation,
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
   next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
-    return group_add_queue;
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update, FILE* csv_channel_update) {
+struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue){
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
-  struct edge* next_edge, *error_edge;
+  struct edge* next_edge;
   struct event* next_event;
   struct node* node;
   uint64_t next_event_time;
@@ -676,7 +612,6 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
   node = array_get(network->nodes, event->node_id);
 
   error_hop = payment->error.hop;
-  error_edge = array_get(network->edges, error_hop->edge_id);
   if(error_hop->from_node_id != payment->sender){ // if the error occurred in the first hop, the balance hasn't to be updated, since it was not decreased
     first_hop = array_get(payment->route->route_hops, 0);
     next_edge = array_get(network->edges, first_hop->edge_id);
@@ -684,52 +619,27 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
       printf("ERROR (receive_fail): edge %ld is not an edge of node %ld \n", next_edge->id, node->id);
       exit(-1);
     }
-
-    uint64_t prev_balance = next_edge->balance;
     next_edge->balance += first_hop->amount_to_forward;
-      if(next_edge->group != NULL) {
-          group_add_queue = update_group(next_edge->group, net_params, simulation->current_time, group_add_queue, first_hop->from_node_id, UPDATE, csv_group_update, network, next_edge->id, prev_balance);
-      }
   }
 
-/* print FAIL_NO_BALANCE error
-    struct channel* channel = array_get(network->channels, error_edge->channel_id);
-    printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
-    printf("\n\tPATH  : ");
-    for(int i = 0; i < array_len(payment->route->route_hops); i++){
-        struct route_hop* hop = array_get(payment->route->route_hops, i);
-        struct edge* edge = array_get(network->edges, hop->edge_id);
-        printf("(edge_id=%ld,edge_balance=%lu,", edge->id, edge->balance);
-        if(edge->group != NULL) {
-            printf("group_id=%ld,group_cap=%lu)", edge->group->id, edge->group->group_cap);
-        }else{
-            printf("group_id=NULL,group_cap=NULL)");
-        }
-        if (i != array_len(payment->route->route_hops) - 1) printf("-");
+  // update group
+  if(net_params.routing_method == GROUP) {
+    for(int i = 0; i < array_len(payment->route->route_hops); i++) {
+      struct route_hop* hop = array_get(payment->route->route_hops, i);
+      struct edge* edge = array_get(network->edges, hop->edge_id);
+      if (edge->group != NULL) {
+        group_add_queue = update_group(edge->group, net_params, simulation->current_time, group_add_queue, payment->sender, UPDATE, network);
+      }
     }
-    printf("\n");
-*/
+  }
 
-    // record channel_update
-    struct channel_update *channel_update = malloc(sizeof(struct channel_update));
-    channel_update->htlc_maximum_msat = payment->amount;
-    channel_update->edge_id = error_edge->id;
-    channel_update->time = simulation->current_time;
-    error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
-    if (net_params.log_broadcast_msg) {
-        write_channel_update(csv_channel_update, channel_update);
-    }
-
-  process_fail_result(node, payment, simulation->current_time);
+  process_fail_result(node, payment, simulation->current_time, net_params.routing_method, network);
 
   add_attempt_history(payment, network, simulation->current_time, 0);
-
-    // unlock channel on path
-//    unlock_all_channels_of_route(payment->route, network);
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
-    return group_add_queue;
+  return group_add_queue;
 }
