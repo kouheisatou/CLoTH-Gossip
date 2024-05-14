@@ -711,15 +711,13 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
 */
 
     // record channel_update
-    if(event->payment->error.type == NOBALANCE) {
-        struct channel_update *channel_update = malloc(sizeof(struct channel_update));
-        channel_update->htlc_maximum_msat = payment->amount;
-        channel_update->edge_id = error_edge->id;
-        channel_update->time = simulation->current_time;
-        error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
-        if (net_params.log_broadcast_msg) {
-            write_channel_update(csv_channel_update, channel_update);
-        }
+    struct channel_update *channel_update = malloc(sizeof(struct channel_update));
+    channel_update->htlc_maximum_msat = payment->amount;
+    channel_update->edge_id = error_edge->id;
+    channel_update->time = simulation->current_time;
+    error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
+    if (net_params.log_broadcast_msg) {
+        write_channel_update(csv_channel_update, channel_update);
     }
 
   process_fail_result(node, payment, simulation->current_time);
