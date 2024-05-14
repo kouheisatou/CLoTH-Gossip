@@ -168,14 +168,18 @@ void write_output(struct network* network, struct array* payments, char output_d
         for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
             struct attempt *attempt = iterator->data;
             fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"route\"\":[", attempt->attempts, attempt->is_succeeded, attempt->time, attempt->error_edge_id, attempt->error_type);
-            for (j = 0; j < array_len(payment->route->route_hops); j++) {
-                edge = array_get(network->edges, attempt->route_edges[j]);
+            for (j = 0; j < array_len(attempt->route); j++) {
+                struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
+                edge = array_get(network->edges, edge_snapshot->id);
                 channel = array_get(network->channels, edge->channel_id);
-                fprintf(csv_payment_output,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,\"\"group_cap\"\":%lu,\"\"channel_update\"\":%lu,sent_amt:%lu}", attempt->route_edges[j], edge->from_node_id, edge->to_node_id, attempt->route_edge_caps[j], channel->capacity, attempt->route_group_caps[j], attempt->route_channel_update_values[j], attempt->route_sent_amt[j]);
-                if (j != array_len(payment->route->route_hops) - 1) fprintf(csv_payment_output, ",");
-                else fprintf(csv_payment_output, "]");
+                fprintf(csv_payment_output,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,sent_amt:%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
+                if(edge_snapshot->is_included_in_group) fprintf(csv_payment_output,"\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
+                else fprintf(csv_payment_output,"\"\"group_cap\"\":,");
+                if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
+                else fprintf(csv_payment_output,"\"\"channel_update\"\":}");
+                if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
             }
-            fprintf(csv_payment_output, "}");
+            fprintf(csv_payment_output, "]}");
             if (iterator->next != NULL) fprintf(csv_payment_output, ",");
             else fprintf(csv_payment_output, "]");
         }

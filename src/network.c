@@ -623,3 +623,26 @@ void free_network(struct network* network){
         free(n);
     }
 }
+
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt) {
+    struct edge_snapshot* snapshot = malloc(sizeof(struct edge_snapshot));
+    snapshot->id = e->id;
+    snapshot->balance = e->balance;
+    snapshot->sent_amt = sent_amt;
+    if(e->group != NULL) {
+        snapshot->is_included_in_group = 1;
+        snapshot->group_cap = e->group->group_cap;
+    }else {
+        snapshot->is_included_in_group = 0;
+        snapshot->group_cap = 0;
+    }
+    if(e->channel_updates != NULL) {
+        struct channel_update* cu = e->channel_updates->data;
+        snapshot->does_channel_update_exist = 1;
+        snapshot->last_channle_update_value = cu->htlc_maximum_msat;
+    }else {
+        snapshot->does_channel_update_exist = 0;
+        snapshot->last_channle_update_value = 0;
+    }
+    return snapshot;
+}

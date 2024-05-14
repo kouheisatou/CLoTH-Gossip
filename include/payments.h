@@ -49,11 +49,7 @@ struct attempt {
   uint64_t time;
   long error_edge_id;
   enum payment_error_type error_type;
-  long* route_edges;
-  uint64_t* route_edge_caps;
-  uint64_t* route_group_caps;
-  uint64_t* route_channel_update_values;
-  uint64_t* route_sent_amt;
+  struct array* route;
   short is_succeeded;
 };
 
