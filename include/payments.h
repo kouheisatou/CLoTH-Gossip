@@ -53,6 +53,7 @@ struct attempt {
   uint64_t* route_edge_caps;
   uint64_t* route_group_caps;
   uint64_t* route_channel_update_values;
+  uint64_t* route_sent_amt;
   short is_succeeded;
 };
 

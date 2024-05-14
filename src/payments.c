@@ -130,6 +130,7 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
   attempt->route_edge_caps = malloc(sizeof(uint64_t) * route_len);
   attempt->route_group_caps = malloc(sizeof(uint64_t) * route_len);
   attempt->route_channel_update_values = malloc(sizeof(uint64_t) * route_len);
+  attempt->route_sent_amt = malloc(sizeof(uint64_t) * route_len);
 
   for(int i = 0; i < route_len; i++){
     struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
@@ -147,6 +148,7 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     }else{
       attempt->route_channel_update_values[i] = 0;
     }
+    attempt->route_sent_amt[i] = route_hop->amount_to_forward;
   }
 
   pmt->history = push(pmt->history, attempt);
