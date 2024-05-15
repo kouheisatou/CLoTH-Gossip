@@ -84,7 +84,7 @@ function display_progress() {
 
 #avg_pmt_amt="10000000"  # value such that success_rate=0.8~0.6 when payment_rate=10
 avg_pmt_amt="1000000"  # value such that success_rate=0.95 when payment_rate=10
-n_payments="500"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
+n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
 #avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com, $11.84(August 2023)
 #n_payments="5000000"  # resistant payment_rate=5.0x10^6
 var_pmt_amt="1000"  # based on cloth default setting

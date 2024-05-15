@@ -91,10 +91,16 @@ void write_output(struct network* network, struct array* payments, char output_d
       }
     }
     fprintf(csv_group_output, "]\",");
+    struct group_update* latest_group_update;
+    for(struct element* iterator = group->group_updates; iterator != NULL; iterator = iterator->next){
+        if(((struct group_update*)(iterator))->type == UPDATE) {
+            latest_group_update = iterator->data;
+            break;
+        }
+    }
     float sum_cul = 0.0f;
-    struct group_update* latest_group_update = group->group_updates->data;
-    for(j=0; j< n_members; j++){
-      sum_cul += (1.0f - ((float)latest_group_update->group_cap / (float)latest_group_update->edge_balances[j]));
+    for (j = 0; j < n_members; j++) {
+        sum_cul += (1.0f - ((float) latest_group_update->group_cap / (float) latest_group_update->edge_balances[j]));
     }
     fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
   }

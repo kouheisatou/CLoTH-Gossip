@@ -417,6 +417,7 @@ struct element* update_group(struct group* group, struct network_params net_para
 
             // close group
             group->is_closed = current_time;
+            group->group_cap = 0;
 
             // add group members to group_add_queue
             // broadcast group_req msg

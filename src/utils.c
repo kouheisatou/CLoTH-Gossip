@@ -33,11 +33,11 @@ void write_attempt_json(struct attempt* attempt, FILE* csv, struct network* netw
     struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
     struct edge* edge = array_get(network->edges, edge_snapshot->id);
     struct channel* channel = array_get(network->channels, edge->channel_id);
-    fprintf(csv,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,sent_amt:%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
+    fprintf(csv,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,\"\"sent_amt\"\":%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
     if(edge_snapshot->is_included_in_group) fprintf(csv,"\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
-    else fprintf(csv,"\"\"group_cap\"\":NULL,");
+    else fprintf(csv,"\"\"group_cap\"\":null,");
     if(edge_snapshot->does_channel_update_exist) fprintf(csv,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-    else fprintf(csv,"\"\"channel_update\"\":NULL}");
+    else fprintf(csv,"\"\"channel_update\"\":null}");
     if (j != array_len(attempt->route) - 1) fprintf(csv, ",");
   }
   fprintf(csv, "]}");
