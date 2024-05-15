@@ -534,8 +534,9 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
     printf("hash_payments=%lu\n", hash_network_payments);
 
     uint64_t hash_seed = 0;
+    gsl_rng* random_generator = initialize_random_generator();
     for(int i = 0; i < 100; i++){
-        double r = gsl_ran_ugaussian(simulation->random_generator);
+        double r = gsl_ran_ugaussian(random_generator);
         hash_seed += *SHA512Hash((uint8_t*)(&r), sizeof(double));
     }
     printf("hash_seed=%lu\n", hash_seed);
