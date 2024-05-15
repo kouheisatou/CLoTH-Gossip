@@ -160,15 +160,36 @@ def analyze_output(output_dir_name):
         }
 
     edge_fee = {}  # edge_idとそのエッジの手数料の紐付け
-    with open(output_dir_name + 'edges_output.csv', 'r') as csv_group:
-        edges = list(csv.DictReader(csv_group))
+    with open(output_dir_name + 'edges_output.csv', 'r') as csv_edge:
+        edges = list(csv.DictReader(csv_edge))
+
         edge_in_group_num = 0
+        locked_balance_and_duration_distribution = []
+
         for edge in edges:
             edge_fee[edge["id"]] = {"fee_base": edge["fee_base"], "fee_proportional": edge["fee_proportional"]}
             if edge["group"] != "NULL":
                 edge_in_group_num += 1
+            if edge["locked_balance_and_duration"] != "":
+                locked_balance_and_duration = [tuple(map(int, pair.split('x'))) for pair in edge["locked_balance_and_duration"].split("-")]
+                total_locked_balance_and_duration = 0
+                for (locked_balance, locked_duration) in locked_balance_and_duration:
+                    total_locked_balance_and_duration += locked_balance * locked_duration
+                locked_balance_and_duration_distribution.append(total_locked_balance_and_duration)
+
         result = result | {
             "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
+
+            # ロックされた残高×ロックされた時間
+            "total_locked_balance_duration/average": np.mean(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/variance": np.var(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/max": np.max(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/min": np.min(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/5-percentile": np.percentile(locked_balance_and_duration_distribution, 5),
+            "total_locked_balance_duration/25-percentile": np.percentile(locked_balance_and_duration_distribution, 25),
+            "total_locked_balance_duration/50-percentile": np.percentile(locked_balance_and_duration_distribution, 50),
+            "total_locked_balance_duration/75-percentile": np.percentile(locked_balance_and_duration_distribution, 75),
+            "total_locked_balance_duration/95-percentile": np.percentile(locked_balance_and_duration_distribution, 95),
         }
 
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:

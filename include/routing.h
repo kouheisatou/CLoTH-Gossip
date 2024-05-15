@@ -53,6 +53,8 @@ struct route_hop {
   long edge_id;
   uint64_t amount_to_forward;
   uint32_t timelock;
+  uint64_t edges_lock_start_time;
+  uint64_t edges_lock_end_time;
 };
 
 

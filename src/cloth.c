@@ -106,7 +106,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group,locked_balance_and_duration\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
     fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
@@ -129,10 +129,19 @@ void write_output(struct network* network, struct array* payments, char output_d
     }
     fprintf(csv_edge_output, "%s,", channel_updates_text);
     if(edge->group == NULL){
-        fprintf(csv_edge_output, "NULL\n");
+        fprintf(csv_edge_output, "NULL,");
     }else{
-        fprintf(csv_edge_output, "%ld\n", edge->group->id);
+        fprintf(csv_edge_output, "%ld,", edge->group->id);
     }
+    for(struct element* iterator = edge->edge_locked_balance_and_durations; iterator != NULL; iterator = iterator->next){
+        struct edge_locked_balance_and_duration* edge_locked_balance_time = iterator->data;
+        uint64_t locked_time = edge_locked_balance_time->locked_end_time - edge_locked_balance_time->locked_start_time;
+        fprintf(csv_edge_output, "%lux%lu", edge_locked_balance_time->locked_balance, locked_time);
+        if(iterator->next != NULL){
+            fprintf(csv_edge_output, "-");
+        }
+    }
+    fprintf(csv_edge_output, "\n");
   }
   fclose(csv_edge_output);
 

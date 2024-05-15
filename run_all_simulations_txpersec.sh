@@ -88,8 +88,9 @@ n_payments="50000"  # based on simulation settings used by CLoTH paper https://w
 #avg_pmt_amt="44700"  # based on statics https://river.com/learn/files/river-lightning-report-2023.pdf?ref=blog.river.com, $11.84(August 2023)
 #n_payments="5000000"  # resistant payment_rate=5.0x10^6
 var_pmt_amt="1000"  # based on cloth default setting
-for j in $(seq 3.0 0.5 7.0); do
+for j in $(seq 1.0 0.5 5.0); do
 #for j in $(seq 0.0 0.2 2.8); do
+#j="7"
     payment_rate=$(python3 -c "print('{:.0f}'.format(10**($j)))")
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/payment_rate=$payment_rate             $dijkstra_cache_dir/method=ideal,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt           payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="
     enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=channel_update/payment_rate=$payment_rate    $dijkstra_cache_dir/method=channel_update,seed=$seed,n_payments=$n_payments,avg_pmt_amt=$avg_pmt_amt,var_pmt_amt=$var_pmt_amt  payment_rate=$payment_rate n_payments=$n_payments mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt variance_payment_amount=$var_pmt_amt group_size=  group_limit_rate="

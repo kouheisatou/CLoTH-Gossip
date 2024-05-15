@@ -55,6 +55,7 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   channel_update->edge_id = edge->id;
   channel_update->time = 0;
   edge->channel_updates = push(NULL, channel_update);
+  edge->edge_locked_balance_and_durations = NULL;
   return edge;
 }
 
