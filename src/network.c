@@ -5,6 +5,7 @@
 #include "../include/array.h"
 #include "../include/utils.h"
 
+struct element **results;
 
 /* Functions in this file generate a payment-channel network where to simulate the execution of payments */
 

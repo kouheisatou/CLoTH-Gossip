@@ -40,7 +40,7 @@ struct node {
 };
 
 // list<list<struct node_pair_result>>: topology configured with edges of known capacity
-struct element **results;
+extern struct element **results;
 
 /* a bidirectional payment channel of the payment-channel network open between two nodes */
 struct channel {
