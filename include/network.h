@@ -39,9 +39,6 @@ struct node {
   unsigned int explored;
 };
 
-// list<list<struct node_pair_result>>: topology configured with edges of known capacity
-extern struct element **results;
-
 /* a bidirectional payment channel of the payment-channel network open between two nodes */
 struct channel {
   long id;
@@ -67,6 +64,7 @@ struct edge {
   unsigned int is_closed;
   uint64_t tot_flows;
   struct group* group;
+  struct element* channel_updates; // results
 };
 
 
@@ -132,9 +130,7 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
 
 struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, struct network* network);
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time);
-
-int edge_equal(struct edge* e1, struct edge* e2);
+struct element* construct_groups_from_queue(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time);
 
 long get_edge_balance(struct edge* e);
 

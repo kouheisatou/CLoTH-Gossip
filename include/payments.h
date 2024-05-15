@@ -41,7 +41,7 @@ struct payment {
   int no_balance_count;
 //  int edge_occupied_count;
   unsigned int is_timeout;
-  struct element* history;
+  struct element* history;  // list of `struct attempt`
 };
 
 struct attempt {

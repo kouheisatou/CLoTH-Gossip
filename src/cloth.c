@@ -107,16 +107,16 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,public_success_amount,public_fail_amount,group,group_cap\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
     fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
-    struct node_pair_result* r = get_by_key(results[edge->from_node_id], edge->to_node_id, is_equal_key_result);
-    if(r != NULL) {
-        fprintf(csv_edge_output, "%lu,%lu,", r->success_amount, r->fail_amount);
-    }else{
-        fprintf(csv_edge_output, ",,");
+    fprintf(csv_edge_output, "\"[");
+    for(struct element* iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
+      struct channel_update* channel_update = iterator->data;
+      write_channel_update_json(channel_update, csv_edge_output);
     }
+    fprintf(csv_edge_output, "]\",");
     if(edge->group == NULL){
         fprintf(csv_edge_output, "NULL,\n");
     }else{
@@ -559,27 +559,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < n_edges; i++) {
             group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
-        group_add_queue = construct_group(group_add_queue, network, net_params, 0);
-    }
-
-    // initialize node local topology
-    if (net_params.routing_method == GROUP || net_params.routing_method == IDEAL) {
-        for (int i = 0; i < n_edges; i++){
-            struct edge *edge = array_get(network->edges, i);
-            if (net_params.routing_method == GROUP) {
-                if (edge->group != NULL) {
-                    set_node_pair_result_success(results, edge->from_node_id, edge->to_node_id, edge->group->group_cap, 0);
-                }
-            } else if (net_params.routing_method == IDEAL) {
-                set_node_pair_result_success(results, edge->from_node_id, edge->to_node_id, edge->balance, 0);
-                struct node_pair_result* r = get_by_key(results[edge->from_node_id], edge->to_node_id, is_equal_key_result);
-                if(r != NULL) {
-                    printf("%ld-%ld %lu\n", edge->from_node_id, edge->to_node_id, r->success_amount);
-                }else{
-                    printf("%ld-%ld NULL\n", edge->from_node_id, edge->to_node_id);
-                }
-            }
-        }
+        group_add_queue = construct_groups_from_queue(group_add_queue, network, net_params, 0);
     }
 
   printf("PAYMENTS INITIALIZATION\n");

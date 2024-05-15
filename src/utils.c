@@ -2,20 +2,16 @@
 #include "../include/utils.h"
 #include "../include/routing.h"
 
-int is_equal_result(struct node_pair_result *a, struct node_pair_result *b ){
-  return a->to_node_id == b->to_node_id;
-}
-
-int is_equal_key_result(long key, struct node_pair_result *a){
-  return key == a->to_node_id;
-}
-
 int is_equal_long(long* a, long* b) {
   return *a==*b;
 }
 
 int is_key_equal(struct distance* a, struct distance* b) {
   return a->node == b->node;
+}
+
+int is_equal_edge(struct edge* edge1, struct edge* edge2) {
+  return edge1->id == edge2->id;
 }
 
 int is_present(long element, struct array* long_array) {
@@ -39,9 +35,9 @@ void write_attempt_json(struct attempt* attempt, FILE* csv, struct network* netw
     struct channel* channel = array_get(network->channels, edge->channel_id);
     fprintf(csv,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,sent_amt:%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
     if(edge_snapshot->is_included_in_group) fprintf(csv,"\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
-    else fprintf(csv,"\"\"group_cap\"\":,");
+    else fprintf(csv,"\"\"group_cap\"\":NULL,");
     if(edge_snapshot->does_channel_update_exist) fprintf(csv,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-    else fprintf(csv,"\"\"channel_update\"\":}");
+    else fprintf(csv,"\"\"channel_update\"\":NULL}");
     if (j != array_len(attempt->route) - 1) fprintf(csv, ",");
   }
   fprintf(csv, "]}");
@@ -57,4 +53,8 @@ void write_group_update_json(struct group_update* group_update, FILE* csv, struc
     }
   }
   fprintf(csv, "]}");
+}
+
+void write_channel_update_json(struct channel_update* channel_update, FILE* csv) {
+  fprintf(csv, "{\"\"fail_time\"\":%lu,\"\"fail_amount\"\":%lu,\"\"success_time\"\":%lu,\"\"success_amount\"\":%lu}", channel_update->fail_time, channel_update->fail_amount, channel_update->success_time, channel_update->success_amount);
 }

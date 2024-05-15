@@ -79,7 +79,7 @@ void* dijkstra_thread(void*arg) {
     pthread_mutex_lock(&data_mutex);
     payment = array_get(thread_args->payments, payment_id);
     pthread_mutex_unlock(&data_mutex);
-    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method);
+    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method, NULL);
     paths[payment->id] = hops;
   }
 
@@ -129,16 +129,15 @@ double get_weight(double age){
   return pow(2, exp);
 }
 
-double calculate_probability(struct element* node_results, long to_node_id, uint64_t amount, double node_probability, uint64_t current_time){
-  struct node_pair_result* result;
+double calculate_probability(struct edge* edge, uint64_t amount, double node_probability, uint64_t current_time){
   uint64_t time_since_last_failure;
   double weight, probability;
 
-  result = get_by_key(node_results, to_node_id, is_equal_key_result);
 
-  if(result == NULL)
+  if(edge->channel_updates == NULL)
     return node_probability;
 
+  struct channel_update* result = edge->channel_updates->data;
   if(amount <= result->success_amount)
     return PREVSUCCESSPROBABILITY;
 
@@ -157,28 +156,31 @@ double calculate_probability(struct element* node_results, long to_node_id, uint
 }
 
 
-double get_node_probability(struct element* node_results, uint64_t amount, uint64_t current_time){
+double get_node_probability(long from_node_id, uint64_t amount, uint64_t current_time, struct network* network){
   double apriori_factor, total_probabilities, total_weight;
   struct element* iterator;
-  struct node_pair_result* result;
   uint64_t age;
+  struct node* from_node = array_get(network->nodes, from_node_id);
 
-  if(list_len(node_results) == 0)
+  if(array_len(from_node->open_edges) == 0)
     return APRIORIHOPPROBABILITY;
 
   apriori_factor = 1.0 / (1.0 - APRIORIWEIGHT) - 1;
   total_probabilities = APRIORIHOPPROBABILITY*apriori_factor;
   total_weight = apriori_factor;
-  for(iterator = node_results; iterator != NULL; iterator = iterator->next){
-    result = (struct node_pair_result*) iterator->data;
-    if(amount <= result->success_amount){
-      total_weight++;
-      total_probabilities += PREVSUCCESSPROBABILITY;
-      continue;
-    }
-    if(result->fail_time != 0 && amount >= result->fail_amount){
-      age = current_time - result->fail_time;
-      total_weight += get_weight((double)age);
+  for(int i = 0; i < array_len(from_node->open_edges); i++){
+    struct edge* edge = array_get(from_node->open_edges, i);
+    if(edge->channel_updates != NULL) {
+      struct channel_update* channel_update = edge->channel_updates->data;
+      if(amount <= channel_update->success_amount){
+        total_weight++;
+        total_probabilities += PREVSUCCESSPROBABILITY;
+        continue;
+      }
+      if(channel_update->fail_time != 0 && amount >= channel_update->fail_amount){
+        age = current_time - channel_update->fail_time;
+        total_weight += get_weight((double)age);
+      }
     }
   }
 
@@ -186,15 +188,15 @@ double get_node_probability(struct element* node_results, uint64_t amount, uint6
 }
 
 
-double get_probability(long from_node_id, long to_node_id, uint64_t amount, long sender_id, uint64_t current_time,  struct network* network){
+double get_probability(struct edge* edge, uint64_t amount, long sender_id, uint64_t current_time,  struct network* network){
   double node_probability;
 
-  if(from_node_id == sender_id)
+  if(edge->from_node_id == sender_id)
     node_probability = PREVSUCCESSPROBABILITY;
   else
-    node_probability = get_node_probability(results[from_node_id], amount, current_time);
+    node_probability = get_node_probability(edge->from_node_id, amount, current_time, network);
 
-  return calculate_probability(results[from_node_id], to_node_id, MAXMILLISATOSHI, node_probability, current_time);
+  return calculate_probability(edge, MAXMILLISATOSHI, node_probability, current_time);
 }
 
 // Based on paper "Comparing Lightning Routing Protocols to Routing Protocols with Splitting" section 2.1.
@@ -341,7 +343,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
         }
     }
 
-    // judge by channel capacity (cloth method)
+    // judge by channel capacity (conventional method)
     else if (routing_method == GOSSIP){
         estimated_capacity = channel->capacity;
     }
@@ -360,7 +362,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method) {
+struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
   struct node *source_node, *best_node;
@@ -421,30 +423,20 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       edge = array_get(network->edges, edge->counter_edge_id);
 
       from_node_id = edge->from_node_id;
-      if(from_node_id == source){
-        if(edge->balance < amt_to_send)
-          continue;
-      }
-      else{
-        // exclude edges that is not enough capacity in advance
-        struct node_pair_result* r = get_by_key(results[edge->from_node_id], edge->to_node_id, is_equal_key_result);
-        if(r != NULL) {
-            // judge if the edge is enough to send by public topology (`result`)
-            if (r->success_amount < amt_to_send) {
-                continue;
-            }
-        }else{
-            channel = array_get(network->channels, edge->channel_id);
-            if(channel->capacity < amt_to_send) {
-                continue;
-            }
-        }
+      if(from_node_id == source){   // first hop
+        if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
+      }else{
+          uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);
+          if(estimated_capacity < amt_to_send) continue;
       }
 
-      if(amt_to_send < edge->policy.min_htlc)
-        continue;
+      if(exclude_edges != NULL) {
+        if(is_in_list(exclude_edges, &(edge->id), is_equal_edge)) continue;
+      }
 
-      edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
+      if(amt_to_send < edge->policy.min_htlc) continue;
+
+      edge_probability = get_probability(edge, amt_to_send, source, current_time, network);
 
       if(edge_probability == 0) continue;
 

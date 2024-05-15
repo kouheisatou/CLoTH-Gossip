@@ -5,8 +5,6 @@
 #include "../include/array.h"
 #include "../include/utils.h"
 
-struct element **results;
-
 /* Functions in this file generate a payment-channel network where to simulate the execution of payments */
 
 
@@ -30,8 +28,6 @@ struct channel* new_channel(long id, long direction1, long direction2, long node
   channel->node2 = node2;
   channel->capacity = capacity;
   channel->is_closed = 0;
-//  channel->occupied = 0;
-//  channel->payment_history = NULL;
   return channel;
 }
 
@@ -50,6 +46,7 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->is_closed = 0;
   edge->tot_flows = 0;
   edge->group = NULL;
+  edge->channel_updates = NULL;
   return edge;
 }
 
@@ -345,11 +342,6 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
   faulty_prob[1] = net_params.faulty_node_prob;
   network->faulty_node_prob = gsl_ran_discrete_preproc(2, faulty_prob);
 
-  results = (struct element **) malloc(array_len(network->nodes) * sizeof(struct element *));
-  for(int i = 0; i < array_len(network->nodes); i++){
-      results[i] = NULL;
-  }
-
   network->groups = array_initialize(1000);
 
   return  network;
@@ -435,7 +427,7 @@ struct element* update_group(struct group* group, struct network_params net_para
             }
 
             // reconstruction
-            group_add_queue = construct_group(group_add_queue, network, net_params, current_time);
+            group_add_queue = construct_groups_from_queue(group_add_queue, network, net_params, current_time);
 
             break;
         }
@@ -468,7 +460,7 @@ int can_join_group(struct group* group, struct edge* edge){
     return 1;
 }
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time){
+struct element* construct_groups_from_queue(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time){
 
     if(group_add_queue == NULL) return group_add_queue;
 
@@ -518,7 +510,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
             network->groups = array_insert(network->groups, group);
             for(int i = 0; i < array_len(group->edges); i++){
                 struct edge* group_member_edge = array_get(group->edges, i);
-                group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) edge_equal);
+                group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) is_equal_edge);
                 group_member_edge->group = group;
             }
             if(iterator == NULL) break;
@@ -528,10 +520,6 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         }
     }
     return group_add_queue;
-}
-
-int edge_equal(struct edge* e1, struct edge* e2){
-    return e1->id == e2->id;
 }
 
 long get_edge_balance(struct edge* e){
@@ -550,15 +538,6 @@ struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt) {
         snapshot->is_included_in_group = 0;
         snapshot->group_cap = 0;
     }
-    // todo replace with method using by node_result
-    // if(e->channel_updates != NULL) {
-    //     struct channel_update* cu = e->channel_updates->data;
-    //     snapshot->does_channel_update_exist = 1;
-    //     snapshot->last_channle_update_value = cu->htlc_maximum_msat;
-    // }else {
-    //     snapshot->does_channel_update_exist = 0;
-    //     snapshot->last_channle_update_value = 0;
-    // }
     return snapshot;
 }
 
