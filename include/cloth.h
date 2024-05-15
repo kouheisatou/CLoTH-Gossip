@@ -7,7 +7,7 @@
 #include <gsl/gsl_randist.h>
 
 enum routing_method{
-    GOSSIP, GROUP, IDEAL
+    GOSSIP, GROUP, IDEAL, CLOTH_ORIGINAL
 };
 
 struct network_params{

@@ -36,10 +36,11 @@ struct policy {
 struct node {
   long id;
   struct array* open_edges;
-  // list<list<struct node_pair_result>>: known capacity about edges connected to this node
-  struct element **results;
   unsigned int explored;
 };
+
+// list<list<struct node_pair_result>>: topology configured with edges of known capacity
+struct element **results;
 
 /* a bidirectional payment channel of the payment-channel network open between two nodes */
 struct channel {

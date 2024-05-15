@@ -187,19 +187,14 @@ double get_node_probability(struct element* node_results, uint64_t amount, uint6
 
 
 double get_probability(long from_node_id, long to_node_id, uint64_t amount, long sender_id, uint64_t current_time,  struct network* network){
-  struct node* sender;
-  struct element* results;
   double node_probability;
-
-  sender = array_get(network->nodes, sender_id);
-  results = sender->results[from_node_id];
 
   if(from_node_id == sender_id)
     node_probability = PREVSUCCESSPROBABILITY;
   else
-    node_probability = get_node_probability(results, amount, current_time);
+    node_probability = get_node_probability(results[from_node_id], amount, current_time);
 
-  return calculate_probability(results, to_node_id, MAXMILLISATOSHI, node_probability, current_time);
+  return calculate_probability(results[from_node_id], to_node_id, MAXMILLISATOSHI, node_probability, current_time);
 }
 
 // Based on paper "Comparing Lightning Routing Protocols to Routing Protocols with Splitting" section 2.1.
@@ -431,9 +426,19 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
           continue;
       }
       else{
-        channel = array_get(network->channels, edge->channel_id);
-        if(channel->capacity < amt_to_send)
-          continue;
+        // exclude edges that is not enough capacity in advance
+        struct node_pair_result* r = get_by_key(results[edge->from_node_id], edge->to_node_id, is_equal_key_result);
+        if(r != NULL) {
+            // judge if the edge is enough to send by public topology (`result`)
+            if (r->success_amount < amt_to_send) {
+                continue;
+            }
+        }else{
+            channel = array_get(network->channels, edge->channel_id);
+            if(channel->capacity < amt_to_send) {
+                continue;
+            }
+        }
       }
 
       if(amt_to_send < edge->policy.min_htlc)

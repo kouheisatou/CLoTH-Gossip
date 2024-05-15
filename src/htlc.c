@@ -85,7 +85,7 @@ struct route_hop *get_route_hop(long node_id, struct array *route_hops, int is_s
 
 /* set the result of a node pair as success: it means that a payment was successfully forwarded in an edge connecting the two nodes of the node pair.
  This information is used by the sender node to find a route that maximizes the possibilities of successfully sending a payment */
-// success_amoount : Value that can be sent if it is less than this
+// success_amount : Value that can be sent if it is less than this
 void set_node_pair_result_success(struct element** results, long from_node_id, long to_node_id, uint64_t success_amount, uint64_t success_time){
   struct node_pair_result* result;
 
@@ -102,9 +102,9 @@ void set_node_pair_result_success(struct element** results, long from_node_id, l
   }
 
   result->success_time = success_time;
-  if(success_amount > result->success_amount)
+//  if(success_amount > result->success_amount)
     result->success_amount = success_amount;
-  if(result->fail_time != 0 && result->success_amount > result->fail_amount)
+//  if(result->fail_time != 0 && result->success_amount > result->fail_amount)
     result->fail_amount = success_amount + 1;
 }
 
@@ -147,21 +147,29 @@ void process_success_result(struct node* node, struct payment *payment, uint64_t
     hop = array_get(route_hops, i);
     struct edge* edge = array_get(network->edges, hop->edge_id);
 
+    // update only local topology of `node`, but others' local topology is not updated
+//    if (routing_method == CLOTH_ORIGINAL) {
+//      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+//    }
+
     // conventional method
+    // update all nodes' local topology
     if (routing_method == GOSSIP) {
-      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+        set_node_pair_result_success(results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
     }
 
     // proposed method
+    // update all nodes' local topology
     else if (routing_method == GROUP) {
-      if(edge->group != NULL) {
-        set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->group->group_cap, current_time);
-      }
+        if (edge->group != NULL) {
+            set_node_pair_result_success(results, hop->from_node_id, hop->to_node_id, edge->group->group_cap, current_time);
+        }
     }
 
-    // ideal situation, for comparation with proposed or conventional method
+    // ideal situation, for comparison with proposed or conventional method
+    // update all nodes' local topology
     else if (routing_method == IDEAL) {
-      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->balance, current_time);
+        set_node_pair_result_success(results, hop->from_node_id, hop->to_node_id, edge->balance, current_time);
     }
   }
 }
@@ -180,8 +188,8 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
     return;
 
   if(payment->error.type == OFFLINENODE) {
-    set_node_pair_result_fail(node->results, error_hop->from_node_id, error_hop->to_node_id, 0, current_time);
-    set_node_pair_result_fail(node->results, error_hop->to_node_id, error_hop->from_node_id, 0, current_time);
+    set_node_pair_result_fail(results, error_hop->from_node_id, error_hop->to_node_id, 0, current_time);
+    set_node_pair_result_fail(results, error_hop->to_node_id, error_hop->from_node_id, 0, current_time);
   }
   else if(payment->error.type == NOBALANCE) {
     route_hops = payment->route->route_hops;
@@ -190,26 +198,32 @@ void process_fail_result(struct node* node, struct payment *payment, uint64_t cu
       struct edge* edge = array_get(network->edges, hop->edge_id);
 
       // conventional method
+      // update only local topology of `node`, but others' local topology is not updated
+//    if (routing_method == CLOTH_ORIGINAL) {
+//      set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+//    }
+
+      // conventional method
       // using gossip message and notify send amt
       if(routing_method == GOSSIP) {
-        if(hop->edge_id == error_hop->edge_id) {
-          set_node_pair_result_fail(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
-          break;
-        }
-        set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+          if (hop->edge_id == error_hop->edge_id) {
+              set_node_pair_result_fail(results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
+              break;
+          }
+          set_node_pair_result_success(results, hop->from_node_id, hop->to_node_id, hop->amount_to_forward, current_time);
       }
 
       // proposed method
       else if(routing_method == GROUP) {
-        if(edge->group != NULL) {
-          set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->group->group_cap, current_time);
-        }
+          if (edge->group != NULL) {
+              set_node_pair_result_success(results, hop->from_node_id, hop->to_node_id, edge->group->group_cap, current_time);
+          }
       }
 
       // ideal situation, high efficienty but no privacy
       // notify accuarate edge cap realtime
       else if (routing_method == IDEAL) {
-        set_node_pair_result_success(node->results, hop->from_node_id, hop->to_node_id, edge->balance, current_time);
+          set_node_pair_result_success(results, hop->from_node_id, hop->to_node_id, edge->balance, current_time);
       }
     }
   }
