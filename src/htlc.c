@@ -239,7 +239,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       if (payment->attempts == 1) {
           path = paths[payment->id];
       }else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
       }
   } else {
 
@@ -269,13 +269,22 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
               // if path capacity is not enough to send the payment, find new path
               if (path_cap < payment->amount + fee) {
-                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
+                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
               }
           } else {
-              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
+              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
           }
       } else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, routing_method);
+
+          // exclude edges
+          struct element* exclude_edges = NULL;
+          for(struct element* iterator = payment->history; iterator != NULL; iterator = iterator->next) {
+            struct attempt* a = iterator->data;
+            struct edge* exclude_edge = array_get(network->edges, a->error_edge_id);
+            exclude_edges = push(exclude_edges, exclude_edge);
+          }
+
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, exclude_edges);
       }
   }
 
@@ -288,12 +297,12 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
     shard1_amount = payment->amount/2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, routing_method);
+    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
     if(shard1_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, routing_method);
+    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;
