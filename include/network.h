@@ -80,7 +80,7 @@ struct edge_locked_balance_and_duration{
 struct edge_snapshot {
   long id;
   uint64_t balance;
-  short is_included_in_group;
+  short is_in_group;
   uint64_t group_cap;
   short does_channel_update_exist;
   uint64_t last_channle_update_value;
@@ -152,6 +152,6 @@ long get_edge_balance(struct edge* e);
 
 void free_network(struct network* network);
 
-struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt);
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
 
 #endif

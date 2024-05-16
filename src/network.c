@@ -625,18 +625,13 @@ void free_network(struct network* network){
     }
 }
 
-struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt) {
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap) {
     struct edge_snapshot* snapshot = malloc(sizeof(struct edge_snapshot));
     snapshot->id = e->id;
     snapshot->balance = e->balance;
     snapshot->sent_amt = sent_amt;
-    if(e->group != NULL) {
-        snapshot->is_included_in_group = 1;
-        snapshot->group_cap = e->group->group_cap;
-    }else {
-        snapshot->is_included_in_group = 0;
-        snapshot->group_cap = 0;
-    }
+    snapshot->is_in_group = is_in_group;
+    snapshot->group_cap = group_cap;
     if(e->channel_updates != NULL) {
         struct channel_update* cu = e->channel_updates->data;
         snapshot->does_channel_update_exist = 1;

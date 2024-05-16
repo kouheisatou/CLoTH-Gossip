@@ -567,6 +567,11 @@ struct route* transform_path_into_route(struct array* path_hops, uint64_t destin
     route_hop->edge_id = path_hop->edge;
     route_hop->edges_lock_start_time = 0;
     route_hop->edges_lock_end_time = 0;
+    if(edge->group != NULL) {
+        route_hop->group_cap = edge->group->group_cap;
+    }else{
+        route_hop->group_cap = 0;
+    }
     if(i == n_hops-1) {
       route_hop->amount_to_forward = destination_amt;
       route->total_amount += destination_amt;

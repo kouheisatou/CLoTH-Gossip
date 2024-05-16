@@ -18,6 +18,10 @@ int is_key_equal(struct distance* a, struct distance* b) {
   return a->node == b->node;
 }
 
+int is_equal_edge(struct edge* edge1, struct edge* edge2) {
+  return edge1->id == edge2->id;
+}
+
 int is_present(long element, struct array* long_array) {
   long i, *curr;
 

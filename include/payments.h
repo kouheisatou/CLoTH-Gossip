@@ -46,7 +46,7 @@ struct payment {
 
 struct attempt {
   int attempts;
-  uint64_t time;
+  uint64_t end_time;
   long error_edge_id;
   enum payment_error_type error_type;
   struct array* route;

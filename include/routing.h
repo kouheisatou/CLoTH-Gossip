@@ -55,6 +55,7 @@ struct route_hop {
   uint32_t timelock;
   uint64_t edges_lock_start_time;
   uint64_t edges_lock_end_time;
+  uint64_t group_cap;
 };
 
 
