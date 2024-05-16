@@ -33,7 +33,6 @@ struct payments_params{
   double inverse_payment_rate;
   long n_payments;
   double average_amount;
-  double variance_amount;
   unsigned int payments_from_file;
   char payments_filename[256];
   unsigned int log_all_events;
