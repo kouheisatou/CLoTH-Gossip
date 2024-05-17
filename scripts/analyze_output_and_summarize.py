@@ -65,6 +65,7 @@ def analyze_output(output_dir_name):
         time_distribution = []
         retry_distribution = []
         fee_distribution = []
+        fee_per_amt_distribution = []
         route_len_distribution = []
 
         for pay in payments:
@@ -84,6 +85,7 @@ def analyze_output(output_dir_name):
                 total_fee = int(pay["total_fee"])
                 retry_distribution.append(retry)
                 fee_distribution.append(total_fee)
+                fee_per_amt_distribution.append(total_fee / amount)
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
                 if (pay["route"] == "") and (attempts == 1):
@@ -107,12 +109,13 @@ def analyze_output(output_dir_name):
             "simulation_time": simulation_time,  # シミュレーション時間
 
             "success_rate": total_success_num / total_payment_num,  # 送金成功率
-            "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # 送金前に送金経路なしと判断され送金失敗した確率
-            "fail_timeout_rate": total_timeout_num / total_payment_num,  # timeoutによる送金失敗率
-            "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num,  # 送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
+            "failure_rate": (1 - total_success_num / total_payment_num),  # 送金失敗率
+            "fail_no_path_rate": total_fail_no_path_num / total_payment_num / (1 - total_success_num / total_payment_num),  # 送金失敗のうち、送金前に送金経路なしと判断され送金失敗した確率
+            "fail_timeout_rate": total_timeout_num / total_payment_num / (1 - total_success_num / total_payment_num),  # 送金失敗のうち、timeoutによる送金失敗率
+            "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num / (1 - total_success_num / total_payment_num),  # 送金失敗のうち、送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
 
-            "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりのリトライ発生回数
-            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによるリトライ発生回数
+            "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりの平均リトライ発生回数
+            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによる平均リトライ発生回数
 
             # 送金開始から送金が完了するまでにかかる時間
             "time/average": np.mean(time_distribution),
@@ -146,6 +149,17 @@ def analyze_output(output_dir_name):
             "fee/50-percentile": np.percentile(fee_distribution, 50),
             "fee/75-percentile": np.percentile(fee_distribution, 75),
             "fee/95-percentile": np.percentile(fee_distribution, 95),
+
+            # 送金手数料
+            "fee_per_amt/average": np.mean(fee_per_amt_distribution),
+            "fee_per_amt/variance": np.var(fee_per_amt_distribution),
+            "fee_per_amt/max": np.max(fee_per_amt_distribution),
+            "fee_per_amt/min": np.min(fee_per_amt_distribution),
+            "fee_per_amt/5-percentile": np.percentile(fee_per_amt_distribution, 5),
+            "fee_per_amt/25-percentile": np.percentile(fee_per_amt_distribution, 25),
+            "fee_per_amt/50-percentile": np.percentile(fee_per_amt_distribution, 50),
+            "fee_per_amt/75-percentile": np.percentile(fee_per_amt_distribution, 75),
+            "fee_per_amt/95-percentile": np.percentile(fee_per_amt_distribution, 95),
 
             # 送金経路長
             "route_len/average": np.mean(route_len_distribution),
