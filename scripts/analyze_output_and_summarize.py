@@ -109,10 +109,9 @@ def analyze_output(output_dir_name):
             "simulation_time": simulation_time,  # シミュレーション時間
 
             "success_rate": total_success_num / total_payment_num,  # 送金成功率
-            "failure_rate": (1 - total_success_num / total_payment_num),  # 送金失敗率
-            "fail_no_path_rate": total_fail_no_path_num / total_payment_num / (1 - total_success_num / total_payment_num),  # 送金失敗のうち、送金前に送金経路なしと判断され送金失敗した確率
-            "fail_timeout_rate": total_timeout_num / total_payment_num / (1 - total_success_num / total_payment_num),  # 送金失敗のうち、timeoutによる送金失敗率
-            "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num / (1 - total_success_num / total_payment_num),  # 送金失敗のうち、送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
+            "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # 送金前に送金経路なしと判断され送金失敗した確率
+            "fail_timeout_rate": total_timeout_num / total_payment_num,  # timeoutによる送金失敗率
+            "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num,  # 送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
 
             "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりの平均リトライ発生回数
             "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによる平均リトライ発生回数
