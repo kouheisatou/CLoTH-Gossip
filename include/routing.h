@@ -79,7 +79,7 @@ void run_dijkstra_threads(struct network* network, struct array* payments, uint6
 
 struct array* dijkstra(long source, long destination, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges);
 
-struct route* transform_path_into_route(struct array* path_hops, uint64_t amount_to_send, struct network* network);
+struct route* transform_path_into_route(struct array* path_hops, uint64_t amount_to_send, struct network* network, uint64_t time);
 
 void print_hop(struct route_hop* hop);
 
