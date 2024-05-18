@@ -65,7 +65,7 @@ def analyze_output(output_dir_name):
         time_distribution = []
         retry_distribution = []
         fee_distribution = []
-        fee_per_amt_distribution = []
+        fee_per_satoshi_distribution = []
         route_len_distribution = []
 
         for pay in payments:
@@ -85,7 +85,7 @@ def analyze_output(output_dir_name):
                 total_fee = int(pay["total_fee"])
                 retry_distribution.append(retry)
                 fee_distribution.append(total_fee)
-                fee_per_amt_distribution.append(total_fee / amount)
+                fee_per_satoshi_distribution.append(total_fee / amount)
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
                 if (pay["route"] == "") and (attempts == 1):
@@ -150,16 +150,16 @@ def analyze_output(output_dir_name):
             "fee/75-percentile": np.percentile(fee_distribution, 75),
             "fee/95-percentile": np.percentile(fee_distribution, 95),
 
-            # 送金手数料
-            "fee_per_amt/average": np.mean(fee_per_amt_distribution),
-            "fee_per_amt/variance": np.var(fee_per_amt_distribution),
-            "fee_per_amt/max": np.max(fee_per_amt_distribution),
-            "fee_per_amt/min": np.min(fee_per_amt_distribution),
-            "fee_per_amt/5-percentile": np.percentile(fee_per_amt_distribution, 5),
-            "fee_per_amt/25-percentile": np.percentile(fee_per_amt_distribution, 25),
-            "fee_per_amt/50-percentile": np.percentile(fee_per_amt_distribution, 50),
-            "fee_per_amt/75-percentile": np.percentile(fee_per_amt_distribution, 75),
-            "fee_per_amt/95-percentile": np.percentile(fee_per_amt_distribution, 95),
+            # 送金手数料(1satoshi送るのにかかる手数料の平均)
+            "fee_per_satoshi/average": np.mean(fee_per_satoshi_distribution),
+            "fee_per_satoshi/variance": np.var(fee_per_satoshi_distribution),
+            "fee_per_satoshi/max": np.max(fee_per_satoshi_distribution),
+            "fee_per_satoshi/min": np.min(fee_per_satoshi_distribution),
+            "fee_per_satoshi/5-percentile": np.percentile(fee_per_satoshi_distribution, 5),
+            "fee_per_satoshi/25-percentile": np.percentile(fee_per_satoshi_distribution, 25),
+            "fee_per_satoshi/50-percentile": np.percentile(fee_per_satoshi_distribution, 50),
+            "fee_per_satoshi/75-percentile": np.percentile(fee_per_satoshi_distribution, 75),
+            "fee_per_satoshi/95-percentile": np.percentile(fee_per_satoshi_distribution, 95),
 
             # 送金経路長
             "route_len/average": np.mean(route_len_distribution),
