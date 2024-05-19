@@ -271,7 +271,7 @@ def load_cloth_input(output_dir_name):
             if line and not line.startswith('#'):
                 key, value = line.split('=')
                 cloth_input[key.strip()] = value.strip()
-    cloth_input["throughput"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"])
+    cloth_input["request_amt_rate"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"]) # 単位時間に発生する送金リクエスト額[satoshi/sec]
     return cloth_input
 
 
