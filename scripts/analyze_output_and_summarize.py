@@ -193,7 +193,7 @@ def analyze_output(output_dir_name):
         result = result | {
             "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
 
-            # edgeごとの、ロックされた残高×ロックされた時間の合計の平均[satoshi*ms]
+            # edgeごとの、ロックされた残高×ロックされた時間の合計の平均[millisatoshi*ms]
             "total_locked_balance_duration/average": np.mean(locked_balance_and_duration_distribution),
             "total_locked_balance_duration/variance": np.var(locked_balance_and_duration_distribution),
             "total_locked_balance_duration/max": np.max(locked_balance_and_duration_distribution),
