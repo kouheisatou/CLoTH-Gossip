@@ -47,6 +47,7 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->tot_flows = 0;
   edge->group = NULL;
   edge->channel_updates = NULL;
+  edge->edge_locked_balance_and_durations = NULL;
   return edge;
 }
 

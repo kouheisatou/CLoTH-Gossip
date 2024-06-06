@@ -64,7 +64,15 @@ struct edge {
   unsigned int is_closed;
   uint64_t tot_flows;
   struct group* group;
-  struct element* channel_updates; // results
+  struct element* channel_updates; // results for record
+  struct element* edge_locked_balance_and_durations;
+};
+
+
+struct edge_locked_balance_and_duration{
+    uint64_t locked_balance;
+    uint64_t locked_start_time;
+    uint64_t locked_end_time;
 };
 
 
@@ -134,7 +142,7 @@ struct element* construct_groups_from_queue(struct element* group_add_queue, str
 
 long get_edge_balance(struct edge* e);
 
-struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt);
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
 
 struct group* new_group(struct edge* requesting_edge, struct network_params net_params, struct network* network, uint64_t current_time);
 

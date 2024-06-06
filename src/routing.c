@@ -455,9 +455,9 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       tmp_probability = to_node_dist.probability*edge_probability;
       if(tmp_probability < PROBABILITYLIMIT) continue;
 
-      edge_weight = get_edge_weight(amt_to_receive, edge_fee, edge_timelock);
-      tmp_weight = to_node_dist.weight + edge_weight;
-      tmp_dist = get_probability_based_dist(tmp_weight, tmp_probability);
+      edge_weight = get_edge_weight(amt_to_receive, edge_fee, edge_timelock);   // calc weight based on LND
+      tmp_weight = to_node_dist.weight + edge_weight;   // calc weight based on LND
+      tmp_dist = get_probability_based_dist(tmp_weight, tmp_probability);   // calc dist based on LND
 
       current_dist = distance[p][from_node_id].distance;
       current_prob = distance[p][from_node_id].probability;
@@ -465,13 +465,14 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       if(tmp_dist == current_dist && tmp_probability <= current_prob) continue;
 
       distance[p][from_node_id].node = from_node_id;
-      distance[p][from_node_id].distance = tmp_dist;
+      distance[p][from_node_id].distance = tmp_dist;    // calculated by fee, weight, timelock and probability
       distance[p][from_node_id].weight = tmp_weight;
       distance[p][from_node_id].amt_to_receive = amt_to_receive;
       distance[p][from_node_id].timelock = tmp_timelock;
-      distance[p][from_node_id].probability = tmp_probability;
+      distance[p][from_node_id].probability = tmp_probability;  // calculated by edge_probability?
       distance[p][from_node_id].next_edge = edge->id;
 
+      // update edge weight comparing distance or probability in compare_distance()
       distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
     }
   }
@@ -514,7 +515,7 @@ struct route* route_initialize(long n_hops) {
 
 /* transform a path into a route by computing fees and timelocks required at each hop in the path */
 /* slightly differet w.r.t. `newRoute` in lnd because `newRoute` aims to produce the payloads for each node from the second in the path to the last node */
-struct route* transform_path_into_route(struct array* path_hops, uint64_t destination_amt, struct network* network) {
+struct route* transform_path_into_route(struct array* path_hops, uint64_t destination_amt, struct network* network, uint64_t time) {
   struct path_hop *path_hop;
   struct route_hop *route_hop, *next_route_hop;
   struct route *route;
@@ -536,6 +537,13 @@ struct route* transform_path_into_route(struct array* path_hops, uint64_t destin
     route_hop->from_node_id = path_hop->sender;
     route_hop->to_node_id = path_hop->receiver;
     route_hop->edge_id = path_hop->edge;
+    route_hop->edges_lock_start_time = time;
+    route_hop->edges_lock_end_time = 0;
+    if(edge->group != NULL) {
+        route_hop->group_cap = edge->group->group_cap;
+    }else{
+        route_hop->group_cap = 0;
+    }
     if(i == n_hops-1) {
       route_hop->amount_to_forward = destination_amt;
       route->total_amount += destination_amt;

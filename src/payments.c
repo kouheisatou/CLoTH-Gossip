@@ -60,7 +60,7 @@ void generate_random_payments(struct payments_params pay_params, long n_nodes, g
       sender_id = gsl_rng_uniform_int(random_generator,n_nodes);
       receiver_id = gsl_rng_uniform_int(random_generator, n_nodes);
     } while(sender_id==receiver_id);
-    payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator) * pay_params.variance_amount);
+    payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator))*1000.0;
 //    payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator) * pay_params.variance_amount); // on few payment simulation, low success rate
     /* payment interarrival time is an exponential (Poisson process) whose mean is the inverse of payment rate
        (expressed in payments per second, then multiplied to convert in milliseconds)
@@ -116,7 +116,7 @@ struct array* initialize_payments(struct payments_params pay_params, long n_node
 void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded){
   struct attempt* attempt = malloc(sizeof(struct attempt));
   attempt->attempts = pmt->attempts;
-  attempt->time = time;
+  attempt->end_time = time;
   if(is_succeeded){
     attempt->error_edge_id = 0;
     attempt->error_type = NOERROR;
@@ -130,7 +130,10 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
 
   for(int i = 0; i < route_len; i++){
     struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
-    attempt->route = array_insert(attempt->route, take_edge_snapshot(array_get(network->edges, route_hop->edge_id), route_hop->amount_to_forward));
+    struct edge* edge = array_get(network->edges, route_hop->edge_id);
+    short is_in_group = 0;
+    if(edge->group != NULL) is_in_group = 1;
+    attempt->route = array_insert(attempt->route, take_edge_snapshot(edge, route_hop->amount_to_forward, is_in_group, route_hop->group_cap));
   }
 
   pmt->history = push(pmt->history, attempt);

@@ -65,6 +65,7 @@ def analyze_output(output_dir_name):
         time_distribution = []
         retry_distribution = []
         fee_distribution = []
+        fee_per_satoshi_distribution = []
         route_len_distribution = []
 
         for pay in payments:
@@ -84,6 +85,7 @@ def analyze_output(output_dir_name):
                 total_fee = int(pay["total_fee"])
                 retry_distribution.append(retry)
                 fee_distribution.append(total_fee)
+                fee_per_satoshi_distribution.append(total_fee / amount)
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
                 if (pay["route"] == "") and (attempts == 1):
@@ -111,8 +113,8 @@ def analyze_output(output_dir_name):
             "fail_timeout_rate": total_timeout_num / total_payment_num,  # timeoutによる送金失敗率
             "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num,  # 送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
 
-            "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりのリトライ発生回数
-            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによるリトライ発生回数
+            "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりの平均リトライ発生回数
+            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによる平均リトライ発生回数
 
             # 送金開始から送金が完了するまでにかかる時間
             "time/average": np.mean(time_distribution),
@@ -147,6 +149,17 @@ def analyze_output(output_dir_name):
             "fee/75-percentile": np.percentile(fee_distribution, 75),
             "fee/95-percentile": np.percentile(fee_distribution, 95),
 
+            # 送金手数料(1satoshi送るのにかかる手数料の平均)
+            "fee_per_satoshi/average": np.mean(fee_per_satoshi_distribution),
+            "fee_per_satoshi/variance": np.var(fee_per_satoshi_distribution),
+            "fee_per_satoshi/max": np.max(fee_per_satoshi_distribution),
+            "fee_per_satoshi/min": np.min(fee_per_satoshi_distribution),
+            "fee_per_satoshi/5-percentile": np.percentile(fee_per_satoshi_distribution, 5),
+            "fee_per_satoshi/25-percentile": np.percentile(fee_per_satoshi_distribution, 25),
+            "fee_per_satoshi/50-percentile": np.percentile(fee_per_satoshi_distribution, 50),
+            "fee_per_satoshi/75-percentile": np.percentile(fee_per_satoshi_distribution, 75),
+            "fee_per_satoshi/95-percentile": np.percentile(fee_per_satoshi_distribution, 95),
+
             # 送金経路長
             "route_len/average": np.mean(route_len_distribution),
             "route_len/variance": np.var(route_len_distribution),
@@ -160,15 +173,36 @@ def analyze_output(output_dir_name):
         }
 
     edge_fee = {}  # edge_idとそのエッジの手数料の紐付け
-    with open(output_dir_name + 'edges_output.csv', 'r') as csv_group:
-        edges = list(csv.DictReader(csv_group))
+    with open(output_dir_name + 'edges_output.csv', 'r') as csv_edge:
+        edges = list(csv.DictReader(csv_edge))
+
         edge_in_group_num = 0
+        locked_balance_and_duration_distribution = []
+
         for edge in edges:
             edge_fee[edge["id"]] = {"fee_base": edge["fee_base"], "fee_proportional": edge["fee_proportional"]}
             if edge["group"] != "NULL":
                 edge_in_group_num += 1
+            if edge["locked_balance_and_duration"] != "":
+                locked_balance_and_duration = [tuple(map(int, pair.split('x'))) for pair in edge["locked_balance_and_duration"].split("-")]
+                total_locked_balance_and_duration = 0
+                for (locked_balance, locked_duration) in locked_balance_and_duration:
+                    total_locked_balance_and_duration += locked_balance * locked_duration # [millisatoshi*ms]
+                locked_balance_and_duration_distribution.append(total_locked_balance_and_duration)
+
         result = result | {
             "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
+
+            # edgeごとの、ロックされた残高×ロックされた時間の合計の平均[millisatoshi*ms]
+            "total_locked_balance_duration/average": np.mean(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/variance": np.var(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/max": np.max(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/min": np.min(locked_balance_and_duration_distribution),
+            "total_locked_balance_duration/5-percentile": np.percentile(locked_balance_and_duration_distribution, 5),
+            "total_locked_balance_duration/25-percentile": np.percentile(locked_balance_and_duration_distribution, 25),
+            "total_locked_balance_duration/50-percentile": np.percentile(locked_balance_and_duration_distribution, 50),
+            "total_locked_balance_duration/75-percentile": np.percentile(locked_balance_and_duration_distribution, 75),
+            "total_locked_balance_duration/95-percentile": np.percentile(locked_balance_and_duration_distribution, 95),
         }
 
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
@@ -237,7 +271,7 @@ def load_cloth_input(output_dir_name):
             if line and not line.startswith('#'):
                 key, value = line.split('=')
                 cloth_input[key.strip()] = value.strip()
-    cloth_input["throughput"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"])
+    cloth_input["request_amt_rate"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"]) # 単位時間に発生する送金リクエスト額[satoshi/sec]
     return cloth_input
 
 

@@ -138,7 +138,7 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
   struct route* route;
   uint64_t next_event_time;
   struct event* send_payment_event;
-  route = transform_path_into_route(path, payment->amount, network);
+  route = transform_path_into_route(path, payment->amount, network, simulation->current_time);
   payment->route = route;
   // execute send_payment event immediately
   next_event_time = simulation->current_time;
@@ -204,7 +204,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
               }
 
               // calc total fee
-              struct route *route = transform_path_into_route(path, payment->amount, network);
+              struct route *route = transform_path_into_route(path, payment->amount, network, simulation->current_time);
               uint64_t fee = route->total_fee;
               free_route(route);
 
@@ -307,6 +307,8 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     exit(-1);
   }
 
+  first_route_hop->edges_lock_start_time = simulation->current_time;
+
   /* simulate the case that the next node in the route is offline */
   is_next_node_offline = gsl_ran_discrete(simulation->random_generator, network->faulty_node_prob);
   if(is_next_node_offline){
@@ -361,6 +363,7 @@ void forward_payment(struct event *event, struct simulation* simulation, struct 
   next_route_hop=get_route_hop(node->id, route->route_hops, 1);
   previous_route_hop = get_route_hop(node->id, route->route_hops, 0);
   is_last_hop = next_route_hop->to_node_id == payment->receiver;
+    next_route_hop->edges_lock_start_time = simulation->current_time;
 
   if(!is_present(next_route_hop->edge_id, node->open_edges)) {
     printf("ERROR (forward_payment): edge %ld is not an edge of node %ld \n", next_route_hop->edge_id, node->id);
@@ -458,6 +461,8 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
   forward_edge = array_get(network->edges, last_route_hop->edge_id);
   backward_edge = array_get(network->edges, forward_edge->counter_edge_id);
 
+  last_route_hop->edges_lock_end_time = simulation->current_time;
+
   if(!is_present(backward_edge->id, node->open_edges)) {
     printf("ERROR (receive_payment): edge %ld is not an edge of node %ld \n", backward_edge->id, node->id);
     exit(-1);
@@ -490,6 +495,7 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
   forward_edge = array_get(network->edges, prev_hop->edge_id);
   backward_edge = array_get(network->edges, forward_edge->counter_edge_id);
   node = array_get(network->nodes, event->node_id);
+  prev_hop->edges_lock_end_time = simulation->current_time;
 
   if(!is_present(backward_edge->id, node->open_edges)) {
     printf("ERROR (forward_success): edge %ld is not an edge of node %ld \n", backward_edge->id, node->id);
@@ -537,6 +543,20 @@ struct element* receive_success(struct event* event, struct simulation* simulati
   // record payment attempt history
   add_attempt_history(payment, network, simulation->current_time, 1);
 
+  for(int i = 0; i < array_len(payment->route->route_hops); i++){
+      struct route_hop* route_hop = array_get(payment->route->route_hops, i);
+      struct edge* edge = array_get(network->edges, route_hop->edge_id);
+
+      struct edge_locked_balance_and_duration* edge_locked_balance_time = malloc(sizeof(struct edge_locked_balance_and_duration));
+      edge_locked_balance_time->locked_balance = route_hop->amount_to_forward;
+      edge_locked_balance_time->locked_start_time = route_hop->edges_lock_start_time;
+      edge_locked_balance_time->locked_end_time = route_hop->edges_lock_end_time;
+      if (route_hop->edges_lock_start_time > route_hop->edges_lock_end_time){
+          edge_locked_balance_time->locked_end_time = simulation->current_time;
+      }
+      edge->edge_locked_balance_and_durations = push(edge->edge_locked_balance_and_durations, edge_locked_balance_time);
+  }
+
   return group_add_queue;
 }
 
@@ -560,6 +580,8 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
     printf("ERROR (forward_fail): edge %ld is not an edge of node %ld \n", next_edge->id, node->id);
     exit(-1);
   }
+
+  next_hop->edges_lock_end_time = simulation->current_time;
 
   /* since the payment failed, the balance must be brought back to the state before the payment occurred */
   next_edge->balance += next_hop->amount_to_forward;
@@ -632,6 +654,22 @@ struct element* receive_fail(struct event* event, struct simulation* simulation,
   }
 
   add_attempt_history(payment, network, simulation->current_time, 0);
+
+    for(int i = 0; i < array_len(payment->route->route_hops); i++){
+        struct route_hop* route_hop = array_get(payment->route->route_hops, i);
+        struct edge* edge = array_get(network->edges, route_hop->edge_id);
+
+        struct edge_locked_balance_and_duration* edge_locked_balance_time = malloc(sizeof(struct edge_locked_balance_and_duration));
+        edge_locked_balance_time->locked_balance = route_hop->amount_to_forward;
+        edge_locked_balance_time->locked_start_time = route_hop->edges_lock_start_time;
+        edge_locked_balance_time->locked_end_time = route_hop->edges_lock_end_time;
+        if (route_hop->edges_lock_start_time > route_hop->edges_lock_end_time){
+            edge_locked_balance_time->locked_end_time = simulation->current_time;
+        }
+        edge->edge_locked_balance_and_durations = push(edge->edge_locked_balance_and_durations, edge_locked_balance_time);
+
+        if(payment->error.hop->edge_id == edge->id) break;
+    }
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);

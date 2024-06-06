@@ -11,6 +11,8 @@ int is_equal_key_channel_update(long key, struct channel_update *a);
 
 int is_equal_edge(struct edge* edge1, struct edge* edge2);
 
+int is_equal_edge(struct edge* edge1, struct edge* edge2);
+
 int is_equal_long(long* a, long* b);
 
 int is_present(long element, struct array* long_array);
