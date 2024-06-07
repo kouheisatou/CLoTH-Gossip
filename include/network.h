@@ -82,7 +82,8 @@ struct edge_snapshot {
   short is_included_in_group;
   uint64_t group_cap;
   short does_channel_update_exist;
-  uint64_t last_channle_update_value;
+  uint64_t last_success_amount;
+  uint64_t last_fail_amount;
   uint64_t sent_amt;
 };
 
@@ -142,7 +143,7 @@ struct element* construct_groups_from_queue(struct element* group_add_queue, str
 
 long get_edge_balance(struct edge* e);
 
-struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_included_in_group, uint64_t group_cap);
 
 struct group* new_group(struct edge* requesting_edge, struct network_params net_params, struct network* network, uint64_t current_time);
 

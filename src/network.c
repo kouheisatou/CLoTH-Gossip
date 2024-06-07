@@ -528,17 +528,22 @@ long get_edge_balance(struct edge* e){
     return e->balance;
 }
 
-struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt) {
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_included_in_group, uint64_t group_cap) {
     struct edge_snapshot* snapshot = malloc(sizeof(struct edge_snapshot));
     snapshot->id = e->id;
     snapshot->balance = e->balance;
     snapshot->sent_amt = sent_amt;
-    if(e->group != NULL) {
-        snapshot->is_included_in_group = 1;
-        snapshot->group_cap = e->group->group_cap;
+    snapshot->is_included_in_group = is_included_in_group;
+    snapshot->group_cap = group_cap;
+    if(e->channel_updates != NULL) {
+        struct channel_update* cu = e->channel_updates->data;
+        snapshot->does_channel_update_exist = 1;
+        snapshot->last_success_amount = cu->success_amount;
+        snapshot->last_fail_amount = cu->fail_amount;
     }else {
-        snapshot->is_included_in_group = 0;
-        snapshot->group_cap = 0;
+        snapshot->does_channel_update_exist = 0;
+        snapshot->last_success_amount = 0;
+        snapshot->last_fail_amount = 0;
     }
     return snapshot;
 }
