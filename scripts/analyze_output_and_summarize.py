@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -214,8 +215,11 @@ def analyze_output(output_dir_name):
 
         for group in groups:
             try:
-                cul_distribution.append(float(group["cul"]))
-                group_capacity_distribution.append(int(group["group_capacity"]))
+                group_updates = json.loads(group["group_update_history"])
+                for group_update in group_updates:
+                    if group_update["type"] != "1" and group_update["type"] != 1:
+                        cul_distribution.append(float(group_update["cul"]))
+                        group_capacity_distribution.append(int(group_update["group_cap"]))
                 if group["is_closed(closed_time)"] != "0":
                     closed_time = int(group["is_closed(closed_time)"])
                     constructed_time = int(group["constructed_time"])

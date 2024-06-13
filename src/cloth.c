@@ -69,7 +69,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,group_update_history,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
+  fprintf(csv_group_output, "id,edges,group_update_history,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
@@ -91,21 +91,7 @@ void write_output(struct network* network, struct array* payments, char output_d
       }
     }
     fprintf(csv_group_output, "]\",");
-    struct group_update* latest_group_update = NULL;
-    for(struct element* iterator = group->group_updates; iterator != NULL; iterator = iterator->next){
-      const int type = ((struct group_update*)(iterator))->type;
-        if(type != CLOSE) {
-            latest_group_update = iterator->data;
-            break;
-        }
-    }
-    float sum_cul = 0.0f;
-    if(latest_group_update != NULL) {
-      for (j = 0; j < n_members; j++) {
-        sum_cul += (1.0f - ((float) latest_group_update->group_cap / (float) latest_group_update->edge_balances[j]));
-      }
-    }
-    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
+    fprintf(csv_group_output, "%lu,%lu,%lu,%lu\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit);
   }
   fclose(csv_group_output);
 

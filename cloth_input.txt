@@ -17,5 +17,5 @@ group_cap_update=true
 payments_filename=
 payment_rate=1
 n_payments=100
-average_payment_amount=100
+average_payment_amount=5000
 mpp=1

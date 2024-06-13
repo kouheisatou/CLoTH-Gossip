@@ -43,12 +43,22 @@ void write_attempt_json(struct attempt* attempt, FILE* csv, struct network* netw
   fprintf(csv, "]}");
 }
 
+float calc_cul(struct group_update* group_update, struct network* network) {
+  float sum_cul = 0.0f;
+  struct group* group = array_get(network->groups, group_update->group_id);
+  int group_size = array_len(group->edges);
+    for (int j = 0; j < group_size; j++) {
+      sum_cul += (1.0f - ((float) group_update->group_cap / (float) group_update->edge_balances[j]));
+    }
+  return sum_cul / group_size;
+}
+
 void write_group_update_json(struct group_update* group_update, FILE* csv, struct network* network) {
   struct group* group = array_get(network->groups, group_update->group_id);
-  fprintf(csv, "{\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"type\"\":%d,\"\"edge_balances\"\":[", group_update->time, group_update->group_cap, group_update->type);
+  fprintf(csv, "{\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"type\"\":%d,\"\"cul\"\":%f,\"\"edge_balances\"\":[", group_update->time, group_update->group_cap, group_update->type, calc_cul(group_update, network));
   for(int i = 0; i < array_len(group->edges); i++) {
     fprintf(csv, "%lu", group_update->edge_balances[i]);
-    if(i != array_len(group->edges)) {
+    if(i != array_len(group->edges) -1) {
       fprintf(csv, ",");
     }
   }
