@@ -48,6 +48,49 @@ def save_scatter(data_x: list, data_y: list, x_label: str, y_label: str, filepat
     plt.close()
 
 
+def edge_balance_transition(titles_json: str, data_json: str, filepath: str, min_cap_limit: int, max_cap_limit: int):
+    """
+    Plots the edge balances over time based on the provided titles and data JSON strings.
+
+    Parameters:
+    titles_json (str): A JSON string representing a list of titles for each edge balance.
+    data_json (str): A JSON string representing a list of dictionaries containing 'time' and 'edge_balances'.
+    min_cap_limit (int): The minimum cap limit to be marked with a horizontal line.
+    max_cap_limit (int): The maximum cap limit to be marked with a horizontal line.
+    filepath (str): The file path where the plot image will be saved.
+    """
+    # Parse JSON strings into Python objects
+    titles = json.loads(titles_json)
+    data = json.loads(data_json)
+
+    # Extracting times and edge_balances from the data
+    times = [entry['time'] for entry in data]
+    edge_balances = [entry['edge_balances'] for entry in data]
+
+    # Transpose edge_balances to plot each balance's change over time
+    transposed_balances = list(zip(*edge_balances))
+
+    # Plotting
+    for idx, balance in enumerate(transposed_balances):
+        plt.plot(times, balance, marker='o', linestyle='-', label=f'edge_id:{titles[idx]}')
+
+    # Adding horizontal dashed lines at min_cap_limit and max_cap_limit
+    plt.axhline(y=min_cap_limit, color='b', linestyle='--', label=f'min_cap_limit={min_cap_limit}')
+    plt.axhline(y=max_cap_limit, color='r', linestyle='--', label=f'max_cap_limit={max_cap_limit}')
+
+    # Setting the x-axis to start from 0
+    plt.xlim(left=0)
+
+    plt.xlabel('Time')
+    plt.ylabel('Edge Balances')
+    plt.title('Edge Balances Over Time')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(filepath)
+    plt.clf()
+    plt.close()
+
+
 # 1シミュレーションのoutputからその分析結果を得る
 def analyze_output(output_dir_name):
     simulation_time = 0
@@ -213,8 +256,12 @@ def analyze_output(output_dir_name):
         group_capacity_distribution = []
         cul_distribution = []
 
+        os.makedirs(f"{output_dir_name}groups", exist_ok=True)
         for group in groups:
             try:
+                max_cap_limit = int(group["max_cap_limit"])
+                min_cap_limit = int(group["min_cap_limit"])
+                # edge_balance_transition(group["edges"], group["group_update_history"], f"{output_dir_name}/groups/{group['id']}.pdf", min_cap_limit, max_cap_limit)
                 group_updates = json.loads(group["group_update_history"])
                 for group_update in group_updates:
                     if group_update["type"] != "1" and group_update["type"] != 1:
