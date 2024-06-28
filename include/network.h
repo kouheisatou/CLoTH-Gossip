@@ -67,6 +67,7 @@ struct edge {
   struct group* group;
   struct element* channel_updates;
   struct element* edge_locked_balance_and_durations;
+  double betweenness;
 };
 
 
@@ -153,5 +154,7 @@ long get_edge_balance(struct edge* e);
 void free_network(struct network* network);
 
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
+
+void update_edge_betweenness_centrality(struct network* network, struct network_params* net_params);
 
 #endif

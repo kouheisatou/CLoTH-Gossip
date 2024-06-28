@@ -77,7 +77,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 
 void run_dijkstra_threads(struct network* network, struct array* payments, uint64_t current_time, enum routing_method routing_method);
 
-struct array* dijkstra(long source, long destination, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges);
+struct array* dijkstra(long source, long destination, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges, int without_update_distances);
 
 struct route* transform_path_into_route(struct array* path_hops, uint64_t amount_to_send, struct network* network, uint64_t time);
 

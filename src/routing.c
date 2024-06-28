@@ -79,7 +79,7 @@ void* dijkstra_thread(void*arg) {
     pthread_mutex_lock(&data_mutex);
     payment = array_get(thread_args->payments, payment_id);
     pthread_mutex_unlock(&data_mutex);
-    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method, NULL);
+    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method, NULL, 0);
     paths[payment->id] = hops;
   }
 
@@ -389,7 +389,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges) {
+struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges, int without_update_distances) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
   struct node *source_node, *best_node;
@@ -412,98 +412,100 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
     return NULL;
   }
 
-  while(heap_len(distance_heap[p])!=0)
-    heap_pop(distance_heap[p], compare_distance);
+  if(!without_update_distances){
+    while(heap_len(distance_heap[p])!=0)
+      heap_pop(distance_heap[p], compare_distance);
 
-  for(i=0; i<array_len(network->nodes); i++){
-    distance[p][i].node = i;
-    distance[p][i].distance = INF;
-    distance[p][i].fee = 0;
-    distance[p][i].amt_to_receive = 0;
-    distance[p][i].next_edge = -1;
-  }
+    for(i=0; i<array_len(network->nodes); i++){
+      distance[p][i].node = i;
+      distance[p][i].distance = INF;
+      distance[p][i].fee = 0;
+      distance[p][i].amt_to_receive = 0;
+      distance[p][i].next_edge = -1;
+    }
 
-  distance[p][target].node = target;
-  distance[p][target].amt_to_receive = amount;
-  distance[p][target].fee = 0;
-  distance[p][target].distance = 0;
-  distance[p][target].timelock = FINALTIMELOCK;
-  distance[p][target].weight = 0;
-  distance[p][target].probability = 1;
+    distance[p][target].node = target;
+    distance[p][target].amt_to_receive = amount;
+    distance[p][target].fee = 0;
+    distance[p][target].distance = 0;
+    distance[p][target].timelock = FINALTIMELOCK;
+    distance[p][target].weight = 0;
+    distance[p][target].probability = 1;
 
-  distance_heap[p] =  heap_insert_or_update(distance_heap[p], &distance[p][target], compare_distance, is_key_equal);
+    distance_heap[p] =  heap_insert_or_update(distance_heap[p], &distance[p][target], compare_distance, is_key_equal);
 
-  while(heap_len(distance_heap[p])!=0) {
+    while(heap_len(distance_heap[p])!=0) {
 
-    d = heap_pop(distance_heap[p], compare_distance);
-    best_node_id = d->node;
-    if(best_node_id==source) break;
+      d = heap_pop(distance_heap[p], compare_distance);
+      best_node_id = d->node;
+      if(best_node_id==source) break;
 
-    to_node_dist = distance[p][best_node_id];
-    amt_to_send = to_node_dist.amt_to_receive;
+      to_node_dist = distance[p][best_node_id];
+      amt_to_send = to_node_dist.amt_to_receive;
 
-    best_node = array_get(network->nodes, best_node_id);
-    /* best_edges = get_best_edges(best_node_id, amt_to_send, source, network); */
+      best_node = array_get(network->nodes, best_node_id);
+      /* best_edges = get_best_edges(best_node_id, amt_to_send, source, network); */
 
-    for(j=0; j<array_len(best_node->open_edges); j++) {
-      edge = array_get(best_node->open_edges, j);
-      edge = array_get(network->edges, edge->counter_edge_id);
+      for(j=0; j<array_len(best_node->open_edges); j++) {
+        edge = array_get(best_node->open_edges, j);
+        edge = array_get(network->edges, edge->counter_edge_id);
 
-      from_node_id = edge->from_node_id;
-      channel = array_get(network->channels, edge->channel_id);
-      if(from_node_id == source){   // first hop
+        from_node_id = edge->from_node_id;
+        channel = array_get(network->channels, edge->channel_id);
+        if(from_node_id == source){   // first hop
 //        if(channel->occupied) continue;    // exclude locked channel
-        if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
-      }else{
-          uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);
-          if(estimated_capacity < amt_to_send) continue;
+          if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
+        }else{
+            uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);
+            if(estimated_capacity < amt_to_send) continue;
+        }
+
+        if(exclude_edges != NULL) {
+          if(is_in_list(exclude_edges, &(edge->id), is_equal_edge)) continue;
+        }
+
+        if(amt_to_send < edge->policy.min_htlc) continue;
+
+        // calc probability by past channel_update msg(node_result)
+        edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
+
+        if(edge_probability == 0) continue;
+
+        edge_fee = 0;
+        edge_timelock = 0;
+        if(from_node_id != source){
+          edge_fee = compute_fee(amt_to_send, edge->policy);
+          edge_timelock = edge->policy.timelock;
+        }
+
+        amt_to_receive = amt_to_send + edge_fee;
+
+        tmp_timelock = to_node_dist.timelock + edge_timelock;
+        if(tmp_timelock > TIMELOCKLIMIT) continue;
+
+        tmp_probability = to_node_dist.probability*edge_probability;
+        if(tmp_probability < PROBABILITYLIMIT) continue;
+
+        edge_weight = get_edge_weight(amt_to_receive, edge_fee, edge_timelock);   // calc weight based on LND
+        tmp_weight = to_node_dist.weight + edge_weight;   // calc weight based on LND
+        tmp_dist = get_probability_based_dist(tmp_weight, tmp_probability);   // calc dist based on LND
+
+        current_dist = distance[p][from_node_id].distance;
+        current_prob = distance[p][from_node_id].probability;
+        if(tmp_dist > current_dist) continue;
+        if(tmp_dist == current_dist && tmp_probability <= current_prob) continue;
+
+        distance[p][from_node_id].node = from_node_id;
+        distance[p][from_node_id].distance = tmp_dist;    // calculated by fee, weight, timelock and probability
+        distance[p][from_node_id].weight = tmp_weight;
+        distance[p][from_node_id].amt_to_receive = amt_to_receive;
+        distance[p][from_node_id].timelock = tmp_timelock;
+        distance[p][from_node_id].probability = tmp_probability;  // calculated by edge_probability?
+        distance[p][from_node_id].next_edge = edge->id;
+
+        // update edge weight comparing distance or probability in compare_distance()
+        distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
       }
-
-      if(exclude_edges != NULL) {
-        if(is_in_list(exclude_edges, &(edge->id), is_equal_edge)) continue;
-      }
-
-      if(amt_to_send < edge->policy.min_htlc) continue;
-
-      // calc probability by past channel_update msg(node_result)
-      edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
-
-      if(edge_probability == 0) continue;
-
-      edge_fee = 0;
-      edge_timelock = 0;
-      if(from_node_id != source){
-        edge_fee = compute_fee(amt_to_send, edge->policy);
-        edge_timelock = edge->policy.timelock;
-      }
-
-      amt_to_receive = amt_to_send + edge_fee;
-
-      tmp_timelock = to_node_dist.timelock + edge_timelock;
-      if(tmp_timelock > TIMELOCKLIMIT) continue;
-
-      tmp_probability = to_node_dist.probability*edge_probability;
-      if(tmp_probability < PROBABILITYLIMIT) continue;
-
-      edge_weight = get_edge_weight(amt_to_receive, edge_fee, edge_timelock);   // calc weight based on LND
-      tmp_weight = to_node_dist.weight + edge_weight;   // calc weight based on LND
-      tmp_dist = get_probability_based_dist(tmp_weight, tmp_probability);   // calc dist based on LND
-
-      current_dist = distance[p][from_node_id].distance;
-      current_prob = distance[p][from_node_id].probability;
-      if(tmp_dist > current_dist) continue;
-      if(tmp_dist == current_dist && tmp_probability <= current_prob) continue;
-
-      distance[p][from_node_id].node = from_node_id;
-      distance[p][from_node_id].distance = tmp_dist;    // calculated by fee, weight, timelock and probability
-      distance[p][from_node_id].weight = tmp_weight;
-      distance[p][from_node_id].amt_to_receive = amt_to_receive;
-      distance[p][from_node_id].timelock = tmp_timelock;
-      distance[p][from_node_id].probability = tmp_probability;  // calculated by edge_probability?
-      distance[p][from_node_id].next_edge = edge->id;
-
-      // update edge weight comparing distance or probability in compare_distance()
-      distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
     }
   }
 
