@@ -67,7 +67,7 @@ struct edge {
   struct group* group;
   struct element* channel_updates;
   struct element* edge_locked_balance_and_durations;
-  double betweenness;
+  long betweenness;
 };
 
 
@@ -110,6 +110,8 @@ struct group {
     struct array* edges;
     uint64_t max_cap_limit;
     uint64_t min_cap_limit;
+    long max_betweenness_limit;
+    long min_betweenness_limit;
     uint64_t max_cap;
     uint64_t min_cap;
     uint64_t group_cap;

@@ -26,7 +26,8 @@ struct network_params{
   unsigned int group_cap_update;
   unsigned int log_broadcast_msg;
   int group_size;
-  float group_limit_rate;
+  float group_cap_limit_rate;
+  float group_betweenness_limit_rate;
 };
 
 struct payments_params{

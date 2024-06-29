@@ -489,6 +489,10 @@ int can_join_group(struct group* group, struct edge* edge){
         return 0;
     }
 
+    if(edge->betweenness < group->min_betweenness_limit || edge->betweenness > group->max_betweenness_limit) {
+        return 0;
+    }
+
     for(int i = 0; i < array_len(group->edges); i++) {
         struct edge *e = array_get(group->edges, i);
         if (edge == e) return 0;
@@ -515,21 +519,33 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         struct group* group = malloc(sizeof(struct group));
         group->edges = array_initialize(net_params.group_size);
         group->edges = array_insert(group->edges, requesting_edge);
-        uint64_t max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(requesting_edge->balance > max_cap_limit){
-            group->max_cap_limit = INT64_MAX;   // overflow
-        }else{
-            group->max_cap_limit = max_cap_limit;
-        }
-        uint64_t min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(requesting_edge->balance < min_cap_limit) {
-            group->min_cap_limit = 0;   // overflow
-        }else{
-            group->min_cap_limit = min_cap_limit;
+        if(net_params.group_cap_limit_rate != -1) {
+            uint64_t max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_cap_limit_rate);
+            if(requesting_edge->balance > max_cap_limit){
+                group->max_cap_limit = INT64_MAX;   // overflow
+            }else{
+                group->max_cap_limit = max_cap_limit;
+            }
+            uint64_t min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_cap_limit_rate);
+            if(requesting_edge->balance < min_cap_limit) {
+                group->min_cap_limit = 0;   // overflow
+            }else{
+                group->min_cap_limit = min_cap_limit;
+            }
+        }else {
+            group->max_cap_limit = UINT64_MAX;
+            group->min_cap_limit = 0;
         }
         group->id = array_len(network->groups);
         group->is_closed = 0;
         group->constructed_time = current_time;
+        if(net_params.group_betweenness_limit_rate != -1) {
+            group->max_betweenness_limit = requesting_edge->betweenness + (double)((float)requesting_edge->betweenness * net_params.group_betweenness_limit_rate);
+            group->min_betweenness_limit = requesting_edge->betweenness - (double)((float)requesting_edge->betweenness * net_params.group_betweenness_limit_rate);
+        }else {
+            group->max_betweenness_limit = INT64_MAX;
+            group->min_betweenness_limit = INT64_MIN;
+        }
 
         // search the closest balance edge from neighbor
         struct element* bottom = iterator;
@@ -645,7 +661,7 @@ struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, shor
 }
 
 void update_edge_betweenness_centrality(struct network* network, struct network_params* net_params) {
-    double* centrality = (double*)calloc(array_len(network->edges), sizeof(double));
+    long* centrality = (long*)calloc(array_len(network->edges), sizeof(long));
     enum pathfind_error error;
 
     for (long source = 0; source < array_len(network->nodes); source++) {
