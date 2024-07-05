@@ -4,6 +4,7 @@
 #include "../include/network.h"
 #include "../include/array.h"
 #include "../include/utils.h"
+#include "../include/routing.h"
 
 
 /* Functions in this file generate a payment-channel network where to simulate the execution of payments */
@@ -56,7 +57,7 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   channel_update->time = 0;
   edge->channel_updates = push(NULL, channel_update);
   edge->edge_locked_balance_and_durations = NULL;
-  edge->betweenness = -1;
+  edge->betweenness = 0;
   return edge;
 }
 
@@ -660,33 +661,46 @@ struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, shor
     return snapshot;
 }
 
-void update_edge_betweenness_centrality(struct network* network, struct network_params* net_params) {
-    long* centrality = (long*)calloc(array_len(network->edges), sizeof(long));
+void update_edge_betweenness_centrality(struct network *network, struct network_params *net_params) {
     enum pathfind_error error;
+    int p = 0;
+    long n_nodes = array_len(network->nodes);
 
-    for (long source = 0; source < array_len(network->nodes); source++) {
-        for (long target = 0; target < array_len(network->nodes); target++) {
-            if (source != target) {
+    for (long source = 0; source < n_nodes; source++) {
 
-                struct array* path = dijkstra(source, target, 0, network, 0, 0, &error, net_params->routing_method, NULL, 1);
-                if(path == NULL) continue;
-                for (long i = 0; i < array_len(path) - 1; i++) {
-                    struct path_hop* hop = array_get(path, i);
-                    for (long j = 0; j < array_len(network->edges); j++) {
-                        if (j == hop->edge) {
-                            centrality[j]++;
-                        }
-                    }
+        // run dijkstra for calcurate distances from source
+        dijkstra(-1, source, -1, network, 0, p, &error, net_params->routing_method, NULL);
+        struct distance **distances_from_source = distance;
+
+        for (long target = 0; target < n_nodes; target++) {
+
+            // calc path by distances
+            struct array *path = array_initialize(5);
+            long curr = target;
+            while (curr != source) {
+                if (distances_from_source[p][curr].next_edge == -1) {
+                    array_free(path);
+                    path = NULL;
+                    break;
                 }
-                free(path);
+                struct path_hop *hop = malloc(sizeof(struct path_hop));
+                hop->sender = curr;
+                hop->edge = distances_from_source[p][curr].next_edge;
+                struct edge *edge = array_get(network->edges, distances_from_source[p][curr].next_edge);
+                hop->receiver = edge->to_node_id;
+                path = array_insert(path, hop);
+                curr = edge->to_node_id;
+            }
+
+            // increment betweenness
+            if(path != NULL) {
+                for(int i = 0; i < array_len(path); i++) {
+                    struct path_hop* hop = array_get(path, i);
+                    struct edge* edge = array_get(network->edges, hop->edge);
+                    edge->betweenness++;
+                }
+                array_free(path);
             }
         }
     }
-
-    for (long i = 0; i < array_len(network->edges); i++) {
-        struct edge* edge = array_get(network->edges, i);
-        edge->betweenness = centrality[i];
-    }
-
-    free(centrality);
 }
