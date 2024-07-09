@@ -521,32 +521,26 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         group->edges = array_initialize(net_params.group_size);
         group->edges = array_insert(group->edges, requesting_edge);
         if(net_params.group_cap_limit_rate != -1) {
-            uint64_t max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_cap_limit_rate);
-            if(requesting_edge->balance > max_cap_limit){
-                group->max_cap_limit = INT64_MAX;   // overflow
-            }else{
-                group->max_cap_limit = max_cap_limit;
-            }
-            uint64_t min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_cap_limit_rate);
-            if(requesting_edge->balance < min_cap_limit) {
-                group->min_cap_limit = 0;   // overflow
-            }else{
-                group->min_cap_limit = min_cap_limit;
-            }
+            group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_cap_limit_rate);
+            group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_cap_limit_rate);
+            if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
+            if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
         }else {
             group->max_cap_limit = UINT64_MAX;
             group->min_cap_limit = 0;
         }
-        group->id = array_len(network->groups);
-        group->is_closed = 0;
-        group->constructed_time = current_time;
         if(net_params.group_betweenness_limit_rate != -1) {
-            group->max_betweenness_limit = requesting_edge->betweenness + (double)((float)requesting_edge->betweenness * net_params.group_betweenness_limit_rate);
-            group->min_betweenness_limit = requesting_edge->betweenness - (double)((float)requesting_edge->betweenness * net_params.group_betweenness_limit_rate);
+            group->max_betweenness_limit = requesting_edge->betweenness + (long)((float)requesting_edge->betweenness * net_params.group_betweenness_limit_rate);
+            group->min_betweenness_limit = requesting_edge->betweenness - (long)((float)requesting_edge->betweenness * net_params.group_betweenness_limit_rate);
+            if(group->max_betweenness_limit < requesting_edge->betweenness) group->max_betweenness_limit = INT64_MAX;
+            if(group->min_betweenness_limit > requesting_edge->betweenness) group->min_betweenness_limit = 0;
         }else {
             group->max_betweenness_limit = INT64_MAX;
             group->min_betweenness_limit = INT64_MIN;
         }
+        group->id = array_len(network->groups);
+        group->is_closed = 0;
+        group->constructed_time = current_time;
 
         // search the closest balance edge from neighbor
         struct element* bottom = iterator;
