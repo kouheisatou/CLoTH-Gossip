@@ -389,8 +389,6 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-// source = -1 : for weight calcuration
-// amount = -1 : for weight calcuration
 struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
@@ -402,17 +400,6 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
   struct path_hop* hop=NULL;
   double edge_probability, tmp_probability, edge_weight, tmp_weight, current_prob;
   struct channel* channel;
-  unsigned int weight_calc_mode = 0;
-  unsigned int ignore_min_htlc_mode = 0;
-
-  if(source == -1) {
-    weight_calc_mode = 1;
-    source = 0;
-  }
-  if(amount == -1) {
-    ignore_min_htlc_mode = 1;
-    amount = 0;
-  }
 
   source_node = array_get(network->nodes, source);
   get_balance(source_node, &max_balance, &total_balance);
@@ -450,9 +437,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
 
     d = heap_pop(distance_heap[p], compare_distance);
     best_node_id = d->node;
-    if(weight_calc_mode) {
-      if(best_node_id==source) break;
-    }
+    if(best_node_id==source) break;
 
     to_node_dist = distance[p][best_node_id];
     amt_to_send = to_node_dist.amt_to_receive;
@@ -478,9 +463,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
         if(is_in_list(exclude_edges, &(edge->id), is_equal_edge)) continue;
       }
 
-      if(ignore_min_htlc_mode) {
-        if(amt_to_send < edge->policy.min_htlc) continue;
-      }
+      if(amt_to_send < edge->policy.min_htlc) continue;
 
       // calc probability by past channel_update msg(node_result)
       edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
