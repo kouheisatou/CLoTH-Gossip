@@ -383,7 +383,97 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
+float calc_median_betweenness(struct array *edges) {
+    long num_edges = array_len(edges);
+    long mid_index = num_edges / 2;
+    struct edge** sorted_edges = malloc(num_edges * sizeof(struct edge));
+
+    for (long i = 0; i < num_edges; i++) {
+        sorted_edges[i] = array_get(edges, i);
+    }
+
+    for (long i = 0; i <= mid_index; i++) {
+        long min_index = i;
+        for (long j = i + 1; j < num_edges; j++) {
+            if (sorted_edges[j]->betweenness < sorted_edges[min_index]->betweenness) {
+                min_index = j;
+            }
+        }
+        struct edge* temp = sorted_edges[i];
+        sorted_edges[i] = sorted_edges[min_index];
+        sorted_edges[min_index] = temp;
+    }
+
+    float median;
+    if (num_edges % 2 == 0) {
+        long mid1 = sorted_edges[mid_index - 1]->betweenness;
+        long mid2 = sorted_edges[mid_index]->betweenness;
+        median = (float)(mid1 + mid2) / 2;
+    } else {
+        median = (float)sorted_edges[mid_index]->betweenness;
+    }
+
+    free(sorted_edges);
+    return median;
+}
+
+int can_join_group(struct group* group, struct edge* edge){
+
+    if(group->is_closed) return 0;
+
+    if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
+        return 0;
+    }
+
+    for(int i = 0; i < array_len(group->edges); i++) {
+        struct edge *e = array_get(group->edges, i);
+        if (edge->id == e->id) return 0;
+        if (edge->id == e->counter_edge_id) return 0;
+        if (edge->to_node_id == e->to_node_id ||
+            edge->to_node_id == e->from_node_id ||
+            edge->from_node_id == e->to_node_id ||
+            edge->from_node_id == e->from_node_id) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+float betweenness_median = -1;
+int can_continue_group(struct group* group, struct network_params* net_param, struct network* network){
+
+    if(betweenness_median == -1){
+        betweenness_median = calc_median_betweenness(network->edges);
+    }
+
+    int low_betweenness_count = 0;
+    int high_betweenness_count = 0;
+    for(int i = 0; i < array_len(group->edges); i++){
+        struct edge* edge = array_get(group->edges, i);
+
+        if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
+            return 0;
+        }
+
+        if((float)edge->betweenness > betweenness_median){
+            high_betweenness_count++;
+        }else{
+            low_betweenness_count++;
+        }
+    }
+
+    if(low_betweenness_count == 0){
+        if(high_betweenness_count < net_param->group_size) return 0;
+    }else if(high_betweenness_count == 0){
+        if(low_betweenness_count < net_param->group_size) return 0;
+    }else{
+        if(high_betweenness_count < net_param->group_size || low_betweenness_count < net_param->group_size) return 0;
+    }
+    return 1;
+}
+
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
 
     // update group cap
     uint64_t min = UINT64_MAX;
@@ -394,118 +484,74 @@ struct element* update_group(struct group* group, struct network_params net_para
         if(edge->balance > max) max = edge->balance;
     }
 
-    struct group_update* group_update = malloc(sizeof(struct group_update));
-    group_update->group_id = group->id;
-    group_update->group_cap = group->group_cap;
-    group_update->time = current_time;
-    group_update->triggered_node_id = triggered_node_id;
-    group_update->type = type;
-
-    // close if edge capacity is out of limit
-    if (min < group->min_cap_limit || group->max_cap_limit < max) {
-        group_update->type = CLOSE;
+    if(!can_continue_group(group, &net_params, network)){
+        return close_group(group_add_queue, current_time, group, changed_edge_id, changed_edge_prev_balance);
     }
 
-    switch (group_update->type) {
-        case CONSTRUCT: {
-
-            // update group capacity
-            group->max_cap = max;
-            group->min_cap = min;
-            if(net_params.group_cap_update) {
-                group->group_cap = min;
-            }else{
-                group->group_cap = group->min_cap_limit;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg && current_time != 0) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
-            break;
-        }
-        case UPDATE: {
-
-            // update group capacity
-            group->max_cap = max;
-            group->min_cap = min;
-            if(net_params.group_cap_update) {
-                group->group_cap = min;
-            }else{
-                group->group_cap = group->min_cap_limit;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg && net_params.group_cap_update) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
-            break;
-        }
-        case CLOSE: {
-
-            // close group
-            group->is_closed = current_time;
-
-            // add group members to group_add_queue
-            // broadcast group_req msg
-            for (int i = 0; i < array_len(group->edges); i++) {
-                struct edge *edge = array_get(group->edges, i);
-                edge->group = NULL;
-                group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
-
-                // take edge balance snapshot of the group
-                struct edge *copy = malloc(sizeof(struct edge));
-                copy->id = edge->id;
-                if(edge->id == changed_edge_id){
-                    copy->balance = changed_edge_prev_balance;
-                }else{
-                    copy->balance = edge->balance;
-                }
-                group->edges->element[i] = copy;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
-            // reconstruction
-            group_add_queue = construct_group(group_add_queue, network, net_params, current_time, csv_group_update);
-
-            break;
-        }
+    // update group capacity
+    group->max_cap = max;
+    group->min_cap = min;
+    if(net_params.group_cap_update) {
+        group->group_cap = min;
+    }else{
+        group->group_cap = group->min_cap_limit;
     }
-
-    // release memory
-    free(group_update);
 
     return group_add_queue;
 }
 
-int can_join_group(struct group* group, struct edge* edge){
-
-    if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
-        return 0;
+void join_group(struct edge* edge, struct group* group){
+    edge->group = group;
+    group->edges = array_insert(group->edges, edge);
+    if(group->group_cap > edge->balance) {
+        group->group_cap = edge->balance;
     }
-
-    if(edge->betweenness < group->min_betweenness_limit || edge->betweenness > group->max_betweenness_limit) {
-        return 0;
+    if(group->min_cap > edge->balance){
+        group->min_cap = edge->balance;
     }
+    if(group->max_cap < edge->balance){
+        group->max_cap = edge->balance;
+    }
+}
 
-    for(int i = 0; i < array_len(group->edges); i++) {
-        struct edge *e = array_get(group->edges, i);
-        if (edge == e) return 0;
-        if (edge->to_node_id == e->to_node_id ||
-            edge->to_node_id == e->from_node_id ||
-            edge->from_node_id == e->to_node_id ||
-            edge->from_node_id == e->from_node_id) {
-            return 0;
+struct element* leave_group(struct element* group_add_queue, struct edge* edge){
+    if(edge->group == NULL) return group_add_queue;
+
+    struct group* group = edge->group;
+    array_delete(group->edges, edge, edge_equal);
+    edge->group = NULL;
+
+    // update min max and group_cap
+    for (int i = 0; i < array_len(group->edges); i++) {
+        struct edge* e = array_get(group->edges, i);
+        if(e->balance < group->min_cap) group->min_cap = e->balance;
+        if(e->balance > group->max_cap) group->max_cap = e->balance;
+    }
+    group->group_cap = group->min_cap;
+
+    return list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
+}
+
+struct element* close_group(struct element* group_add_queue, uint64_t current_time, struct group* group, long changed_edge_id, uint64_t changed_edge_prev_balance){
+    group->is_closed = current_time;
+
+    for(long i = 0; i < array_len(group->edges); i++){
+        struct edge* edge = array_get(group->edges, i);
+        edge->group = NULL;
+        group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
+
+        // take edge balance snapshot of the group
+        struct edge *copy = malloc(sizeof(struct edge));
+        copy->id = edge->id;
+        if(edge->id == changed_edge_id){
+            copy->balance = changed_edge_prev_balance;
+        }else{
+            copy->balance = edge->balance;
         }
+        group->edges->element[i] = copy;
     }
 
-    return 1;
+    return group_add_queue;
 }
 
 struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time, FILE* csv_group_update){
@@ -561,7 +607,6 @@ struct element* construct_group(struct element* group_add_queue, struct network 
                 struct edge* bottom_edge = bottom->data;
                 if(can_join_group(group, bottom_edge)){
                     group->edges = array_insert(group->edges, bottom_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
                 }
                 bottom = bottom->prev;
             }
@@ -569,15 +614,14 @@ struct element* construct_group(struct element* group_add_queue, struct network 
                 struct edge* top_edge = top->data;
                 if(can_join_group(group, top_edge)){
                     group->edges = array_insert(group->edges, top_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
                 }
                 top = top->next;
             }
         }
 
         // register group
-        if(array_len(group->edges) == net_params.group_size){
-            group_add_queue = update_group(group, net_params, current_time, group_add_queue, requesting_edge->id, CONSTRUCT, csv_group_update, network, -1, 0);
+        if(can_continue_group(group, &net_params, network)){
+            group_add_queue = update_group(group, net_params, current_time, group_add_queue, requesting_edge->id, csv_group_update, network, -1, 0);
             network->groups = array_insert(network->groups, group);
             for(int i = 0; i < array_len(group->edges); i++){
                 struct edge* group_member_edge = array_get(group->edges, i);
@@ -663,7 +707,7 @@ void update_edge_betweenness_centrality(struct network *network, struct network_
     for (long source = 0; source < n_nodes; source++) {
 
         // run dijkstra for calcurate distances from source
-        dijkstra(-1, source, -1, network, 0, p, &error, net_params->routing_method, NULL);
+        dijkstra(0, source, 0, network, 0, p, &error, net_params->routing_method, NULL);
         struct distance **distances_from_source = distance;
 
         for (long target = 0; target < n_nodes; target++) {

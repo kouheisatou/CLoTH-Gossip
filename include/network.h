@@ -18,12 +18,6 @@
 #define MINBALANCE 1E2
 #define MAXBALANCE 1E11
 
-enum group_update_type {
-    CONSTRUCT,
-    CLOSE,
-    UPDATE,
-};
-
 /* a policy that must be respected when forwarding a payment through an edge (see edge below) */
 struct policy {
   uint64_t fee_base;
@@ -101,13 +95,13 @@ struct group_update {
     long triggered_node_id;
     uint64_t time;
     uint64_t group_cap;
-    enum group_update_type type;
 };
 
 
 struct group {
     long id;
     struct array* edges;
+    int min_group_size; // minimum edges num
     uint64_t max_cap_limit;
     uint64_t min_cap_limit;
     long max_betweenness_limit;
@@ -145,7 +139,7 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance);
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance);
 
 struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time, FILE* csv_group_update);
 
@@ -158,5 +152,13 @@ void free_network(struct network* network);
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
 
 void update_edge_betweenness_centrality(struct network* network, struct network_params* net_params);
+
+struct element* leave_group(struct element* group_add_queue, struct edge* edge);
+
+struct element* close_group(struct element* group_add_queue, uint64_t current_time, struct group* group, long changed_edge_id, uint64_t changed_edge_prev_balance);
+
+void join_group(struct edge* edge, struct group* group);
+
+int can_join_group(struct group* group, struct edge* edge);
 
 #endif
