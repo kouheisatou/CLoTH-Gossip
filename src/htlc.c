@@ -362,6 +362,7 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     next_event_time = simulation->current_time + OFFLINELATENCY;
     next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
+    return;
   }
 
   // fail no balance
@@ -372,6 +373,7 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     next_event_time = simulation->current_time;
     next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
+    return;
   }
 
   // update balance
@@ -425,6 +427,7 @@ void forward_payment(struct event* event, struct simulation* simulation, struct 
     next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator))) + OFFLINELATENCY;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
+    return;
   }
 
   // BEGIN -- NON-STRICT FORWARDING (cannot simulate it because the current blokchain height is needed)
@@ -469,6 +472,7 @@ void forward_payment(struct event* event, struct simulation* simulation, struct 
     next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
     next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
+    return;
   }
 
   // update balance
@@ -513,7 +517,6 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
   }
 
   // update balance
-  uint64_t prev_balance = backward_edge->balance;
   backward_edge->balance += last_route_hop->amount_to_forward;
 
   payment->is_success = 1;
@@ -549,7 +552,6 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
   }
 
   // update balance
-  uint64_t prev_balance = backward_edge->balance;
   backward_edge->balance += prev_hop->amount_to_forward;
 
   prev_node_id = prev_hop->from_node_id;
@@ -585,6 +587,7 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
       edge->edge_locked_balance_and_durations = push(edge->edge_locked_balance_and_durations, edge_locked_balance_time);
   }
 
+    // request_group_update event
     uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
     struct event* next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
