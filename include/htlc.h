@@ -24,22 +24,26 @@ struct node_pair_result{
 
 uint64_t compute_fee(uint64_t amount_to_forward, struct policy policy);
 
-//int is_channel_locked(struct channel* channel);
-
 void find_path(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params);
 
-struct element* send_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
+void send_payment(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-struct element* forward_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
+void forward_payment(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-struct element* receive_payment(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
+void receive_payment(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-struct element* forward_success(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
+void forward_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-void receive_success(struct event* event, struct simulation* simulation, struct network* network);
+void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-struct element* forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update);
+void forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-struct element* receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct element* group_add_queue, struct network_params net_params, FILE* csv_group_update, FILE* csv_channel_update);
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network);
+
+// return `struct element* group_add_queue`
+struct element* request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue);
+
+// return `struct element* group_add_queue`
+struct element* construct_groups(struct simulation* simulation, struct element* group_add_queue, struct network *network, struct network_params net_params);
 
 #endif

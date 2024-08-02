@@ -25,7 +25,6 @@ struct network_params{
   enum routing_method routing_method;
   unsigned int group_cap_update;
   unsigned int group_broadcast_delay;
-  unsigned int log_broadcast_msg;
   int group_size;
   float group_limit_rate;
 };

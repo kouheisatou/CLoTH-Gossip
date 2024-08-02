@@ -43,8 +43,6 @@ struct channel {
   long edge2;
   uint64_t capacity;
   unsigned int is_closed;
-//  unsigned int occupied;
-//  struct element* payment_history;
 };
 
 /* an edge represents one of the two direction of a payment channel */
@@ -90,10 +88,9 @@ struct channel_update {
 
 
 struct group_update {
-    long group_id;
-    long triggered_node_id;
     uint64_t time;
     uint64_t group_cap;
+    uint64_t* edge_balances;
 };
 
 
@@ -107,7 +104,7 @@ struct group {
     uint64_t group_cap;
     uint64_t is_closed; // if not zero, it describes closed time
     uint64_t constructed_time;
-    uint64_t last_upd_time;
+    struct element* history; // list of `struct group_update`
 };
 
 
@@ -136,20 +133,12 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance);
-
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time);
-
-int edge_equal(struct edge* e1, struct edge* e2);
+int update_group(struct group* group, struct network_params net_params, uint64_t current_time);
 
 long get_edge_balance(struct edge* e);
 
 void free_network(struct network* network);
 
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
-
-struct element* close_group(struct element* group_add_queue, uint64_t current_time, struct group* group, long changed_edge_id, uint64_t changed_edge_prev_balance);
-
-int can_join_group(struct group* group, struct edge* edge);
 
 #endif

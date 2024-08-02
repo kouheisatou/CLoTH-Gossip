@@ -13,7 +13,6 @@ enum payment_error_type{
   NOERROR,
   NOBALANCE,
   OFFLINENODE, //it corresponds to `FailUnknownNextPeer` in lnd
-//  EDGEOCCUPIED,
 };
 
 /* register an eventual error occurred when the payment traversed a hop */
@@ -39,9 +38,8 @@ struct payment {
   unsigned int is_success;
   int offline_node_count;
   int no_balance_count;
-//  int edge_occupied_count;
   unsigned int is_timeout;
-  struct element* history;
+  struct element* history; // list of `struct attempt`
 };
 
 struct attempt {
@@ -49,7 +47,7 @@ struct attempt {
   uint64_t end_time;
   long error_edge_id;
   enum payment_error_type error_type;
-  struct array* route;
+  struct array* route; // array of `struct edge_snapshot`
   short is_succeeded;
 };
 

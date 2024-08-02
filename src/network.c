@@ -381,7 +381,8 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
+int update_group(struct group* group, struct network_params net_params, uint64_t current_time){
+    int close_flg = 0;
 
     // update group cap
     uint64_t min = UINT64_MAX;
@@ -390,10 +391,10 @@ struct element* update_group(struct group* group, struct network_params net_para
         struct edge* edge = array_get(group->edges, i);
         if(edge->balance < min) min = edge->balance;
         if(edge->balance > max) max = edge->balance;
-    }
 
-    if(changed_edge_id != -1 && !can_join_group(group, array_get(network->edges, changed_edge_id))){
-        return close_group(group_add_queue, current_time, group, changed_edge_id, changed_edge_prev_balance);
+        if(!can_join_group(group, edge)){
+            close_flg = 1;
+        }
     }
 
     // update group capacity
@@ -405,170 +406,22 @@ struct element* update_group(struct group* group, struct network_params net_para
         group->group_cap = group->min_cap_limit;
     }
 
-    return group_add_queue;
-}
-
-int can_join_group(struct group* group, struct edge* edge){
-
-    if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
-        return 0;
-    }
-
-    for(int i = 0; i < array_len(group->edges); i++) {
-        struct edge *e = array_get(group->edges, i);
-        if (edge == e) return 0;
-        if (edge->to_node_id == e->to_node_id ||
-            edge->to_node_id == e->from_node_id ||
-            edge->from_node_id == e->to_node_id ||
-            edge->from_node_id == e->from_node_id) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
-struct element* close_group(struct element* group_add_queue, uint64_t current_time, struct group* group, long changed_edge_id, uint64_t changed_edge_prev_balance){
-    group->is_closed = current_time;
-
-    for(long i = 0; i < array_len(group->edges); i++){
+    // record group_update history
+    struct group_update* group_update = malloc(sizeof(struct group_update));
+    group_update->group_cap = group->group_cap;
+    group_update->time = current_time;
+    group_update->edge_balances = malloc(sizeof(uint64_t) * array_len(group->edges));
+    for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
-        edge->group = NULL;
-        group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
-
-        // take edge balance snapshot of the group
-        struct edge *copy = malloc(sizeof(struct edge));
-        copy->id = edge->id;
-        if(edge->id == changed_edge_id){
-            copy->balance = changed_edge_prev_balance;
-        }else{
-            copy->balance = edge->balance;
-        }
-        group->edges->element[i] = copy;
+        group_update->edge_balances[i] = edge->balance;
     }
+    group->history = push(group->history, group_update);
 
-    return group_add_queue;
-}
-
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time){
-
-    if(group_add_queue == NULL) return group_add_queue;
-
-    for(struct element* iterator = group_add_queue; iterator != NULL; iterator = iterator->next){
-
-        struct edge* requesting_edge = iterator->data;
-
-        // init group
-        struct group* group = malloc(sizeof(struct group));
-        group->edges = array_initialize(net_params.group_size);
-        group->edges = array_insert(group->edges, requesting_edge);
-        if(net_params.group_limit_rate != -1) {
-            group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-            group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-            if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
-            if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
-        }else {
-            group->max_cap_limit = UINT64_MAX;
-            group->min_cap_limit = 0;
-        }
-        group->id = array_len(network->groups);
-        group->is_closed = 0;
-        group->constructed_time = current_time;
-        group->last_upd_time = current_time;
-
-        // search the closest balance edge from neighbor
-        struct element* bottom = iterator;
-        struct element* top = iterator;
-        while(bottom != NULL || top != NULL){
-
-            // both edge are out of group limit, skip this group
-            if(top != NULL && bottom != NULL){
-                struct edge* bottom_edge = bottom->data;
-                struct edge* top_edge = top->data;
-                if(bottom_edge->balance < group->min_cap_limit && top_edge->balance > group->max_cap_limit){
-                    break;
-                }
-            }
-
-            // join bottom and top edge to group
-            if(bottom != NULL){
-                struct edge* bottom_edge = bottom->data;
-                if(can_join_group(group, bottom_edge)){
-                    group->edges = array_insert(group->edges, bottom_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
-                }
-                bottom = bottom->prev;
-            }
-            if(top != NULL){
-                struct edge* top_edge = top->data;
-                if(can_join_group(group, top_edge)){
-                    group->edges = array_insert(group->edges, top_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
-                }
-                top = top->next;
-            }
-        }
-
-        // register group
-        if(array_len(group->edges) == net_params.group_size){
-            group_add_queue = update_group(group, net_params, current_time, group_add_queue, network, -1, 0);
-            network->groups = array_insert(network->groups, group);
-            for(int i = 0; i < array_len(group->edges); i++){
-                struct edge* group_member_edge = array_get(group->edges, i);
-                group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) edge_equal);
-                group_member_edge->group = group;
-            }
-            if(iterator == NULL) break;
-        }else{
-            array_free(group->edges);
-            free(group);
-        }
-    }
-    return group_add_queue;
-}
-
-int edge_equal(struct edge* e1, struct edge* e2){
-    return e1->id == e2->id;
+    return close_flg;
 }
 
 long get_edge_balance(struct edge* e){
     return e->balance;
-}
-
-void free_network(struct network* network){
-    for(long i = 0; i < array_len(network->groups); i++){
-        struct group* g = array_get(network->groups, i);
-        if(g->is_closed){
-            for(long j = 0; j < array_len(g->edges); j++){
-                free(array_get(g->edges, j));
-            }
-        }
-        array_free(g->edges);
-        free(g);
-    }
-    for(long i = 0; i < array_len(network->channels); i++){
-        free(array_get(network->channels, i));
-    }
-    for(long i = 0; i < array_len(network->edges); i++){
-        struct edge* e = array_get(network->edges, i);
-        for(struct element* iterator = e->channel_updates; iterator != NULL; iterator = iterator->next){
-            free(iterator->data);
-        }
-        list_free(e->channel_updates);
-        free(e);
-    }
-    for(long i = 0; i < array_len(network->nodes); i++){
-        struct node* n = array_get(network->nodes, i);
-        array_free(n->open_edges);
-        for(long j = 0; j < array_len(network->nodes); j++){
-            for(struct element* iterator = n->results[j]; iterator != NULL; iterator = iterator->next){
-                free(iterator->data);
-            }
-            list_free(n->results[j]);
-        }
-        free(n->results);
-        free(n);
-    }
 }
 
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap) {
