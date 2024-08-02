@@ -733,7 +733,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct payment* p = array_get(payments, event->payment->id);
-    if(p->end_time != 0){
+    if(p->end_time != 0 && event->type != UPDATEGROUP && event->type != CONSTRUCTGROUPS){
         completed_payments++;
         char progress_filename[512];
         strcpy(progress_filename, output_dir_name);
