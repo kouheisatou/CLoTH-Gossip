@@ -90,10 +90,15 @@ void write_output(struct network* network, struct array* payments, char output_d
             fprintf(csv_group_output, ",");
         }
     }
+    struct group_update* group_update;
+    if(group->is_closed){
+        group_update = group->history->next->data;
+    }else{
+        group_update = group->history->data;
+    }
     float sum_cul = 0.0f;
     for(j=0; j< n_members; j++){
-        struct edge* edge_snapshot = array_get(group->edges, j);
-        sum_cul += (1.0f - ((float)group->group_cap / (float)edge_snapshot->balance));
+        sum_cul += (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
     }
     fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
   }
@@ -461,9 +466,9 @@ uint64_t calc_simulation_env_hash(struct network* network, struct array* payment
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->faulty_node_prob)), sizeof(double));
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->network_from_file)), sizeof(unsigned int));
         hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->routing_method)), sizeof(enum routing_method));
-        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
-        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
-        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
+//        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
+//        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
+//        hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
         for(int i = 0; net_params->nodes_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->nodes_filename[i])), sizeof(char));
         for(int i = 0; net_params->channels_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->channels_filename[i])), sizeof(char));
         for(int i = 0; net_params->edges_filename[i] != '\0'; i++) hash_network_settings += *SHA512Hash((uint8_t*)(&(net_params->edges_filename[i])), sizeof(char));
