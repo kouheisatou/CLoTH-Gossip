@@ -381,7 +381,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, long triggered_node_id, enum group_update_type type, FILE* csv_group_update, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
+struct element* update_group(struct group* group, struct network_params net_params, uint64_t current_time, struct element* group_add_queue, struct network* network, long changed_edge_id, uint64_t changed_edge_prev_balance){
 
     // update group cap
     uint64_t min = UINT64_MAX;
@@ -392,92 +392,18 @@ struct element* update_group(struct group* group, struct network_params net_para
         if(edge->balance > max) max = edge->balance;
     }
 
-    struct group_update* group_update = malloc(sizeof(struct group_update));
-    group_update->group_id = group->id;
-    group_update->group_cap = group->group_cap;
-    group_update->time = current_time;
-    group_update->triggered_node_id = triggered_node_id;
-    group_update->type = type;
-
-    // close if edge capacity is out of limit
-    if (min < group->min_cap_limit || group->max_cap_limit < max) {
-        group_update->type = CLOSE;
+    if(changed_edge_id != -1 && !can_join_group(group, array_get(network->edges, changed_edge_id))){
+        return close_group(group_add_queue, current_time, group, changed_edge_id, changed_edge_prev_balance);
     }
 
-    switch (group_update->type) {
-        case CONSTRUCT: {
-
-            // update group capacity
-            group->max_cap = max;
-            group->min_cap = min;
-            if(net_params.group_cap_update) {
-                group->group_cap = min;
-            }else{
-                group->group_cap = group->min_cap_limit;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg && current_time != 0) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
-            break;
-        }
-        case UPDATE: {
-
-            // update group capacity
-            group->max_cap = max;
-            group->min_cap = min;
-            if(net_params.group_cap_update) {
-                group->group_cap = min;
-            }else{
-                group->group_cap = group->min_cap_limit;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg && net_params.group_cap_update) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
-            break;
-        }
-        case CLOSE: {
-
-            // close group
-            group->is_closed = current_time;
-
-            // add group members to group_add_queue
-            // broadcast group_req msg
-            for (int i = 0; i < array_len(group->edges); i++) {
-                struct edge *edge = array_get(group->edges, i);
-                edge->group = NULL;
-                group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
-
-                // take edge balance snapshot of the group
-                struct edge *copy = malloc(sizeof(struct edge));
-                copy->id = edge->id;
-                if(edge->id == changed_edge_id){
-                    copy->balance = changed_edge_prev_balance;
-                }else{
-                    copy->balance = edge->balance;
-                }
-                group->edges->element[i] = copy;
-            }
-
-            // log group_update msg
-            if(net_params.log_broadcast_msg) {
-                write_group_update(csv_group_update, group_update, group_add_queue);
-            }
-
-            // reconstruction
-            group_add_queue = construct_group(group_add_queue, network, net_params, current_time, csv_group_update);
-
-            break;
-        }
+    // update group capacity
+    group->max_cap = max;
+    group->min_cap = min;
+    if(net_params.group_cap_update) {
+        group->group_cap = min;
+    }else{
+        group->group_cap = group->min_cap_limit;
     }
-
-    // release memory
-    free(group_update);
 
     return group_add_queue;
 }
@@ -502,7 +428,29 @@ int can_join_group(struct group* group, struct edge* edge){
     return 1;
 }
 
-struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time, FILE* csv_group_update){
+struct element* close_group(struct element* group_add_queue, uint64_t current_time, struct group* group, long changed_edge_id, uint64_t changed_edge_prev_balance){
+    group->is_closed = current_time;
+
+    for(long i = 0; i < array_len(group->edges); i++){
+        struct edge* edge = array_get(group->edges, i);
+        edge->group = NULL;
+        group_add_queue = list_insert_sorted_position(group_add_queue, edge, (long (*)(void *)) get_edge_balance);
+
+        // take edge balance snapshot of the group
+        struct edge *copy = malloc(sizeof(struct edge));
+        copy->id = edge->id;
+        if(edge->id == changed_edge_id){
+            copy->balance = changed_edge_prev_balance;
+        }else{
+            copy->balance = edge->balance;
+        }
+        group->edges->element[i] = copy;
+    }
+
+    return group_add_queue;
+}
+
+struct element* construct_group(struct element* group_add_queue, struct network *network, struct network_params net_params, uint64_t current_time){
 
     if(group_add_queue == NULL) return group_add_queue;
 
@@ -514,21 +462,19 @@ struct element* construct_group(struct element* group_add_queue, struct network 
         struct group* group = malloc(sizeof(struct group));
         group->edges = array_initialize(net_params.group_size);
         group->edges = array_insert(group->edges, requesting_edge);
-        uint64_t max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(requesting_edge->balance > max_cap_limit){
-            group->max_cap_limit = INT64_MAX;   // overflow
-        }else{
-            group->max_cap_limit = max_cap_limit;
-        }
-        uint64_t min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(requesting_edge->balance < min_cap_limit) {
-            group->min_cap_limit = 0;   // overflow
-        }else{
-            group->min_cap_limit = min_cap_limit;
+        if(net_params.group_limit_rate != -1) {
+            group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+            group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+            if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
+            if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
+        }else {
+            group->max_cap_limit = UINT64_MAX;
+            group->min_cap_limit = 0;
         }
         group->id = array_len(network->groups);
         group->is_closed = 0;
         group->constructed_time = current_time;
+        group->last_upd_time = current_time;
 
         // search the closest balance edge from neighbor
         struct element* bottom = iterator;
@@ -565,7 +511,7 @@ struct element* construct_group(struct element* group_add_queue, struct network 
 
         // register group
         if(array_len(group->edges) == net_params.group_size){
-            group_add_queue = update_group(group, net_params, current_time, group_add_queue, requesting_edge->id, CONSTRUCT, csv_group_update, network, -1, 0);
+            group_add_queue = update_group(group, net_params, current_time, group_add_queue, network, -1, 0);
             network->groups = array_insert(network->groups, group);
             for(int i = 0; i < array_len(group->edges); i++){
                 struct edge* group_member_edge = array_get(group->edges, i);

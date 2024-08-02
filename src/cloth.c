@@ -325,6 +325,9 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "variance_payment_forward_interval")==0) {
         net_params->variance_payment_forward_interval=strtol(value, NULL, 10);
     }
+    else if(strcmp(parameter, "group_broadcast_delay")==0) {
+        net_params->group_broadcast_delay=strtol(value, NULL, 10);
+    }
     else if(strcmp(parameter, "routing_method")==0){
       if(strcmp(value, "cloth_original")==0)
         net_params->routing_method=CLOTH_ORIGINAL;
@@ -641,7 +644,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < n_edges; i++) {
             group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
-        group_add_queue = construct_group(group_add_queue, network, net_params, 0, csv_group_update);
+        group_add_queue = construct_group(group_add_queue, network, net_params, 0);
     }
 
   printf("PAYMENTS INITIALIZATION\n");
