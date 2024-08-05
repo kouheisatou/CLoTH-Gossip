@@ -725,7 +725,7 @@ struct element* request_group_update(struct event* event, struct simulation* sim
                 }
 
                 // construct_groups event
-                uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
+                uint64_t next_event_time = simulation->current_time;
                 struct event* next_event = new_event(next_event_time, CONSTRUCTGROUPS, event->node_id, event->payment);
                 simulation->events = heap_insert(simulation->events, next_event, compare_event);
             }
