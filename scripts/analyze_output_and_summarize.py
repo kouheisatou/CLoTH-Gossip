@@ -214,12 +214,13 @@ def analyze_output(output_dir_name):
 
         for group in groups:
             try:
-                cul_distribution.append(float(group["cul"]))
                 group_capacity_distribution.append(int(group["group_capacity"]))
                 if group["is_closed(closed_time)"] != "0":
                     closed_time = int(group["is_closed(closed_time)"])
                     constructed_time = int(group["constructed_time"])
                     group_survival_time_distribution.append(closed_time - constructed_time)
+                else:
+                    cul_distribution.append(float(group["cul"]))
             except Exception:
                 continue
 
