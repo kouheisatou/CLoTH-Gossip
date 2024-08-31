@@ -716,11 +716,15 @@ int main(int argc, char *argv[]) {
       forward_fail(event, simulation, network, net_params);
       break;
     case RECEIVEFAIL:
-      receive_fail(event, simulation, network);
+      receive_fail(event, simulation, network, net_params);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator);
       break;
+    case CHANNELUPDATEFAIL:
+      channel_update_fail(event, simulation, network);
+    case CHANNELUPDATESUCCESS:
+      channel_update_success(event, simulation, network);
     case UPDATEGROUP:
       group_add_queue = request_group_update(event, simulation, network, net_params, group_add_queue);
       break;
@@ -733,7 +737,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct payment* p = array_get(payments, event->payment->id);
-    if(p->end_time != 0 && event->type != UPDATEGROUP && event->type != CONSTRUCTGROUPS){
+    if(p->end_time != 0 && event->type != UPDATEGROUP && event->type != CONSTRUCTGROUPS && event->type != CHANNELUPDATEFAIL && event->type != CHANNELUPDATESUCCESS){
         completed_payments++;
         char progress_filename[512];
         strcpy(progress_filename, output_dir_name);

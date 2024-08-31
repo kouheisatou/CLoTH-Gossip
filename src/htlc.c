@@ -568,7 +568,6 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
-  process_success_result(node, payment, simulation->current_time);
 
   add_attempt_history(payment, network, simulation->current_time, 1);
 
@@ -587,10 +586,18 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
       edge->edge_locked_balance_and_durations = push(edge->edge_locked_balance_and_durations, edge_locked_balance_time);
   }
 
-    // request_group_update event
+    // next event
     uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
-    struct event* next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
-    simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    // request_group_update event
+    if (net_params.routing_method == GROUP_ROUTING) {
+        struct event *next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
+        simulation->events = heap_insert(simulation->events, next_event, compare_event);
+    }
+
+    // channel update broadcast event
+    struct event *channel_update_event = new_event(next_event_time, CHANNELUPDATESUCCESS, node->id, payment);
+    simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
@@ -629,7 +636,7 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network){
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
   struct payment* payment;
   struct route_hop* first_hop, *error_hop;
   struct edge* next_edge, *error_edge;
@@ -679,8 +686,6 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     channel_update->time = simulation->current_time;
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
 
-  process_fail_result(node, payment, simulation->current_time);
-
   add_attempt_history(payment, network, simulation->current_time, 0);
 
     for(int i = 0; i < array_len(payment->route->route_hops); i++){
@@ -702,6 +707,10 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
+
+    // channel update broadcast event
+    struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
+    simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
 struct element* request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue){
@@ -811,4 +820,14 @@ struct element* construct_groups(struct simulation* simulation, struct element* 
         }
     }
     return group_add_queue;
+}
+
+void channel_update_success(struct event* event, struct simulation* simulation, struct network* network){
+    struct node* node = array_get(network->nodes, event->node_id);
+    process_success_result(node, event->payment, simulation->current_time);
+}
+
+void channel_update_fail(struct event* event, struct simulation* simulation, struct network* network){
+    struct node* node = array_get(network->nodes, event->node_id);
+    process_fail_result(node, event->payment, simulation->current_time);
 }

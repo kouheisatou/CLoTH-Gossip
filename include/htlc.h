@@ -38,7 +38,11 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
 
 void forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network);
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
+
+void channel_update_fail(struct event* event, struct simulation* simulation, struct network* network);
+
+void channel_update_success(struct event* event, struct simulation* simulation, struct network* network);
 
 // return `struct element* group_add_queue`
 struct element* request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue);
