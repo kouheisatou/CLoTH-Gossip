@@ -171,8 +171,11 @@ uint64_t *getHash(PaddedMsg *p) {
 }
 
 /// Wrapper for hashing methods, up to caller to free the return value
-uint64_t *SHA512Hash(uint8_t *input, size_t len) {
+uint64_t SHA512Hash(uint8_t *input, size_t len) {
     PaddedMsg paddedMsg = preprocess(input, len);
-    return getHash(&paddedMsg);
+    uint64_t *hash_p = getHash(&paddedMsg);
+    uint64_t hash = *hash_p;
+    free(hash_p);
+    return hash;
 }
 
