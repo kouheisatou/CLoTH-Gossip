@@ -767,5 +767,7 @@ int main(int argc, char *argv[]) {
     heap_free(simulation->events);
   free(simulation);
 
+    free_network(network);
+
   return 0;
 }

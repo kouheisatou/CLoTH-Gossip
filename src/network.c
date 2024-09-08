@@ -441,3 +441,29 @@ struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, shor
     }
     return snapshot;
 }
+
+void free_network(struct network* network){
+    for(uint64_t i = 0; array_len(network->nodes); i++){
+        struct node* n = array_get(network->nodes, i);
+        array_free(n->open_edges);
+        for(struct element* iterator = (struct element *) n->results; iterator != NULL; iterator = iterator->next){
+            list_free(iterator->data);
+        }
+        free(n);
+    }
+    for(uint64_t i = 0; array_len(network->edges); i++){
+        struct edge* e = array_get(network->edges, i);
+        list_free(e->channel_updates);
+        list_free(e->edge_locked_balance_and_durations);
+        free(e);
+    }
+    for(uint64_t i = 0; array_len(network->channels); i++){
+        struct channel* c = array_get(network->channels, i);
+        free(c);
+    }
+    for(uint64_t i = 0; array_len(network->groups); i++){
+        struct group* g = array_get(network->groups, i);
+        list_free(g->history);
+        free(g);
+    }
+}
