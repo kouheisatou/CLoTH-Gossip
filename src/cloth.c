@@ -601,6 +601,7 @@ int main(int argc, char *argv[]) {
         }
         group_add_queue = construct_groups(simulation, group_add_queue, network, net_params);
     }
+    printf("group_cover_rate on init : %f\n", (float)(array_len(network->edges) - list_len(group_add_queue)) / (float)(array_len(network->edges)));
 
   printf("PAYMENTS INITIALIZATION\n");
   payments = initialize_payments(pay_params,  n_nodes, simulation->random_generator);
