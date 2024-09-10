@@ -379,17 +379,6 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);
     }
-    else if(strcmp(parameter, "log_all_events")==0){
-        if(strcmp(value, "true")==0)
-            pay_params->log_all_events=1;
-        else if(strcmp(value, "false")==0)
-            pay_params->log_all_events=0;
-        else{
-            fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
-            fclose(input_file);
-            exit(-1);
-        }
-    }
     else{
       fprintf(stderr, "ERROR: unknown parameter <%s>\n", parameter);
       fclose(input_file);
@@ -650,47 +639,12 @@ int main(int argc, char *argv[]) {
 
   printf("EXECUTION OF THE SIMULATION\n");
 
-  FILE *csv_events;
-  if(pay_params.log_all_events) {
-      char csv_events_filename[512];
-      strcpy(csv_events_filename, output_dir_name);
-      strcat(csv_events_filename, "events.csv");
-      csv_events = fopen(csv_events_filename, "w");
-      if (csv_events == NULL) {
-          printf("ERROR cannot open events.csv\n");
-          exit(-1);
-      }
-      fprintf(csv_events, "time,pmt_id,event_type,sender,receiver,amt,error,attempts,elapsed_time,route\n");
-  }
-
   /* core of the discrete-event simulation: extract next event, advance simulation time, execute the event */
   begin = clock();
   simulation->current_time = 1;
   long completed_payments = 0;
   while(heap_len(simulation->events) != 0) {
     event = heap_pop(simulation->events, compare_event);
-
-    if(pay_params.log_all_events) {
-        // write event to file
-        fprintf(csv_events, "%lu,%lu,%d,%lu,%lu,%lu,%d,%d,", simulation->current_time, event->payment->id, event->type,
-                event->payment->sender, event->payment->receiver, event->payment->amount, event->payment->error.type,
-                event->payment->attempts);
-        if (event->type != 0) {
-            fprintf(csv_events, "%lu,", simulation->current_time - event->payment->start_time);
-        } else {
-            fprintf(csv_events, ",");
-        }
-        if (event->payment->route != NULL) {
-            for (int i = 0; i < array_len(event->payment->route->route_hops); i++) {
-                struct route_hop *hop = array_get(event->payment->route->route_hops, i);
-                fprintf(csv_events, "%lu", hop->edge_id);
-                if (i < array_len(event->payment->route->route_hops) - 1) fprintf(csv_events, "-");
-                else fprintf(csv_events, "\n");
-            }
-        } else {
-            fprintf(csv_events, "\n");
-        }
-    }
 
     simulation->current_time = event->time;
     switch(event->type){
