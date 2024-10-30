@@ -79,7 +79,7 @@ void* dijkstra_thread(void*arg) {
     pthread_mutex_lock(&data_mutex);
     payment = array_get(thread_args->payments, payment_id);
     pthread_mutex_unlock(&data_mutex);
-    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error);
+    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method, NULL);
     paths[payment->id] = hops;
   }
 
@@ -88,7 +88,7 @@ void* dijkstra_thread(void*arg) {
 
 
 /* run dijkstra threads to find the initial paths of the payments (before the simulation starts) */
-void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time) {
+void run_dijkstra_threads(struct network*  network, struct array* payments, uint64_t current_time, enum routing_method routing_method) {
   long i;
   pthread_t tid[N_THREADS];
   struct thread_args *thread_args;
@@ -99,11 +99,14 @@ void run_dijkstra_threads(struct network*  network, struct array* payments, uint
     thread_args->payments = payments;
     thread_args->current_time = current_time;
     thread_args->data_index = i;
+    thread_args->routing_method = routing_method;
     pthread_create(&(tid[i]), NULL, dijkstra_thread, (void*) thread_args);
    }
 
-  for(i=0; i<N_THREADS; i++)
-    pthread_join(tid[i], NULL);
+  for(i=0; i<N_THREADS; i++) {
+      pthread_join(tid[i], NULL);
+  }
+  free(thread_args);
 }
 
 
@@ -199,7 +202,7 @@ double get_probability(long from_node_id, long to_node_id, uint64_t amount, long
   return calculate_probability(results, to_node_id, MAXMILLISATOSHI, node_probability, current_time);
 }
 
-
+// Based on paper "Comparing Lightning Routing Protocols to Routing Protocols with Splitting" section 2.1.
 uint64_t get_probability_based_dist(double weight, double probability){
   const double min_probability = 0.00001;
   if(probability < min_probability)
@@ -307,7 +310,7 @@ struct array* get_best_edges(long to_node_id, uint64_t amount, long source_node_
     if(!local_node){
       modified_policy = best_edge->policy;
       modified_policy.timelock = max_timelock;
-      new_best_edge = new_edge(best_edge->id, best_edge->channel_id, best_edge->counter_edge_id, best_edge->from_node_id, best_edge->to_node_id, best_edge->balance, modified_policy);
+      new_best_edge = new_edge(best_edge->id, best_edge->channel_id, best_edge->counter_edge_id, best_edge->from_node_id, best_edge->to_node_id, best_edge->balance, modified_policy, channel->capacity);
     }
     else {
       new_best_edge = best_edge;
@@ -321,14 +324,72 @@ struct array* get_best_edges(long to_node_id, uint64_t amount, long source_node_
 }
 
 /* get the weight of an edge which depends on the timelock and fee required in the edge */
+// Based on paper "Comparing Lightning Routing Protocols to Routing Protocols with Splitting" section 2.1.
 double get_edge_weight(uint64_t amount, uint64_t fee, uint32_t timelock){
   double timelock_penalty;
   timelock_penalty = amount*((double)timelock)*RISKFACTOR/((double)1000000000);
   return timelock_penalty + ((double) fee);
 }
 
+uint64_t estimate_capacity(struct edge* edge, struct network* network, enum routing_method routing_method){
+    struct channel* channel = array_get(network->channels, edge->channel_id);
+
+    uint64_t estimated_capacity;
+
+    // intermediate edges
+    // judge edge has enough capacity by group_capacity (proposed method)
+    if(routing_method == GROUP_ROUTING){
+        if(edge->group != NULL){
+            estimated_capacity = edge->group->group_cap;
+        }else{
+            estimated_capacity = channel->capacity;
+        }
+    }
+
+    // judge by channel_update (conventional method)
+    else if (routing_method == CHANNEL_UPDATE){
+
+        // search for valid channel_updates that is less than channel_capacity starting from the latest
+        struct channel_update* valid_channel_update = NULL;
+        if(edge->channel_updates != NULL) {
+            for(struct element* iterator = edge->channel_updates; iterator->next != NULL; iterator = iterator->next){
+                valid_channel_update = iterator->data;
+
+                // if the valid_channel_update value does not exceed channel_capacity
+                if(valid_channel_update->htlc_maximum_msat < channel->capacity) break;
+
+                // oldest channel_update
+                if(iterator->next == NULL) valid_channel_update = edge->channel_updates->data;
+            }
+        }
+
+        if(valid_channel_update != NULL){
+            estimated_capacity = valid_channel_update->htlc_maximum_msat;
+        }else{
+            estimated_capacity = channel->capacity;
+        }
+    }
+
+    // judge by channel capacity (cloth method)
+    else if (routing_method == CLOTH_ORIGINAL){
+        estimated_capacity = channel->capacity;
+    }
+
+    // judge by edge capacity (ideal for routing but no privacy)
+    else if (routing_method == IDEAL){
+        estimated_capacity = edge->balance;
+    }
+
+    else {
+        printf("invalid routing method\n");
+        exit(1);
+    }
+
+    return estimated_capacity;
+}
+
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error) {
+struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
   struct node *source_node, *best_node;
@@ -389,19 +450,22 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       edge = array_get(network->edges, edge->counter_edge_id);
 
       from_node_id = edge->from_node_id;
-      if(from_node_id == source){
-        if(edge->balance < amt_to_send)
-          continue;
-      }
-      else{
-        channel = array_get(network->channels, edge->channel_id);
-        if(channel->capacity < amt_to_send)
-          continue;
+      channel = array_get(network->channels, edge->channel_id);
+      if(from_node_id == source){   // first hop
+//        if(channel->occupied) continue;    // exclude locked channel
+        if(edge->balance < amt_to_send) continue;   // exclude edge whose balance is not enough
+      }else{
+          uint64_t estimated_capacity = estimate_capacity(edge, network, routing_method);
+          if(estimated_capacity < amt_to_send) continue;
       }
 
-      if(amt_to_send < edge->policy.min_htlc)
-        continue;
+      if(exclude_edges != NULL) {
+        if(is_in_list(exclude_edges, &(edge->id), is_equal_edge)) continue;
+      }
 
+      if(amt_to_send < edge->policy.min_htlc) continue;
+
+      // calc probability by past channel_update msg(node_result)
       edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
 
       if(edge_probability == 0) continue;
@@ -421,9 +485,9 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       tmp_probability = to_node_dist.probability*edge_probability;
       if(tmp_probability < PROBABILITYLIMIT) continue;
 
-      edge_weight = get_edge_weight(amt_to_receive, edge_fee, edge_timelock);
-      tmp_weight = to_node_dist.weight + edge_weight;
-      tmp_dist = get_probability_based_dist(tmp_weight, tmp_probability);
+      edge_weight = get_edge_weight(amt_to_receive, edge_fee, edge_timelock);   // calc weight based on LND
+      tmp_weight = to_node_dist.weight + edge_weight;   // calc weight based on LND
+      tmp_dist = get_probability_based_dist(tmp_weight, tmp_probability);   // calc dist based on LND
 
       current_dist = distance[p][from_node_id].distance;
       current_prob = distance[p][from_node_id].probability;
@@ -431,16 +495,17 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       if(tmp_dist == current_dist && tmp_probability <= current_prob) continue;
 
       distance[p][from_node_id].node = from_node_id;
-      distance[p][from_node_id].distance = tmp_dist;
+      distance[p][from_node_id].distance = tmp_dist;    // calculated by fee, weight, timelock and probability
       distance[p][from_node_id].weight = tmp_weight;
       distance[p][from_node_id].amt_to_receive = amt_to_receive;
       distance[p][from_node_id].timelock = tmp_timelock;
-      distance[p][from_node_id].probability = tmp_probability;
+      distance[p][from_node_id].probability = tmp_probability;  // calculated by edge_probability?
       distance[p][from_node_id].next_edge = edge->id;
 
+      // update edge weight comparing distance or probability in compare_distance()
       distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
     }
-    }
+  }
 
   hops = array_initialize(5);
   curr = source;
@@ -480,7 +545,7 @@ struct route* route_initialize(long n_hops) {
 
 /* transform a path into a route by computing fees and timelocks required at each hop in the path */
 /* slightly differet w.r.t. `newRoute` in lnd because `newRoute` aims to produce the payloads for each node from the second in the path to the last node */
-struct route* transform_path_into_route(struct array* path_hops, uint64_t destination_amt, struct network* network) {
+struct route* transform_path_into_route(struct array* path_hops, uint64_t destination_amt, struct network* network, uint64_t time) {
   struct path_hop *path_hop;
   struct route_hop *route_hop, *next_route_hop;
   struct route *route;
@@ -502,6 +567,13 @@ struct route* transform_path_into_route(struct array* path_hops, uint64_t destin
     route_hop->from_node_id = path_hop->sender;
     route_hop->to_node_id = path_hop->receiver;
     route_hop->edge_id = path_hop->edge;
+    route_hop->edges_lock_start_time = time;
+    route_hop->edges_lock_end_time = 0;
+    if(edge->group != NULL) {
+        route_hop->group_cap = edge->group->group_cap;
+    }else{
+        route_hop->group_cap = 0;
+    }
     if(i == n_hops-1) {
       route_hop->amount_to_forward = destination_amt;
       route->total_amount += destination_amt;
@@ -533,4 +605,12 @@ struct route* transform_path_into_route(struct array* path_hops, uint64_t destin
   array_reverse(route->route_hops);
 
   return route;
+}
+
+void free_route(struct route* route){
+    for(int i = 0; i < array_len(route->route_hops); i++){
+        free(array_get(route->route_hops, i));
+    }
+    array_free(route->route_hops);
+    free(route);
 }

@@ -21,10 +21,11 @@ Lightning Network.
 Install the requirements: 
 
 ```sh
-sudo apt-get install gcc
-sudo apt-get install libgsl-dev
-sudo apt-get install python
-sudo apt-get install python-pip
+sudo apt-get install gcc -y
+sudo apt-get install libgsl-dev -y
+sudo apt-get install python3 -y
+sudo apt-get install python3-pip -y
+sudo apt-get install cmake -y 
 pip install numpy
 pip install scipy
 ```
@@ -33,16 +34,19 @@ pip install scipy
 
 Build CLoTH:
 
-```sh
-make build
+```shell
+mkdir cmake-build-debug
+cd cmake-build-debug
+cmake ../.
+make
 ```
 
 ## Run
 
 Run CLoTH:
 
-```sh
-./run-simulation.sh <seed> <output-directory>
+```shell
+./run-simulation.sh <seed> <output-directory> <dijkstra_cache_filename> [setting_key=setting_value]
 ```
 
 where `seed` is the seed used for random variables of the simulator and

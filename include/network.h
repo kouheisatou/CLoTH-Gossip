@@ -56,6 +56,55 @@ struct edge {
   uint64_t balance;
   unsigned int is_closed;
   uint64_t tot_flows;
+  struct group* group;
+  struct element* channel_updates;
+  struct element* edge_locked_balance_and_durations;
+};
+
+
+struct edge_locked_balance_and_duration{
+    uint64_t locked_balance;
+    uint64_t locked_start_time;
+    uint64_t locked_end_time;
+};
+
+
+struct edge_snapshot {
+  long id;
+  uint64_t balance;
+  short is_in_group;
+  uint64_t group_cap;
+  short does_channel_update_exist;
+  uint64_t last_channle_update_value;
+  uint64_t sent_amt;
+};
+
+
+struct channel_update {
+    long edge_id;
+    uint64_t time;
+    uint64_t htlc_maximum_msat;
+};
+
+
+struct group_update {
+    uint64_t time;
+    uint64_t group_cap;
+    uint64_t* edge_balances;
+};
+
+
+struct group {
+    long id;
+    struct array* edges;
+    uint64_t max_cap_limit;
+    uint64_t min_cap_limit;
+    uint64_t max_cap;
+    uint64_t min_cap;
+    uint64_t group_cap;
+    uint64_t is_closed; // if not zero, it describes closed time
+    uint64_t constructed_time;
+    struct element* history; // list of `struct group_update`
 };
 
 
@@ -69,6 +118,7 @@ struct network {
   struct array* nodes;
   struct array* channels;
   struct array* edges;
+  struct array* groups;
   gsl_ran_discrete_t* faulty_node_prob; //the probability that a nodes in the network has a fault and goes offline
 };
 
@@ -77,11 +127,18 @@ struct node* new_node(long id);
 
 struct channel* new_channel(long id, long direction1, long direction2, long node1, long node2, uint64_t capacity);
 
-struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy);
+struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy, uint64_t channel_capacity);
 
 void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
+int update_group(struct group* group, struct network_params net_params, uint64_t current_time);
+
+long get_edge_balance(struct edge* e);
+
+void free_network(struct network* network);
+
+struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
 
 #endif

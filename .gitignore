@@ -50,3 +50,14 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+/result/
+/payments.csv
+/cloth
+/.idea
+/cmake-build-debug/
+dijkstra_cache*
+dijkstra_cache/*
+.DS_Store
+tasks.json
+.vscode

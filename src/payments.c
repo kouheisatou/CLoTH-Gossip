@@ -28,6 +28,7 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->is_success = 0;
   p->offline_node_count = 0;
   p->no_balance_count = 0;
+//  p->edge_occupied_count = 0;
   p->is_timeout = 0;
   p->end_time = 0;
   p->attempts = 0;
@@ -35,6 +36,7 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->error.hop = NULL;
   p->is_shard = 0;
   p->shards_id[0] = p->shards_id[1] = -1;
+  p->history = NULL;
   return p;
 }
 
@@ -59,6 +61,7 @@ void generate_random_payments(struct payments_params pay_params, long n_nodes, g
       receiver_id = gsl_rng_uniform_int(random_generator, n_nodes);
     } while(sender_id==receiver_id);
     payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator))*1000.0;
+//    payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator) * pay_params.variance_amount); // on few payment simulation, low success rate
     /* payment interarrival time is an exponential (Poisson process) whose mean is the inverse of payment rate
        (expressed in payments per second, then multiplied to convert in milliseconds)
      */
@@ -108,4 +111,30 @@ struct array* initialize_payments(struct payments_params pay_params, long n_node
   if(!(pay_params.payments_from_file))
     generate_random_payments(pay_params, n_nodes, random_generator);
   return generate_payments(pay_params);
+}
+
+void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded){
+  struct attempt* attempt = malloc(sizeof(struct attempt));
+  attempt->attempts = pmt->attempts;
+  attempt->end_time = time;
+  if(is_succeeded){
+    attempt->error_edge_id = 0;
+    attempt->error_type = NOERROR;
+  }else{
+    attempt->error_edge_id = pmt->error.hop->edge_id;
+    attempt->error_type = pmt->error.type;
+  }
+  attempt->is_succeeded = is_succeeded;
+  long route_len = array_len(pmt->route->route_hops);
+  attempt->route = array_initialize(route_len);
+
+  for(int i = 0; i < route_len; i++){
+    struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
+    struct edge* edge = array_get(network->edges, route_hop->edge_id);
+    short is_in_group = 0;
+    if(edge->group != NULL) is_in_group = 1;
+    attempt->route = array_insert(attempt->route, take_edge_snapshot(edge, route_hop->amount_to_forward, is_in_group, route_hop->group_cap));
+  }
+
+  pmt->history = push(pmt->history, attempt);
 }

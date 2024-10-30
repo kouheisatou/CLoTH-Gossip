@@ -6,6 +6,9 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
+enum routing_method{
+    CLOTH_ORIGINAL, CHANNEL_UPDATE, GROUP_ROUTING, IDEAL
+};
 
 struct network_params{
   long n_nodes;
@@ -16,6 +19,14 @@ struct network_params{
   char nodes_filename[256];
   char channels_filename[256];
   char edges_filename[256];
+  unsigned int payment_timeout; // set -1 to disable payment timeout
+  unsigned int average_payment_forward_interval;
+  unsigned int variance_payment_forward_interval;
+  enum routing_method routing_method;
+  unsigned int group_cap_update;
+  unsigned int group_broadcast_delay;
+  int group_size;
+  float group_limit_rate;
 };
 
 struct payments_params{

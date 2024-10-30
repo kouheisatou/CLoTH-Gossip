@@ -39,10 +39,20 @@ struct payment {
   int offline_node_count;
   int no_balance_count;
   unsigned int is_timeout;
+  struct element* history; // list of `struct attempt`
+};
 
+struct attempt {
+  int attempts;
+  uint64_t end_time;
+  long error_edge_id;
+  enum payment_error_type error_type;
+  struct array* route; // array of `struct edge_snapshot`
+  short is_succeeded;
 };
 
 struct payment* new_payment(long id, long sender, long receiver, uint64_t amount, uint64_t start_time);
 struct array* initialize_payments(struct payments_params pay_params, long n_nodes, gsl_rng* random_generator);
+void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded);
 
 #endif
