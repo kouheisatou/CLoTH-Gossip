@@ -67,7 +67,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,balances,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
+  fprintf(csv_group_output, "id,edges,balances,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul,history\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
@@ -100,7 +100,27 @@ void write_output(struct network* network, struct array* payments, char output_d
     for(j=0; j< n_members; j++){
         sum_cul += (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
     }
-    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
+    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f,", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
+    fprintf(csv_group_output, "[");
+    for(struct element* iterator = group->history; iterator != NULL; iterator = iterator->next){
+        group_update = iterator->data;
+        fprintf(csv_group_output, "{time:%lu,group_cap:%lu,min_edge_id:%ld,balances:{", group_update->time, group_update->group_cap, group_update->min_edge->id);
+        for(j = 0; j < array_len(group->edges); j++){
+            fprintf(csv_group_output, "%ld:%lu", ((struct edge*)array_get(group->edges, j))->id, group_update->edge_balances[j]);
+            if(j == array_len(group->edges) -1){
+                fprintf(csv_group_output, "}");
+            }else{
+                fprintf(csv_group_output, ",");
+            }
+        }
+        fprintf(csv_group_output, "}");
+        if(iterator->next == NULL){
+            fprintf(csv_group_output, "]");
+        }else{
+            fprintf(csv_group_output, ",");
+        }
+    }
+    fprintf(csv_group_output, "\n");
   }
   fclose(csv_group_output);
 

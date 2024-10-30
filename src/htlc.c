@@ -719,16 +719,18 @@ struct element* request_group_update(struct event* event, struct simulation* sim
         struct route_hop* hop = array_get(event->payment->route->route_hops, i);
         struct edge* edge = array_get(network->edges, hop->edge_id);
         struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
+        struct group* close_target_group;
 
-        if(edge->group != NULL) {
-            int close_flg = update_group(edge->group, net_params, simulation->current_time);
+        close_target_group = edge->group;
+        if(close_target_group != NULL) {
+            int close_flg = update_group(close_target_group, net_params, simulation->current_time);
 
             if(close_flg){
-                edge->group->is_closed = simulation->current_time;
+                close_target_group->is_closed = simulation->current_time;
 
                 // add edges to queue
-                for(long j = 0; j < array_len(edge->group->edges); j++){
-                    struct edge* edge_in_group = array_get(edge->group->edges, j);
+                for(long j = 0; j < array_len(close_target_group->edges); j++){
+                    struct edge* edge_in_group = array_get(close_target_group->edges, j);
                     edge_in_group->group = NULL;
                     group_add_queue = list_insert_sorted_position(group_add_queue, edge_in_group, (long (*)(void *)) get_edge_balance);
                 }
@@ -740,15 +742,16 @@ struct element* request_group_update(struct event* event, struct simulation* sim
             }
         }
 
-        if(counter_edge->group != NULL) {
-            int close_flg = update_group(counter_edge->group, net_params, simulation->current_time);
+        close_target_group = counter_edge->group;
+        if(close_target_group != NULL) {
+            int close_flg = update_group(close_target_group, net_params, simulation->current_time);
 
             if(close_flg){
-                counter_edge->group->is_closed = simulation->current_time;
+                close_target_group->is_closed = simulation->current_time;
 
                 // add edges to queue
-                for(long j = 0; j < array_len(counter_edge->group->edges); j++){
-                    struct edge* edge_in_group = array_get(counter_edge->group->edges, j);
+                for(long j = 0; j < array_len(close_target_group->edges); j++){
+                    struct edge* edge_in_group = array_get(close_target_group->edges, j);
                     edge_in_group->group = NULL;
                     group_add_queue = list_insert_sorted_position(group_add_queue, edge_in_group, (long (*)(void *)) get_edge_balance);
                 }

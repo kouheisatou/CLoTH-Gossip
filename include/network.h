@@ -91,6 +91,7 @@ struct group_update {
     uint64_t time;
     uint64_t group_cap;
     uint64_t* edge_balances;
+    struct edge* min_edge;
 };
 
 

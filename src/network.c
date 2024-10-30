@@ -385,23 +385,31 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     int close_flg = 0;
 
     // update group cap
-    uint64_t min = UINT64_MAX;
-    uint64_t max = 0;
+    struct edge* min_edge = NULL;
+    struct edge* max_edge = NULL;
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
-        if(edge->balance < min) min = edge->balance;
-        if(edge->balance > max) max = edge->balance;
+        if (min_edge == NULL || edge->balance < min_edge->balance) min_edge = edge;
+        if (max_edge == NULL || edge->balance > max_edge->balance) max_edge = edge;
 
         if(!can_join_group(group, edge)){
             close_flg = 1;
         }
     }
 
+    // close the group when two consecutive edges with the same value take the minimum value
+    if(group->history != NULL) {
+        struct group_update* latest_update = group->history->data;
+        if (latest_update->min_edge->id == min_edge->id) {
+            close_flg = 2;
+        }
+    }
+
     // update group capacity
-    group->max_cap = max;
-    group->min_cap = min;
+    group->max_cap = max_edge->balance;
+    group->min_cap = min_edge->balance;
     if(net_params.group_cap_update) {
-        group->group_cap = min;
+        group->group_cap = min_edge->balance;
     }else{
         group->group_cap = group->min_cap_limit;
     }
@@ -410,6 +418,7 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     struct group_update* group_update = malloc(sizeof(struct group_update));
     group_update->group_cap = group->group_cap;
     group_update->time = current_time;
+    group_update->min_edge = min_edge;
     group_update->edge_balances = malloc(sizeof(uint64_t) * array_len(group->edges));
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
