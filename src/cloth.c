@@ -380,6 +380,10 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         if(strcmp(value, "")==0) net_params->group_size = -1;
         else net_params->group_size = strtol(value, NULL, 10);
     }
+    else if(strcmp(parameter, "n_group_per_link")==0){
+        if(strcmp(value, "")==0) net_params->n_group_per_link = -1;
+        else net_params->n_group_per_link = strtol(value, NULL, 10);
+    }
     else if(strcmp(parameter, "group_limit_rate")==0){
         if(strcmp(value, "")==0) net_params->group_limit_rate = -1;
         else net_params->group_limit_rate = strtof(value, NULL);
