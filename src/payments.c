@@ -132,7 +132,7 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
     struct edge* edge = array_get(network->edges, route_hop->edge_id);
     short is_in_group = 0;
-    if(edge->group != NULL) is_in_group = 1;
+    if(edge->groups != NULL) is_in_group = 1;
     attempt->route = array_insert(attempt->route, take_edge_snapshot(edge, route_hop->amount_to_forward, is_in_group, route_hop->group_cap));
   }
 

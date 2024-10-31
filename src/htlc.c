@@ -713,136 +713,112 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
-struct element* request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue){
+void request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
 
     for(long i = 0; i < array_len(event->payment->route->route_hops); i++){
         struct route_hop* hop = array_get(event->payment->route->route_hops, i);
         struct edge* edge = array_get(network->edges, hop->edge_id);
         struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
-        struct group* close_target_group;
 
-        close_target_group = edge->group;
-        if(close_target_group != NULL) {
-            int close_flg = update_group(close_target_group, net_params, simulation->current_time);
+        for(struct element* iterator = edge->groups; iterator != NULL; iterator = iterator->next){
+            struct group* group = iterator->data;
 
+            // update group
+            int close_flg = update_group(group, net_params, simulation->current_time);
+
+            // close group
             if(close_flg){
-                close_target_group->is_closed = simulation->current_time;
 
-                // add edges to queue
-                for(long j = 0; j < array_len(close_target_group->edges); j++){
-                    struct edge* edge_in_group = array_get(close_target_group->edges, j);
-                    edge_in_group->group = NULL;
-                    group_add_queue = list_insert_sorted_position(group_add_queue, edge_in_group, (long (*)(void *)) get_edge_balance);
+                // record closed time
+                group->is_closed = simulation->current_time;
+
+                // remove group from edge->groups
+                for(int j = 0; j < array_len(group->edges); j++){
+                    struct edge* edge_in_closed_group = array_get(group->edges, j);
+                    edge_in_closed_group->groups = list_delete(edge_in_closed_group->groups, &iterator, group, (int (*)(void *, void *)) is_equal_group);
                 }
 
-                // construct_groups event
+                // reconstruct groups for closed group's edge on next event
                 uint64_t next_event_time = simulation->current_time;
                 struct event* next_event = new_event(next_event_time, CONSTRUCTGROUPS, event->node_id, event->payment);
                 simulation->events = heap_insert(simulation->events, next_event, compare_event);
             }
         }
 
-        close_target_group = counter_edge->group;
-        if(close_target_group != NULL) {
-            int close_flg = update_group(close_target_group, net_params, simulation->current_time);
+        for(struct element* iterator = counter_edge->groups; iterator != NULL; iterator = iterator->next){
+            struct group* group = iterator->data;
 
+            // update group
+            int close_flg = update_group(group, net_params, simulation->current_time);
+
+            // close group
             if(close_flg){
-                close_target_group->is_closed = simulation->current_time;
 
-                // add edges to queue
-                for(long j = 0; j < array_len(close_target_group->edges); j++){
-                    struct edge* edge_in_group = array_get(close_target_group->edges, j);
-                    edge_in_group->group = NULL;
-                    group_add_queue = list_insert_sorted_position(group_add_queue, edge_in_group, (long (*)(void *)) get_edge_balance);
+                // record closed time
+                group->is_closed = simulation->current_time;
+
+                // remove closed group from edge->groups
+                for(int j = 0; j < array_len(group->edges); j++){
+                    struct edge* edge_in_closed_group = array_get(group->edges, j);
+                    edge_in_closed_group->groups = list_delete(edge_in_closed_group->groups, &iterator, group, (int (*)(void *, void *)) is_equal_group);
                 }
 
-                // construct_groups event
+                // reconstruct groups for closed group's edge on next event
                 uint64_t next_event_time = simulation->current_time;
                 struct event* next_event = new_event(next_event_time, CONSTRUCTGROUPS, event->node_id, event->payment);
                 simulation->events = heap_insert(simulation->events, next_event, compare_event);
             }
         }
     }
-
-    return group_add_queue;
 }
 
-struct element* construct_groups(struct simulation* simulation, struct element* group_add_queue, struct network *network, struct network_params net_params){
+/**
+ * Create all new groups that requesting_edge can construct.
+ * @param requesting_edge
+ * @param simulation
+ * @param network
+ * @param net_params
+ */
+void construct_groups(struct edge* requesting_edge, struct simulation* simulation, struct network *network, struct network_params net_params){
 
-    if(group_add_queue == NULL) return group_add_queue;
+    // new group
+    struct group* group = malloc(sizeof(struct group));
+    group->edges = array_initialize(net_params.group_size);
+    group->edges = array_insert(group->edges, requesting_edge);
+    if(net_params.group_limit_rate != -1) {
+        group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+        group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+        if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
+        if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
+    }else {
+        group->max_cap_limit = UINT64_MAX;
+        group->min_cap_limit = 0;
+    }
+    group->id = array_len(network->groups);
+    group->is_closed = 0;
+    group->constructed_time = simulation->current_time;
+    group->history = NULL;
 
-    for(struct element* iterator = group_add_queue; iterator != NULL; iterator = iterator->next){
-
-        struct edge* requesting_edge = iterator->data;
-
-        // new group
-        struct group* group = malloc(sizeof(struct group));
-        group->edges = array_initialize(net_params.group_size);
-        group->edges = array_insert(group->edges, requesting_edge);
-        if(net_params.group_limit_rate != -1) {
-            group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-            group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-            if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
-            if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
-        }else {
-            group->max_cap_limit = UINT64_MAX;
-            group->min_cap_limit = 0;
-        }
-        group->id = array_len(network->groups);
-        group->is_closed = 0;
-        group->constructed_time = simulation->current_time;
-        group->history = NULL;
-
-        // search the closest balance edge from neighbor
-        struct element* bottom = iterator;
-        struct element* top = iterator;
-        while(bottom != NULL || top != NULL){
-
-            // both edge are out of group limit, skip this group
-            if(top != NULL && bottom != NULL){
-                struct edge* bottom_edge = bottom->data;
-                struct edge* top_edge = top->data;
-                if(bottom_edge->balance < group->min_cap_limit && top_edge->balance > group->max_cap_limit){
-                    break;
-                }
+    // collect edges that satisfy group requirement
+    for(int i = 0; i < array_len(network->edges); i++){
+        struct edge* edge = array_get(network->edges, i);
+        if(can_join_group(group, edge)){
+            group->edges = array_insert(group->edges, edge);
+            if(array_len(group->edges) == net_params.group_size){
+                break;
             }
-
-            // join bottom and top edge to group
-            if(bottom != NULL){
-                struct edge* bottom_edge = bottom->data;
-                if(can_join_group(group, bottom_edge)){
-                    group->edges = array_insert(group->edges, bottom_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
-                }
-                bottom = bottom->prev;
-            }
-            if(top != NULL){
-                struct edge* top_edge = top->data;
-                if(can_join_group(group, top_edge)){
-                    group->edges = array_insert(group->edges, top_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
-                }
-                top = top->next;
-            }
-        }
-
-        // register group
-        if(array_len(group->edges) == net_params.group_size){
-            // init group_cap
-            update_group(group, net_params, simulation->current_time);
-            network->groups = array_insert(network->groups, group);
-            for(int i = 0; i < array_len(group->edges); i++){
-                struct edge* group_member_edge = array_get(group->edges, i);
-                group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) is_equal_edge);
-                group_member_edge->group = group;
-            }
-            if(iterator == NULL) break;
-        }else{
-            array_free(group->edges);
-            free(group);
         }
     }
-    return group_add_queue;
+
+    // register group
+    if(array_len(group->edges) == net_params.group_size){
+        // init group_cap
+        update_group(group, net_params, simulation->current_time);
+        network->groups = array_insert(network->groups, group);
+    }else{
+        array_free(group->edges);
+        free(group);
+    }
 }
 
 void channel_update_success(struct event* event, struct simulation* simulation, struct network* network){

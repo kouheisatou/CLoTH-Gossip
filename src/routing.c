@@ -339,11 +339,14 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
     // intermediate edges
     // judge edge has enough capacity by group_capacity (proposed method)
     if(routing_method == GROUP_ROUTING){
-        if(edge->group != NULL){
-            estimated_capacity = edge->group->group_cap;
-        }else{
-            estimated_capacity = channel->capacity;
+        uint64_t max_group_cap = 0;
+        for(struct element* iterator = edge->groups; iterator != NULL; iterator = iterator->next){
+            struct group* group = iterator->data;
+            if(max_group_cap < group->group_cap){
+                max_group_cap = group->group_cap;
+            }
         }
+        estimated_capacity = max_group_cap;
     }
 
     // judge by channel_update (conventional method)
@@ -569,10 +572,12 @@ struct route* transform_path_into_route(struct array* path_hops, uint64_t destin
     route_hop->edge_id = path_hop->edge;
     route_hop->edges_lock_start_time = time;
     route_hop->edges_lock_end_time = 0;
-    if(edge->group != NULL) {
-        route_hop->group_cap = edge->group->group_cap;
-    }else{
-        route_hop->group_cap = 0;
+    route_hop->group_cap = 0;
+    for(struct element* iterator = edge->groups; iterator != NULL; iterator = iterator->next){
+        struct group* group = iterator->data;
+        if(route_hop->group_cap < group->group_cap){
+            route_hop->group_cap = group->group_cap;
+        }
     }
     if(i == n_hops-1) {
       route_hop->amount_to_forward = destination_amt;

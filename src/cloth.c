@@ -101,7 +101,7 @@ void write_output(struct network* network, struct array* payments, char output_d
         sum_cul += (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
     }
     fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f,", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
-    fprintf(csv_group_output, "[");
+    fprintf(csv_group_output, "\"[");
     for(struct element* iterator = group->history; iterator != NULL; iterator = iterator->next){
         group_update = iterator->data;
         fprintf(csv_group_output, "{time:%lu,group_cap:%lu,min_edge_id:%ld,balances:{", group_update->time, group_update->group_cap, group_update->min_edge->id);
@@ -115,7 +115,7 @@ void write_output(struct network* network, struct array* payments, char output_d
         }
         fprintf(csv_group_output, "}");
         if(iterator->next == NULL){
-            fprintf(csv_group_output, "]");
+            fprintf(csv_group_output, "]\"");
         }else{
             fprintf(csv_group_output, ",");
         }
@@ -153,10 +153,14 @@ void write_output(struct network* network, struct array* payments, char output_d
         strncpy(channel_updates_text, temp, sizeof(channel_updates_text) - 1);
     }
     fprintf(csv_edge_output, "%s,", channel_updates_text);
-    if(edge->group == NULL){
-        fprintf(csv_edge_output, "NULL,");
-    }else{
-        fprintf(csv_edge_output, "%ld,", edge->group->id);
+    for(struct element* iterator = edge->groups; iterator != NULL; iterator = iterator->next){
+        struct group* group = iterator->data;
+        fprintf(csv_edge_output, "%ld", group->id);
+        if(iterator->next == NULL){
+            fprintf(csv_edge_output, ",");
+        }else{
+            fprintf(csv_edge_output, "-");
+        }
     }
     for(struct element* iterator = edge->edge_locked_balance_and_durations; iterator != NULL; iterator = iterator->next){
         struct edge_locked_balance_and_duration* edge_locked_balance_time = iterator->data;
@@ -618,14 +622,12 @@ int main(int argc, char *argv[]) {
   n_edges = array_len(network->edges);
 
     // add edge which is not a member of any group to group_add_queue
-    struct element* group_add_queue = NULL;
     if(net_params.routing_method == GROUP_ROUTING) {
         for (int i = 0; i < n_edges; i++) {
-            group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
+            struct edge* edge = array_get(network->edges, i);
+            construct_groups(edge, simulation, network, net_params);
         }
-        group_add_queue = construct_groups(simulation, group_add_queue, network, net_params);
     }
-    printf("group_cover_rate on init : %f\n", (float)(array_len(network->edges) - list_len(group_add_queue)) / (float)(array_len(network->edges)));
 
   printf("PAYMENTS INITIALIZATION\n");
   payments = initialize_payments(pay_params,  n_nodes, simulation->random_generator);
@@ -705,10 +707,13 @@ int main(int argc, char *argv[]) {
     case CHANNELUPDATESUCCESS:
       channel_update_success(event, simulation, network);
     case UPDATEGROUP:
-      group_add_queue = request_group_update(event, simulation, network, net_params, group_add_queue);
+      request_group_update(event, simulation, network, net_params);
       break;
     case CONSTRUCTGROUPS:
-      group_add_queue = construct_groups(simulation, group_add_queue, network, net_params);
+      for (int i = 0; i < n_edges; i++) {
+        struct edge* edge = array_get(network->edges, i);
+        construct_groups(edge, simulation, network, net_params);
+      }
       break;
     default:
       printf("ERROR wrong event type\n");
@@ -741,7 +746,6 @@ int main(int argc, char *argv[]) {
 
   write_output(network, payments, output_dir_name);
 
-    list_free(group_add_queue);
     free(simulation->random_generator);
     heap_free(simulation->events);
   free(simulation);
