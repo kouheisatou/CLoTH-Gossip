@@ -815,6 +815,10 @@ void construct_groups(struct edge* requesting_edge, struct simulation* simulatio
         // init group_cap
         update_group(group, net_params, simulation->current_time);
         network->groups = array_insert(network->groups, group);
+        for(int i = 0; i < array_len(group->edges); i++){
+            struct edge* edge = array_get(group->edges, i);
+            edge->groups = push(edge->groups, group);
+        }
     }else{
         array_free(group->edges);
         free(group);
