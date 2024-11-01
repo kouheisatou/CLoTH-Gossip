@@ -623,10 +623,12 @@ int main(int argc, char *argv[]) {
 
     // add edge which is not a member of any group to group_add_queue
     if(net_params.routing_method == GROUP_ROUTING) {
+        struct element* requesting_edges = NULL;
         for (int i = 0; i < n_edges; i++) {
-            struct edge* edge = array_get(network->edges, i);
-            construct_groups_of(edge, simulation, network, net_params);
+            requesting_edges = push(requesting_edges, array_get(network->edges, i));
         }
+        construct_groups(requesting_edges, simulation, network, net_params);
+        list_free(requesting_edges);
     }
 
   printf("PAYMENTS INITIALIZATION\n");

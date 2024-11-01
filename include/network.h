@@ -136,8 +136,6 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
 
 int update_group(struct group* group, struct network_params net_params, uint64_t current_time);
 
-long get_edge_balance(struct edge* e);
-
 void free_network(struct network* network);
 
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);

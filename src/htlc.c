@@ -780,89 +780,119 @@ void request_group_update(struct event* event, struct simulation* simulation, st
 }
 
 void reconstruct_groups(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
-    struct element* closed_groups = event->payload;
+    struct element* closed_groups = event->payload; // list of `struct group`
 
     printf("groups : -%ld\t", list_len(closed_groups));
 
-    for(struct element* iterator = closed_groups; iterator != NULL; iterator = iterator->next){
+    struct element* requesting_edges = NULL;
+    for(struct element* iterator = closed_groups; iterator != NULL; iterator = iterator->next) {
         struct group* closed_group = iterator->data;
         for(int i = 0; i < array_len(closed_group->edges); i++){
-            struct edge* edge = array_get(closed_group->edges, i);
-            printf("%ld-", edge->id);
-            construct_groups_of(edge, simulation, network, net_params);
-        }
-        printf(",");
-    }
-
-//    struct array* constructed_groups = array_initialize(100);
-//    printf("\ngroups : +%ld\t", array_len(constructed_groups));
-//    for(int i = 0; i < array_len(constructed_groups); i++){
-//        struct group* constructed_group = array_get(constructed_groups, i);
-//        for(int j = 0; j < array_len(constructed_group->edges); j++) {
-//            struct edge* edge = array_get(constructed_group->edges, j);
-//            printf("%ld-", edge->id);
-//        }
-//        printf(",");
-//    }
-//    printf("\n");
-
-    // group cover rate calculation
-    long n_edges_in_group = 0;
-    for(int i = 0; i < array_len(network->edges); i++){
-        if(list_len(((struct edge*)array_get(network->edges, i))->groups) != 0){
-            n_edges_in_group++;
+            struct edge* requesting_edge = array_get(closed_group->edges, i);
+            requesting_edges = push(requesting_edges, requesting_edge);
         }
     }
-    printf("coverage : %f%%\n", 100*((float)n_edges_in_group / (float)array_len(network->edges)));
 
+    int constructed_groups = construct_groups(requesting_edges, simulation, network, net_params);
+    printf("+%d\n", constructed_groups);
+
+    list_free(requesting_edges);
     list_free(event->payload);
 }
 
-/**
- * Create all new groups that requesting_edge can construct.
- * @param requesting_edge
- * @param simulation
- * @param network
- * @param net_params
- * @return Number of  constructed groups
- */
-int construct_groups_of(struct edge* requesting_edge, struct simulation* simulation, struct network *network, struct network_params net_params){
+int construct_groups(struct element* requesting_edges, struct simulation* simulation, struct network* network, struct network_params net_params){
 
-    int n_constructed_groups = 0;
+    int constructed_groups = 0;
 
-    struct group* group = new_group(requesting_edge, net_params, network, simulation);
+    struct element* sorted_edges = NULL;
+    struct array* requesting_edges_elements = array_initialize(list_len(requesting_edges));
     for(int i = 0; i < array_len(network->edges); i++){
         struct edge* edge = array_get(network->edges, i);
-
-        if(can_join_group(group, edge)){
-
-            group->edges = array_insert(group->edges, edge);
-
-            // when group size satisfy
-            if(array_len(group->edges) == net_params.group_size){
-
-                // register group
-                update_group(group, net_params, simulation->current_time);
-                network->groups = array_insert(network->groups, group);
-                for(int j = 0; j < array_len(group->edges); j++){
-                    struct edge* edge_in_group = array_get(group->edges, j);
-                    edge_in_group->groups = push(edge_in_group->groups, group);
-                }
-                n_constructed_groups++;
-
-                // create next group
-                group = new_group(requesting_edge, net_params, network, simulation);
-            }
+        struct element* inserted_edge;
+        sorted_edges = list_insert_sorted_position(sorted_edges, edge, (long (*)(void *))get_edge_balance, &inserted_edge);
+        if(is_in_list(requesting_edges, edge, is_equal_edge)){
+            requesting_edges_elements = array_insert(requesting_edges_elements, inserted_edge);
         }
     }
 
-    // if edge candidates are exhausted before the group_size condition satisfy
-    if(array_len(group->edges) < net_params.group_size){
-        array_free(group->edges);
-        free(group);
+    for(int i = 0; i < array_len(requesting_edges_elements); i++){
+
+        struct element* requesting_edges_element = array_get(requesting_edges_elements, i);
+        struct group* group = new_group(requesting_edges_element->data, net_params, network, simulation);
+        struct element* bottom = requesting_edges_element;
+        struct element* top = requesting_edges_element;
+
+        while((bottom != NULL && ((struct edge*)bottom->data)->balance >= group->min_cap_limit) ||
+                (top != NULL && ((struct edge*)top->data)->balance <= group->max_cap_limit)){
+
+            // bottom edge iterator
+            if(bottom != NULL) {
+                struct edge *bottom_edge = bottom->data;
+                if (can_join_group(group, bottom_edge)) {
+
+                    group->edges = array_insert(group->edges, bottom_edge);
+
+                    // when group size satisfied
+                    if (array_len(group->edges) >= net_params.group_size) {
+
+                        // register group
+                        update_group(group, net_params, simulation->current_time);
+                        network->groups = array_insert(network->groups, group);
+                        for (int j = 0; j < array_len(group->edges); j++) {
+                            struct edge *edge_in_group = array_get(group->edges, j);
+                            edge_in_group->groups = push(edge_in_group->groups, group);
+                        }
+                        constructed_groups++;
+
+                        // create new group
+                        group = new_group(requesting_edges_element->data, net_params, network, simulation);
+                    }
+                }
+
+                // move iterator next
+                bottom = bottom->prev;
+            }
+
+            // top edge iterator
+            if(top != NULL) {
+                struct edge *top_edge = top->data;
+                if (can_join_group(group, top_edge)) {
+
+                    group->edges = array_insert(group->edges, top_edge);
+
+                    // when group size satisfied
+                    if (array_len(group->edges) >= net_params.group_size) {
+
+                        // register group
+                        update_group(group, net_params, simulation->current_time);
+                        network->groups = array_insert(network->groups, group);
+                        for (int j = 0; j < array_len(group->edges); j++) {
+                            struct edge *edge_in_group = array_get(group->edges, j);
+                            edge_in_group->groups = push(edge_in_group->groups, group);
+                        }
+                        constructed_groups++;
+
+                        // create new group
+                        group = new_group(requesting_edges_element->data, net_params, network, simulation);
+                    }
+                }
+
+                // move iterator next
+                top = top->next;
+            }
+        }
+
+        // if edge candidates are exhausted before the group_size condition satisfy
+        if(array_len(group->edges) < net_params.group_size){
+            array_free(group->edges);
+            free(group);
+        }
     }
 
-    return n_constructed_groups;
+    list_free(sorted_edges);
+    array_free(requesting_edges_elements);
+
+    return constructed_groups;
 }
 
 void channel_update_success(struct event* event, struct simulation* simulation, struct network* network){

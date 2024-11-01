@@ -100,7 +100,7 @@ struct element* list_delete(struct element* head, struct element** current_itera
     return head;
 }
 
-struct element* list_insert_after(struct element* insert_position, void* data, struct element* head){
+struct element* list_insert_after(struct element* insert_position, void* data, struct element* head, struct element** inserted_data){
     if(insert_position != NULL){
         struct element* new_element = malloc(sizeof(struct element));
         struct element* prev = insert_position;
@@ -110,34 +110,38 @@ struct element* list_insert_after(struct element* insert_position, void* data, s
         new_element->prev = prev;
         if(next != NULL) next->prev = new_element;
         prev->next = new_element;
+        *inserted_data = new_element;
     }else{
         head = push(head, data);
+        *inserted_data = head;
     }
 
     return head;
 }
 
-struct element* list_insert_sorted_position(struct element* head, void* data, long (*get_sort_value)(void*)){
+struct element* list_insert_sorted_position(struct element* head, void* data, long (*get_sort_target_value)(void*), struct element** inserted_data){
     if(head == NULL) {
         head = push(head, data);
+        *inserted_data = head;
         return head;
     }
 
     for (struct element* iterator = head; iterator != NULL; iterator = iterator->next){
 
         // insert last
-        if(get_sort_value(iterator->data) < get_sort_value(data) && iterator->next == NULL){
-            head = list_insert_after(iterator, data, head);
+        if(get_sort_target_value(iterator->data) < get_sort_target_value(data) && iterator->next == NULL) {
+            head = list_insert_after(iterator, data, head, inserted_data);
             break;
         }
         // insert first
-        else if(iterator == head && get_sort_value(data) <= get_sort_value(iterator->data)){
+        else if(iterator == head && get_sort_target_value(data) <= get_sort_target_value(iterator->data)){
             head = push(head, data);
+            *inserted_data = head;
             break;
         }
         // insert middle
-        else if(get_sort_value(iterator->data) < get_sort_value(data) && get_sort_value(data) <= get_sort_value(iterator->next->data)){
-            head = list_insert_after(iterator, data, head);
+        else if(get_sort_target_value(iterator->data) < get_sort_target_value(data) && get_sort_target_value(data) <= get_sort_target_value(iterator->next->data)){
+            head = list_insert_after(iterator, data, head, inserted_data);
             break;
         }
     }

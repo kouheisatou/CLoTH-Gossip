@@ -11,6 +11,8 @@ int is_equal_key_result(long key, struct node_pair_result *a);
 
 int is_equal_edge(struct edge* edge1, struct edge* edge2);
 
+long get_edge_balance(struct edge* e);
+
 int is_equal_group(struct group* group1, struct group* group2);
 
 int is_equal_long(long* a, long* b);

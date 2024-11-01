@@ -22,6 +22,10 @@ int is_equal_edge(struct edge* edge1, struct edge* edge2) {
   return edge1->id == edge2->id;
 }
 
+long get_edge_balance(struct edge* e){
+    return e->balance;
+}
+
 int is_equal_group(struct group* group1, struct group* group2) {
   return group1->id == group2->id;
 }

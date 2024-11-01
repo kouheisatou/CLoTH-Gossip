@@ -429,10 +429,6 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     return close_flg;
 }
 
-long get_edge_balance(struct edge* e){
-    return e->balance;
-}
-
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap) {
     struct edge_snapshot* snapshot = malloc(sizeof(struct edge_snapshot));
     snapshot->id = e->id;

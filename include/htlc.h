@@ -48,6 +48,6 @@ void request_group_update(struct event* event, struct simulation* simulation, st
 
 void reconstruct_groups(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-int construct_groups_of(struct edge* requesting_edge, struct simulation* simulation, struct network *network, struct network_params net_params);
+int construct_groups(struct element* requesting_edges, struct simulation* simulation, struct network* network, struct network_params net_params);
 
 #endif
