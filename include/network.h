@@ -142,4 +142,6 @@ void free_network(struct network* network);
 
 struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, short is_in_group, uint64_t group_cap);
 
+struct group* new_group(struct edge* requesting_edge, struct network_params net_params, struct network* network, struct simulation* simulation);
+
 #endif

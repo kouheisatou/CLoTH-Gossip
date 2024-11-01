@@ -480,3 +480,24 @@ void free_network(struct network* network){
         free(g);
     }
 }
+
+struct group* new_group(struct edge* requesting_edge, struct network_params net_params, struct network* network, struct simulation* simulation){
+    // new group
+    struct group* group = malloc(sizeof(struct group));
+    group->edges = array_initialize(net_params.group_size);
+    group->edges = array_insert(group->edges, requesting_edge);
+    if(net_params.group_limit_rate != -1) {
+        group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+        group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+        if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
+        if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
+    }else {
+        group->max_cap_limit = UINT64_MAX;
+        group->min_cap_limit = 0;
+    }
+    group->id = array_len(network->groups);
+    group->is_closed = 0;
+    group->constructed_time = simulation->current_time;
+    group->history = NULL;
+    return group;
+}

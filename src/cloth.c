@@ -625,7 +625,7 @@ int main(int argc, char *argv[]) {
     if(net_params.routing_method == GROUP_ROUTING) {
         for (int i = 0; i < n_edges; i++) {
             struct edge* edge = array_get(network->edges, i);
-            construct_groups(edge, simulation, network, net_params);
+            construct_groups_of(edge, simulation, network, net_params);
         }
     }
 
@@ -709,11 +709,8 @@ int main(int argc, char *argv[]) {
     case UPDATEGROUP:
       request_group_update(event, simulation, network, net_params);
       break;
-    case CONSTRUCTGROUPS:
-      for (int i = 0; i < n_edges; i++) {
-        struct edge* edge = array_get(network->edges, i);
-        construct_groups(edge, simulation, network, net_params);
-      }
+    case RECONSTRUCTGROUPS:
+      reconstruct_groups(event, simulation, network, net_params);
       break;
     default:
       printf("ERROR wrong event type\n");
@@ -721,7 +718,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct payment* p = array_get(payments, event->payment->id);
-    if(p->end_time != 0 && event->type != UPDATEGROUP && event->type != CONSTRUCTGROUPS && event->type != CHANNELUPDATEFAIL && event->type != CHANNELUPDATESUCCESS){
+    if(p->end_time != 0 && event->type != UPDATEGROUP && event->type != RECONSTRUCTGROUPS && event->type != CHANNELUPDATEFAIL && event->type != CHANNELUPDATESUCCESS){
         completed_payments++;
         char progress_filename[512];
         strcpy(progress_filename, output_dir_name);

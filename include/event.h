@@ -19,7 +19,7 @@ enum event_type {
   CHANNELUPDATEFAIL,
   CHANNELUPDATESUCCESS,
   UPDATEGROUP,
-  CONSTRUCTGROUPS,
+  RECONSTRUCTGROUPS,
 };
 
 struct event {
@@ -27,9 +27,10 @@ struct event {
   enum event_type type;
   long node_id;
   struct payment *payment;
+  void* payload;
 };
 
-struct event* new_event(uint64_t time, enum event_type type, long node_id, struct payment* payment);
+struct event* new_event(uint64_t time, enum event_type type, long node_id, struct payment* payment, void* payload);
 
 int compare_event(struct event* e1, struct event *e2);
 

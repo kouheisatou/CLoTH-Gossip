@@ -7,13 +7,14 @@
 
 /* Functions in this file manage events of the simulation; */
 
-struct event* new_event(uint64_t time, enum event_type type, long node_id, struct payment* payment) {
+struct event* new_event(uint64_t time, enum event_type type, long node_id, struct payment* payment, void* payload) {
   struct event* e;
   e = malloc(sizeof(struct event));
   e->time = time;
   e->type = type;
   e->node_id = node_id;
   e->payment = payment;
+  e->payload = payload;
   return e;
 }
 
@@ -39,7 +40,7 @@ struct heap* initialize_events(struct array* payments){
   events = heap_initialize(array_len(payments)*10);
   for(i=0; i<array_len(payments); i++){
     payment = array_get(payments, i);
-    event = new_event(payment->start_time, FINDPATH, payment->sender, payment);
+    event = new_event(payment->start_time, FINDPATH, payment->sender, payment, NULL);
     events = heap_insert(events, event, compare_event);
   }
   /* events that open new channels during a simulation; currently NOT USED */

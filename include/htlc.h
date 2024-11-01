@@ -44,10 +44,10 @@ void channel_update_fail(struct event* event, struct simulation* simulation, str
 
 void channel_update_success(struct event* event, struct simulation* simulation, struct network* network);
 
-// return `struct element* group_add_queue`
 void request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-// return `struct element* group_add_queue`
-void construct_groups(struct edge* edge, struct simulation* simulation, struct network *network, struct network_params net_params);
+void reconstruct_groups(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
+
+int construct_groups_of(struct edge* requesting_edge, struct simulation* simulation, struct network *network, struct network_params net_params);
 
 #endif

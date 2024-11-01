@@ -184,7 +184,7 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
   payment->route = route;
   // execute send_payment event immediately
   next_event_time = simulation->current_time;
-  send_payment_event = new_event(next_event_time, SENDPAYMENT, payment->sender, payment );
+  send_payment_event = new_event(next_event_time, SENDPAYMENT, payment->sender, payment, NULL);
   simulation->events = heap_insert(simulation->events, send_payment_event, compare_event);
 }
 
@@ -360,7 +360,7 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     payment->error.type = OFFLINENODE;
     payment->error.hop = first_route_hop;
     next_event_time = simulation->current_time + OFFLINELATENCY;
-    next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
+    next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment, NULL);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return;
   }
@@ -371,7 +371,7 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
     payment->error.hop = first_route_hop;
     payment->no_balance_count += 1;
     next_event_time = simulation->current_time;
-    next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment);
+    next_event = new_event(next_event_time, RECEIVEFAIL, event->node_id, event->payment, NULL);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return;
   }
@@ -385,7 +385,7 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
   // success sending
   event_type = first_route_hop->to_node_id == payment->receiver ? RECEIVEPAYMENT : FORWARDPAYMENT;
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));
-  next_event = new_event(next_event_time, event_type, first_route_hop->to_node_id, event->payment);
+  next_event = new_event(next_event_time, event_type, first_route_hop->to_node_id, event->payment, NULL);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 }
 
@@ -425,7 +425,7 @@ void forward_payment(struct event* event, struct simulation* simulation, struct 
     prev_node_id = previous_route_hop->from_node_id;
     event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
     next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator))) + OFFLINELATENCY;
-    next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+    next_event = new_event(next_event_time, event_type, prev_node_id, event->payment, NULL);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return;
   }
@@ -470,7 +470,7 @@ void forward_payment(struct event* event, struct simulation* simulation, struct 
     prev_node_id = previous_route_hop->from_node_id;
     event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
     next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
-    next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+    next_event = new_event(next_event_time, event_type, prev_node_id, event->payment, NULL);
     simulation->events = heap_insert(simulation->events, next_event, compare_event);
     return;
   }
@@ -485,7 +485,7 @@ void forward_payment(struct event* event, struct simulation* simulation, struct 
   event_type = is_last_hop  ? RECEIVEPAYMENT : FORWARDPAYMENT;
   // interval for forwarding payment
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//next_channel->latency;
-  next_event = new_event(next_event_time, event_type, next_route_hop->to_node_id, event->payment);
+  next_event = new_event(next_event_time, event_type, next_route_hop->to_node_id, event->payment, NULL);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 }
 
@@ -524,7 +524,7 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
   prev_node_id = last_route_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVESUCCESS : FORWARDSUCCESS;
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//channel->latency;
-  next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+  next_event = new_event(next_event_time, event_type, prev_node_id, event->payment, NULL);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 }
 
@@ -557,7 +557,7 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
   prev_node_id = prev_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVESUCCESS : FORWARDSUCCESS;
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
-  next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+  next_event = new_event(next_event_time, event_type, prev_node_id, event->payment, NULL);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 }
 
@@ -591,12 +591,12 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
 
     // request_group_update event
     if (net_params.routing_method == GROUP_ROUTING) {
-        struct event *next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
+        struct event *next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment, NULL);
         simulation->events = heap_insert(simulation->events, next_event, compare_event);
     }
 
     // channel update broadcast event
-    struct event *channel_update_event = new_event(next_event_time, CHANNELUPDATESUCCESS, node->id, payment);
+    struct event *channel_update_event = new_event(next_event_time, CHANNELUPDATESUCCESS, node->id, payment, NULL);
     simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
@@ -631,7 +631,7 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
   prev_node_id = prev_hop->from_node_id;
   event_type = prev_node_id == payment->sender ? RECEIVEFAIL : FORWARDFAIL;
   next_event_time = simulation->current_time + net_params.average_payment_forward_interval + (long)(fabs(net_params.variance_payment_forward_interval * gsl_ran_ugaussian(simulation->random_generator)));//prev_channel->latency;
-  next_event = new_event(next_event_time, event_type, prev_node_id, event->payment);
+  next_event = new_event(next_event_time, event_type, prev_node_id, event->payment, NULL);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 }
 
@@ -705,15 +705,17 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     }
 
   next_event_time = simulation->current_time;
-  next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);
+  next_event = new_event(next_event_time, FINDPATH, payment->sender, payment, NULL);
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
     // channel update broadcast event
-    struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
+    struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment, NULL);
     simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
 void request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
+
+    struct heap* closed_groups = heap_initialize(20);
 
     for(long i = 0; i < array_len(event->payment->route->route_hops); i++){
         struct route_hop* hop = array_get(event->payment->route->route_hops, i);
@@ -729,6 +731,8 @@ void request_group_update(struct event* event, struct simulation* simulation, st
             // close group
             if(close_flg){
 
+                closed_groups = heap_insert(closed_groups, group, is_equal_group);
+
                 // record closed time
                 group->is_closed = simulation->current_time;
 
@@ -737,11 +741,6 @@ void request_group_update(struct event* event, struct simulation* simulation, st
                     struct edge* edge_in_closed_group = array_get(group->edges, j);
                     edge_in_closed_group->groups = list_delete(edge_in_closed_group->groups, &iterator, group, (int (*)(void *, void *)) is_equal_group);
                 }
-
-                // reconstruct groups for closed group's edge on next event
-                uint64_t next_event_time = simulation->current_time;
-                struct event* next_event = new_event(next_event_time, CONSTRUCTGROUPS, event->node_id, event->payment);
-                simulation->events = heap_insert(simulation->events, next_event, compare_event);
 
                 if(iterator == NULL) break;
             }
@@ -756,6 +755,8 @@ void request_group_update(struct event* event, struct simulation* simulation, st
             // close group
             if(close_flg){
 
+                closed_groups = heap_insert(closed_groups, group, is_equal_group);
+
                 // record closed time
                 group->is_closed = simulation->current_time;
 
@@ -765,15 +766,56 @@ void request_group_update(struct event* event, struct simulation* simulation, st
                     edge_in_closed_group->groups = list_delete(edge_in_closed_group->groups, &iterator, group, (int (*)(void *, void *)) is_equal_group);
                 }
 
-                // reconstruct groups for closed group's edge on next event
-                uint64_t next_event_time = simulation->current_time;
-                struct event* next_event = new_event(next_event_time, CONSTRUCTGROUPS, event->node_id, event->payment);
-                simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
                 if(iterator == NULL) break;
             }
         }
     }
+
+    // reconstruct groups for closed group's edge on next event
+    if(heap_len(closed_groups) != 0){
+        uint64_t next_event_time = simulation->current_time;
+        struct event* next_event = new_event(next_event_time, RECONSTRUCTGROUPS, event->node_id, event->payment, closed_groups);
+        simulation->events = heap_insert(simulation->events, next_event, compare_event);
+    }
+}
+
+void reconstruct_groups(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
+    struct heap* closed_groups = event->payload;
+
+    printf("groups : -%ld\t", heap_len(closed_groups));
+
+    while(heap_len(closed_groups) != 0){
+        struct group* closed_group = heap_pop(closed_groups, is_equal_group);
+        for(int i = 0; i < array_len(closed_group->edges); i++){
+            struct edge* edge = array_get(closed_group->edges, i);
+            printf("%ld-", edge->id);
+            construct_groups_of(edge, simulation, network, net_params);
+        }
+        printf(",");
+    }
+
+//    struct array* constructed_groups = array_initialize(100);
+//    printf("\ngroups : +%ld\t", array_len(constructed_groups));
+//    for(int i = 0; i < array_len(constructed_groups); i++){
+//        struct group* constructed_group = array_get(constructed_groups, i);
+//        for(int j = 0; j < array_len(constructed_group->edges); j++) {
+//            struct edge* edge = array_get(constructed_group->edges, j);
+//            printf("%ld-", edge->id);
+//        }
+//        printf(",");
+//    }
+//    printf("\n");
+
+    // group cover rate calculation
+    long n_edges_in_group = 0;
+    for(int i = 0; i < array_len(network->edges); i++){
+        if(list_len(((struct edge*)array_get(network->edges, i))->groups) != 0){
+            n_edges_in_group++;
+        }
+    }
+    printf("coverage : %f%%\n", 100*((float)n_edges_in_group / (float)array_len(network->edges)));
+
+    heap_free(event->payload);
 }
 
 /**
@@ -782,51 +824,45 @@ void request_group_update(struct event* event, struct simulation* simulation, st
  * @param simulation
  * @param network
  * @param net_params
+ * @return Number of  constructed groups
  */
-void construct_groups(struct edge* requesting_edge, struct simulation* simulation, struct network *network, struct network_params net_params){
+int construct_groups_of(struct edge* requesting_edge, struct simulation* simulation, struct network *network, struct network_params net_params){
 
-    // new group
-    struct group* group = malloc(sizeof(struct group));
-    group->edges = array_initialize(net_params.group_size);
-    group->edges = array_insert(group->edges, requesting_edge);
-    if(net_params.group_limit_rate != -1) {
-        group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-        if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
-        if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
-    }else {
-        group->max_cap_limit = UINT64_MAX;
-        group->min_cap_limit = 0;
-    }
-    group->id = array_len(network->groups);
-    group->is_closed = 0;
-    group->constructed_time = simulation->current_time;
-    group->history = NULL;
+    int n_constructed_groups = 0;
 
-    // collect edges that satisfy group requirement
+    struct group* group = new_group(requesting_edge, net_params, network, simulation);
     for(int i = 0; i < array_len(network->edges); i++){
         struct edge* edge = array_get(network->edges, i);
+
         if(can_join_group(group, edge)){
+
             group->edges = array_insert(group->edges, edge);
+
+            // when group size satisfy
             if(array_len(group->edges) == net_params.group_size){
-                break;
+
+                // register group
+                update_group(group, net_params, simulation->current_time);
+                network->groups = array_insert(network->groups, group);
+                for(int j = 0; j < array_len(group->edges); j++){
+                    struct edge* edge_in_group = array_get(group->edges, j);
+                    edge_in_group->groups = push(edge_in_group->groups, group);
+                }
+                n_constructed_groups++;
+
+                // create next group
+                group = new_group(requesting_edge, net_params, network, simulation);
             }
         }
     }
 
-    // register group
-    if(array_len(group->edges) == net_params.group_size){
-        // init group_cap
-        update_group(group, net_params, simulation->current_time);
-        network->groups = array_insert(network->groups, group);
-        for(int i = 0; i < array_len(group->edges); i++){
-            struct edge* edge = array_get(group->edges, i);
-            edge->groups = push(edge->groups, group);
-        }
-    }else{
+    // if edge candidates are exhausted before the group_size condition satisfy
+    if(array_len(group->edges) < net_params.group_size){
         array_free(group->edges);
         free(group);
     }
+
+    return n_constructed_groups;
 }
 
 void channel_update_success(struct event* event, struct simulation* simulation, struct network* network){
