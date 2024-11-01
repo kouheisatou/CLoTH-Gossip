@@ -715,7 +715,7 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
 
 void request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
 
-    struct heap* closed_groups = heap_initialize(20);
+    struct element* closed_groups = NULL;
 
     for(long i = 0; i < array_len(event->payment->route->route_hops); i++){
         struct route_hop* hop = array_get(event->payment->route->route_hops, i);
@@ -731,7 +731,7 @@ void request_group_update(struct event* event, struct simulation* simulation, st
             // close group
             if(close_flg){
 
-                closed_groups = heap_insert(closed_groups, group, is_equal_group);
+                closed_groups = push(closed_groups, group);
 
                 // record closed time
                 group->is_closed = simulation->current_time;
@@ -755,7 +755,7 @@ void request_group_update(struct event* event, struct simulation* simulation, st
             // close group
             if(close_flg){
 
-                closed_groups = heap_insert(closed_groups, group, is_equal_group);
+                closed_groups = push(closed_groups, group);
 
                 // record closed time
                 group->is_closed = simulation->current_time;
@@ -772,7 +772,7 @@ void request_group_update(struct event* event, struct simulation* simulation, st
     }
 
     // reconstruct groups for closed group's edge on next event
-    if(heap_len(closed_groups) != 0){
+    if(list_len(closed_groups) != 0){
         uint64_t next_event_time = simulation->current_time;
         struct event* next_event = new_event(next_event_time, RECONSTRUCTGROUPS, event->node_id, event->payment, closed_groups);
         simulation->events = heap_insert(simulation->events, next_event, compare_event);
@@ -780,12 +780,12 @@ void request_group_update(struct event* event, struct simulation* simulation, st
 }
 
 void reconstruct_groups(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
-    struct heap* closed_groups = event->payload;
+    struct element* closed_groups = event->payload;
 
-    printf("groups : -%ld\t", heap_len(closed_groups));
+    printf("groups : -%ld\t", list_len(closed_groups));
 
-    while(heap_len(closed_groups) != 0){
-        struct group* closed_group = heap_pop(closed_groups, is_equal_group);
+    for(struct element* iterator = closed_groups; iterator != NULL; iterator = iterator->next){
+        struct group* closed_group = iterator->data;
         for(int i = 0; i < array_len(closed_group->edges); i++){
             struct edge* edge = array_get(closed_group->edges, i);
             printf("%ld-", edge->id);
@@ -815,7 +815,7 @@ void reconstruct_groups(struct event* event, struct simulation* simulation, stru
     }
     printf("coverage : %f%%\n", 100*((float)n_edges_in_group / (float)array_len(network->edges)));
 
-    heap_free(event->payload);
+    list_free(event->payload);
 }
 
 /**
