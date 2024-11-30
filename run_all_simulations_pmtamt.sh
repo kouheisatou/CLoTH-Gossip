@@ -88,9 +88,9 @@ for i in $(seq 1.0 0.2 5.0); do
     group_size=5
     group_limit_rate=0.1
 
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=$avg_pmt_amt     $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=$avg_pmt_amt     routing_method=group_routing  payment_timeout=-1 n_payments=50000 mpp=0 average_payment_amount=$avg_pmt_amt group_size=$group_size group_limit_rate=$group_limit_rate"
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/average_payment_amount=$avg_pmt_amt    $dijkstra_cache_dir/method=cloth_original,avg_pmt_amt=$avg_pmt_amt    routing_method=cloth_original payment_timeout=-1 n_payments=50000 mpp=0 average_payment_amount=$avg_pmt_amt"
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/average_payment_amount=$avg_pmt_amt             $dijkstra_cache_dir/method=ideal,avg_pmt_amt=$avg_pmt_amt             routing_method=ideal          payment_timeout=-1 n_payments=50000 mpp=0 average_payment_amount=$avg_pmt_amt"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=$avg_pmt_amt     $dijkstra_cache_dir/method=group_routing,seed=$seed,avg_pmt_amt=$avg_pmt_amt     routing_method=group_routing  payment_timeout=-1 n_payments=50000 mpp=0 average_payment_amount=$avg_pmt_amt group_size=$group_size group_limit_rate=$group_limit_rate"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/average_payment_amount=$avg_pmt_amt    $dijkstra_cache_dir/method=cloth_original,seed=$seed,avg_pmt_amt=$avg_pmt_amt    routing_method=cloth_original payment_timeout=-1 n_payments=50000 mpp=0 average_payment_amount=$avg_pmt_amt"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=ideal/average_payment_amount=$avg_pmt_amt             $dijkstra_cache_dir/method=ideal,seed=$seed,avg_pmt_amt=$avg_pmt_amt             routing_method=ideal          payment_timeout=-1 n_payments=50000 mpp=0 average_payment_amount=$avg_pmt_amt"
 
 done
 
