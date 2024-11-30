@@ -721,14 +721,15 @@ struct element* request_group_update(struct event* event, struct simulation* sim
         struct edge* counter_edge = array_get(network->edges, edge->counter_edge_id);
 
         if(edge->group != NULL) {
+            struct group* group = edge->group;
             int close_flg = update_group(edge->group, net_params, simulation->current_time);
 
             if(close_flg){
-                edge->group->is_closed = simulation->current_time;
+                group->is_closed = simulation->current_time;
 
                 // add edges to queue
-                for(long j = 0; j < array_len(edge->group->edges); j++){
-                    struct edge* edge_in_group = array_get(edge->group->edges, j);
+                for(long j = 0; j < array_len(group->edges); j++){
+                    struct edge* edge_in_group = array_get(group->edges, j);
                     edge_in_group->group = NULL;
                     group_add_queue = list_insert_sorted_position(group_add_queue, edge_in_group, (long (*)(void *)) get_edge_balance);
                 }
@@ -741,14 +742,15 @@ struct element* request_group_update(struct event* event, struct simulation* sim
         }
 
         if(counter_edge->group != NULL) {
+            struct group* group = counter_edge->group;
             int close_flg = update_group(counter_edge->group, net_params, simulation->current_time);
 
             if(close_flg){
-                counter_edge->group->is_closed = simulation->current_time;
+                group->is_closed = simulation->current_time;
 
                 // add edges to queue
-                for(long j = 0; j < array_len(counter_edge->group->edges); j++){
-                    struct edge* edge_in_group = array_get(counter_edge->group->edges, j);
+                for(long j = 0; j < array_len(group->edges); j++){
+                    struct edge* edge_in_group = array_get(group->edges, j);
                     edge_in_group->group = NULL;
                     group_add_queue = list_insert_sorted_position(group_add_queue, edge_in_group, (long (*)(void *)) get_edge_balance);
                 }
