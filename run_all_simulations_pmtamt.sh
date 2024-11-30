@@ -82,7 +82,7 @@ function display_progress() {
     done
 }
 
-for i in $(seq 1.0 0.2 5.0); do
+for i in $(seq 1.0 0.05 5.0); do
 
     avg_pmt_amt=$(python3 -c "print('{:.0f}'.format(10**$i))")
     group_size=5
