@@ -1,26 +1,25 @@
 #!/bin/bash
 
 if [[ "$#" -lt 1 ]]; then
-  echo "./run_all_simulations.sh <output_dir> <import_from_dijkstra_cache_dir>"
+  echo "./run_all_simulations.sh <seed> <output_dir> <import_from_dijkstra_cache_dir>"
   exit 0
 fi
 
-output_dir="$1/$(date "+%Y%m%d%H%M%S")"
+seed="$1"
+
+output_dir="$2/$(date "+%Y%m%d%H%M%S")"
 mkdir "$output_dir"
 
 dijkstra_cache_dir="$output_dir/dijkstra_cache"
 mkdir "$dijkstra_cache_dir"
-if [ "$#" -eq 2 ]; then
-    cp -r "$2/." "$dijkstra_cache_dir/"
+if [ "$#" -eq 3 ]; then
+    cp -r "$3/." "$dijkstra_cache_dir/"
 fi
 
-seed=39
 max_processes=32
 
 queue=()
 running_processes=0
-completed_simulations=0
-completed_simulations_tmp_file="$output_dir/completed_simulations"
 total_simulations=0
 start_time=$(date +%s)
 
@@ -38,8 +37,6 @@ function process_queue() {
 
     wait -n || true
     ((running_processes--))
-    ((completed_simulations++))
-    echo "$completed_simulations" > "$completed_simulations_tmp_file"
 }
 
 function display_progress() {
@@ -47,60 +44,48 @@ function display_progress() {
         return 0
     fi
 
-    last_updated=0
-    last_estimated_time=0
-    count=0
+    done_simulations=0
 
-    completed_simulations_from_tmp_file=0
-    echo "$completed_simulations_from_tmp_file" > "$completed_simulations_tmp_file"
+    while [ "$done_simulations" -lt "$total_simulations" ]; do
+        progress_summary=""
+        total_progress=0
 
-    while [ "$completed_simulations_from_tmp_file" -lt "$total_simulations" ]; do
+        # read each simulation progresses
+        IFS=$'\n' read -r -d '' -a simulation_progress_files <<< $(find "$output_dir" -type f -name "progress.tmp")
+        done_simulations=0
+        for file in "${simulation_progress_files[@]}"; do
+            progress=$(cat "$file")
+            if [ "$progress" = "1" ]; then
+              done_simulations=$((done_simulations + 1))
+            elif [ "$progress" = "" ]; then
+              progress="0"
+            fi
+            total_progress=$(printf "%.5f" "$(echo "scale=4; $total_progress + $progress / $total_simulations" | bc)")
+            progress_summary="$progress_summary$(printf "%3d%% %s" "$(printf "%.0f" "$(echo "$progress*100" | bc)")" "$file")\n"
+        done
 
-        text=$(cat "$completed_simulations_tmp_file")
-        if [ -n "$text" ]; then
-            completed_simulations_from_tmp_file="$text"
-        fi
-
-        progress=$(python3 -c "print($completed_simulations_from_tmp_file / $total_simulations)")
-        progress_bar=$(printf "%0.s#" $(seq 1 $((completed_simulations_from_tmp_file * 100 / total_simulations / 2))))
-
-        if [ "$completed_simulations_from_tmp_file" -eq 0 ]; then
-            printf "\rProgress: [%-50s] 0%%\t%d/%d\t Time remaining --:--\t" "" "$completed_simulations_from_tmp_file" "$total_simulations"
+        # build progress bar
+        progress_bar_len=$(printf "%0.s#" $(seq 1 $(printf "%.0f" "$(echo "$total_progress * 100 / 2" | bc)")))
+        progress_bar=""
+        if [ $(python3 -c "print($total_progress==0)") = "True" ]; then
+            progress_bar=$(printf "Progress: [%-50s] 0%%\t%d/%d\t Time remaining --:--" "" "$done_simulations" "$total_simulations")
         else
             elapsed_time=$(( $(date +%s) - start_time ))
-            estimated_completion_time=$(python3 -c "print(int($elapsed_time / $progress - $elapsed_time))")
-            if [ "$completed_simulations_from_tmp_file" -eq "$last_updated" ]; then
-                estimated_completion_time=$((last_estimated_time - count))
-                count=$((count + 1))
-            else
-                last_updated="$completed_simulations_from_tmp_file"
-                last_estimated_time="$estimated_completion_time"
-                count=0
-            fi
+            estimated_completion_time=$(python3 -c "print(int($elapsed_time / $total_progress - $elapsed_time))")
             remaining_minutes=$(( estimated_completion_time / 60 ))
             remaining_seconds=$(( estimated_completion_time % 60 ))
-            printf "\rProgress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d\t" "$progress_bar" "$(echo "scale=1; $progress * 100" | bc)" "$completed_simulations_from_tmp_file" "$total_simulations" "$remaining_minutes" "$remaining_seconds"
+            progress_bar=$(printf "Progress: [%-50s] %0.1f%%\t%d/%d\t Time remaining %02d:%02d" "$progress_bar_len" "$(echo "scale=1; $total_progress * 100" | bc)" "$done_simulations" "$total_simulations" "$remaining_minutes" "$remaining_seconds")
         fi
+
+        echo -e "$progress_summary$progress_bar"
         sleep 1
     done
 }
 
 for i in $(seq 1.0 0.2 5.0); do
     avg_pmt_amt=$(python3 -c "print('{:.0f}'.format(10**$i))")
-
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=ideal/average_payment_amount=$avg_pmt_amt                                                                                         $dijkstra_cache_dir/method=ideal,avg_pmt_amt=$avg_pmt_amt             payment_timeout=-1 payment_rate=100 n_payments=50000 mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt group_size= group_limit_rate="
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/average_payment_amount=$avg_pmt_amt                                                                                $dijkstra_cache_dir/method=cloth_original,avg_pmt_amt=$avg_pmt_amt    payment_timeout=-1 payment_rate=100 n_payments=50000 mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt group_size= group_limit_rate="
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=channel_update/average_payment_amount=$avg_pmt_amt                                                                                $dijkstra_cache_dir/method=channel_update,avg_pmt_amt=$avg_pmt_amt    payment_timeout=-1 payment_rate=100 n_payments=50000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size= group_limit_rate="
-
-    for ((j = 2; j <= 30; j++)); do
-        group_size="$j"
-        for k in $(seq -3.0 0.5 0.0); do
-            group_limit_rate=$(python3 -c "print('{:.4f}'.format(10**$k))")
-            enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing,group_update=true/average_payment_amount=$avg_pmt_amt/group_size=$group_size/group_limit_rate=$group_limit_rate     $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=$avg_pmt_amt     payment_timeout=-1 payment_rate=100 n_payments=50000 mpp=0 routing_method=group_routing group_cap_update=true     average_payment_amount=$avg_pmt_amt group_size=$group_size group_limit_rate=$group_limit_rate"
-            enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing,group_update=false/average_payment_amount=$avg_pmt_amt/group_size=$group_size/group_limit_rate=$group_limit_rate    $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=$avg_pmt_amt     payment_timeout=-1 payment_rate=100 n_payments=50000 mpp=0 routing_method=group_routing group_cap_update=false    average_payment_amount=$avg_pmt_amt group_size=$group_size group_limit_rate=$group_limit_rate"
-        done
-    done
-
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=channel_update/average_payment_amount=$avg_pmt_amt                                                                                $dijkstra_cache_dir/method=channel_update,avg_pmt_amt=$avg_pmt_amt    payment_timeout=-1 n_payments=50000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt group_size=   group_limit_rate=   "
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=$avg_pmt_amt                                                                                 $dijkstra_cache_dir/method=channel_update,avg_pmt_amt=$avg_pmt_amt    payment_timeout=-1 n_payments=50000 mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt group_size=10 group_limit_rate=0.1"
 done
 
 # Process the queue
@@ -110,7 +95,9 @@ while [ "${#queue[@]}" -gt 0 ] || [ "$running_processes" -gt 0 ]; do
     sleep 1
 done
 wait
-echo -e "\nAll simulations have completed."
+echo -e "\nAll simulations have completed. \nOutputs saved at $output_dir"
 python3 scripts/analyze_output_and_summarize.py "$output_dir"
+end_time=$(date +%s)
 echo "START : $(date --date @"$start_time")"
-echo "  END : $(date)"
+echo "  END : $(date --date @"$end_time")"
+echo " TIME : $((end_time - start_time))"
