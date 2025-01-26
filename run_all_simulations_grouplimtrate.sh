@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ "$#" -lt 1 ]]; then
-  echo "./run_all_simulations.sh <seed> <output_dir> <import_from_dijkstra_cache_dir>"
+  echo "./run_all_simulations.sh <seed> <output_dir>"
   exit 0
 fi
 
@@ -9,12 +9,6 @@ seed="$1"
 
 output_dir="$2/$(date "+%Y%m%d%H%M%S")"
 mkdir "$output_dir"
-
-dijkstra_cache_dir="$output_dir/dijkstra_cache"
-mkdir "$dijkstra_cache_dir"
-if [ "$#" -eq 3 ]; then
-    cp -r "$3/." "$dijkstra_cache_dir/"
-fi
 
 max_processes=32
 
@@ -84,10 +78,10 @@ function display_progress() {
 
 n_payments="50000"  # based on simulation settings used by CLoTH paper https://www.sciencedirect.com/science/article/pii/S2352711021000613
 for j in $(seq 0 0.01 1.0); do
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=1000/group_limit_rate=$j        $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=1000     payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=1000    group_size=5 group_limit_rate=$j"
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=10000/group_limit_rate=$j       $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=10000    payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=10000   group_size=5 group_limit_rate=$j"
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=100000/group_limit_rate=$j      $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=100000   payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=100000  group_size=5 group_limit_rate=$j"
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=1000000/group_limit_rate=$j     $dijkstra_cache_dir/method=group_routing,seed=$seed,n_payments=$n_payments,avg_pmt_amt=1000000  payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=1000000 group_size=5 group_limit_rate=$j"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=1000/group_limit_rate=$j      payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=1000    group_size=5 group_limit_rate=$j"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=10000/group_limit_rate=$j     payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=10000   group_size=5 group_limit_rate=$j"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=100000/group_limit_rate=$j    payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=100000  group_size=5 group_limit_rate=$j"
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=1000000/group_limit_rate=$j   payment_rate=10000 n_payments=$n_payments mpp=0 routing_method=group_routing      group_cap_update=true     variance_payment_forward_interval=100   average_payment_amount=1000000 group_size=5 group_limit_rate=$j"
 done
 
 # Process the queue

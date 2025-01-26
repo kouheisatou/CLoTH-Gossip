@@ -1,13 +1,12 @@
 if [ $# -lt 3 ]
 then
-    echo "usage: $0 <seed> <output-directory> <dijkstra_cache_filename> [setting_key=setting_value]"
+    echo "usage: $0 <seed> <output-directory> [setting_key=setting_value]"
     exit
 fi
 
 seed="$1"
 environment_dir="$2/environment"
 result_dir="$2"
-dijkstra_cache_filename="$3"
 
 mkdir -p "$environment_dir"
 mkdir -p "$result_dir"
@@ -26,7 +25,7 @@ cd "$environment_dir"
 cmake . &> "$result_dir/log/cmake.log"
 make &> "$result_dir/log/make.log"
 
-GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" "$dijkstra_cache_filename" &> "$result_dir/log/cloth.log"
+GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" &> "$result_dir/log/cloth.log"
 cat "$result_dir/output.log"
 echo "seed=$seed" >> "$result_dir/cloth_input.txt"
 echo "1" > "$result_dir/progress.tmp"

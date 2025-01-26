@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ "$#" -lt 1 ]]; then
-  echo "./run_all_simulations.sh <seed> <output_dir> <import_from_dijkstra_cache_dir>"
+  echo "./run_all_simulations.sh <seed> <output_dir>"
   exit 0
 fi
 
@@ -9,12 +9,6 @@ seed="$1"
 
 output_dir="$2/$(date "+%Y%m%d%H%M%S")"
 mkdir "$output_dir"
-
-dijkstra_cache_dir="$output_dir/dijkstra_cache"
-mkdir "$dijkstra_cache_dir"
-if [ "$#" -eq 3 ]; then
-    cp -r "$3/." "$dijkstra_cache_dir/"
-fi
 
 max_processes=32
 
@@ -83,10 +77,10 @@ function display_progress() {
 }
 
 for i in $(seq 2 1 20); do
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100/group_size=$i     $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=100     group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=100     "
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=1000/group_size=$i    $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=1000    group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=1000    "
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=10000/group_size=$i   $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=10000   group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=10000   "
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100000/group_size=$i  $dijkstra_cache_dir/method=group_routing,avg_pmt_amt=100000  group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=100000  "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100/group_size=$i     group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=100     "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=1000/group_size=$i    group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=1000    "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=10000/group_size=$i   group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=10000   "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100000/group_size=$i  group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=100000  "
 done
 
 # Process the queue

@@ -445,118 +445,6 @@ gsl_rng* initialize_random_generator(){
 }
 
 
-uint64_t calc_simulation_env_hash(struct network* network, struct array* payments, struct network_params* net_params, struct simulation* simulation){
-
-    uint64_t hash_network_settings = 0;
-    {
-        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->n_nodes)), sizeof(long));
-        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->n_channels)), sizeof(long));
-        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->capacity_per_channel)), sizeof(long));
-        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->faulty_node_prob)), sizeof(double));
-        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->network_from_file)), sizeof(unsigned int));
-        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->routing_method)), sizeof(enum routing_method));
-//        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->group_cap_update)), sizeof(unsigned int));
-//        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->group_size)), sizeof(int));
-//        hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->group_limit_rate)), sizeof(float));
-        for(int i = 0; net_params->nodes_filename[i] != '\0'; i++) hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->nodes_filename[i])), sizeof(char));
-        for(int i = 0; net_params->channels_filename[i] != '\0'; i++) hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->channels_filename[i])), sizeof(char));
-        for(int i = 0; net_params->edges_filename[i] != '\0'; i++) hash_network_settings += SHA512Hash((uint8_t*)(&(net_params->edges_filename[i])), sizeof(char));
-    }
-    printf("hash_network_settings=%lu\n", hash_network_settings);
-
-    uint64_t hash_network_channels = 0;
-    for(long channel_id = 0; channel_id < array_len(network->channels); channel_id++){
-        struct channel* c = array_get(network->channels, channel_id);
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->id)), sizeof(uint64_t));
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->node1)), sizeof(uint64_t));
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->node2)), sizeof(uint64_t));
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->edge1)), sizeof(uint64_t));
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->edge2)), sizeof(uint64_t));
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->capacity)), sizeof(uint64_t));
-        hash_network_channels += SHA512Hash((uint8_t*)(&(c->is_closed)), sizeof(uint32_t));
-    }
-    printf("hash_network_channels=%lu\n", hash_network_channels);
-
-    uint64_t hash_network_nodes = 0;
-    for(long node_id = 0; node_id < array_len(network->nodes); node_id++){
-        struct node* n = array_get(network->nodes, node_id);
-        hash_network_nodes += SHA512Hash((uint8_t*)(&(n->id)), sizeof(uint64_t));
-        for(long i = 0; i < array_len(n->open_edges); i++){
-            struct edge* e = array_get(n->open_edges, i);
-            hash_network_nodes += SHA512Hash((uint8_t*)(&(e->id)), sizeof(uint64_t));
-        }
-    }
-    printf("hash_network_nodes=%lu\n", hash_network_nodes);
-
-    uint64_t hash_network_edges = 0;
-    for(long edge_id = 0; edge_id < array_len(network->edges); edge_id++){
-        struct edge* e = array_get(network->edges, edge_id);
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->id)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->channel_id)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->from_node_id)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->to_node_id)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->counter_edge_id)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->policy.fee_base)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->policy.min_htlc)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->policy.timelock)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->balance)), sizeof(uint64_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->is_closed)), sizeof(uint32_t));
-        hash_network_edges += SHA512Hash((uint8_t*)(&(e->tot_flows)), sizeof(uint64_t));
-    }
-    printf("hash_network_edges=%lu\n", hash_network_edges);
-
-    uint64_t hash_network_payments = 0;
-    for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
-        struct payment* p = array_get(payments, payment_id);
-        hash_network_payments += SHA512Hash((uint8_t*)(&(p->id)), sizeof(uint64_t));
-        hash_network_payments += SHA512Hash((uint8_t*)(&(p->sender)), sizeof(uint64_t));
-        hash_network_payments += SHA512Hash((uint8_t*)(&(p->receiver)), sizeof(uint64_t));
-        hash_network_payments += SHA512Hash((uint8_t*)(&(p->amount)), sizeof(uint64_t));
-    }
-    printf("hash_payments=%lu\n", hash_network_payments);
-
-    uint64_t hash_seed = 0;
-    gsl_rng* random_generator = initialize_random_generator();
-    for(int i = 0; i < 100; i++){
-        double r = gsl_ran_ugaussian(random_generator);
-        hash_seed += SHA512Hash((uint8_t*)(&r), sizeof(double));
-    }
-    printf("hash_seed=%lu\n", hash_seed);
-
-    return hash_network_settings + hash_network_channels + hash_network_nodes + hash_network_edges + hash_network_payments + hash_seed;
-}
-
-
-void write_dijkstra_cache(char* dijkstra_cache_name, struct network* network, struct array* payments, struct network_params* net_params, struct simulation* simulation){
-    FILE* dijkstra_cache = fopen(dijkstra_cache_name, "w");
-    if(dijkstra_cache != NULL){
-        uint64_t hash = calc_simulation_env_hash(network, payments, net_params, simulation);
-        fprintf(dijkstra_cache, "%lu\n", hash);
-        for(long payment_id = 0; payment_id < array_len(payments); payment_id++){
-            if(paths[payment_id] == NULL) continue;
-            struct array* path_hops = paths[payment_id];
-            for(long j = 0; j < array_len(path_hops); j++){
-                struct path_hop* hop = array_get(path_hops, j);
-                fprintf(dijkstra_cache, "%ld,%ld,%ld,%ld\n", payment_id, hop->sender, hop->receiver, hop->edge);
-            }
-        }
-        fclose(dijkstra_cache);
-    }
-}
-
-
-void inflate_path_from_cache(FILE* dijkstra_cache){
-    while(1) {
-        long payment_id;
-        struct path_hop* hop = malloc(sizeof(struct route_hop));
-        if(fscanf(dijkstra_cache, "%ld,%ld,%ld,%ld\n", &payment_id, &(hop->sender), &(hop->receiver), &(hop->edge)) == EOF) break;
-        if(paths[payment_id] == NULL) paths[payment_id] = array_initialize(10);
-        paths[payment_id] = array_insert(paths[payment_id], hop);
-    }
-    fclose(dijkstra_cache);
-}
-
-
 int main(int argc, char *argv[]) {
   struct event* event;
   clock_t  begin, end;
@@ -570,16 +458,10 @@ int main(int argc, char *argv[]) {
   struct array* payments;
   struct simulation* simulation;
   char output_dir_name[256];
-  char dijkstra_cache_name[256];
 
-  if(argc < 2) {
+  if(argc != 2) {
     fprintf(stderr, "ERROR cloth.c: please specify the output directory\n");
     return -1;
-  }
-  if(argc == 3){
-      strcpy(dijkstra_cache_name, argv[2]);
-  }else{
-      strcpy(dijkstra_cache_name, "dijkstra_cache");
   }
   strcpy(output_dir_name, argv[1]);
 
@@ -612,28 +494,7 @@ int main(int argc, char *argv[]) {
 
   printf("INITIAL DIJKSTRA THREADS EXECUTION\n");
   clock_gettime(CLOCK_MONOTONIC, &start);
-  FILE* dijkstra_cache = fopen(dijkstra_cache_name, "r");
-  // use dijkstra cache
-  if(dijkstra_cache == NULL){
-      printf("no cache file\n");
-      run_dijkstra_threads(network, payments, 0, net_params.routing_method);
-      write_dijkstra_cache(dijkstra_cache_name, network, payments, &net_params, simulation);
-      printf("cache file created\n");
-  } else {
-      uint64_t hash = calc_simulation_env_hash(network, payments, &net_params, simulation);
-      uint64_t dijkstra_cache_env_hash;
-      printf("cache file found\n");
-      fscanf(dijkstra_cache, "%lu\n", &dijkstra_cache_env_hash);
-      if(hash == dijkstra_cache_env_hash){
-          inflate_path_from_cache(dijkstra_cache);
-      }else{
-          fclose(dijkstra_cache);
-          printf("invalid cache\n");
-          run_dijkstra_threads(network, payments, 0, net_params.routing_method);
-          write_dijkstra_cache(dijkstra_cache_name, network, payments, &net_params, simulation);
-          printf("cache file updated\n");
-      }
-  }
+  run_dijkstra_threads(network, payments, 0, net_params.routing_method);
   clock_gettime(CLOCK_MONOTONIC, &finish);
   time_spent_thread = finish.tv_sec - start.tv_sec;
   printf("Time consumed by initial dijkstra executions: %ld s\n", time_spent_thread);
