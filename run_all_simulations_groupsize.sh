@@ -77,10 +77,9 @@ function display_progress() {
 }
 
 for i in $(seq 2 1 20); do
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100/group_size=$i     group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=100     "
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=1000/group_size=$i    group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=1000    "
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=10000/group_size=$i   group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=10000   "
-    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100000/group_size=$i  group_size=$i n_payments=50000 mpp=0 routing_method=group_routing   average_payment_amount=100000  "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=1000/group_size=$i    group_size=$i n_payments=5000 mpp=0 routing_method=group_routing   average_payment_amount=1000    "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=10000/group_size=$i   group_size=$i n_payments=5000 mpp=0 routing_method=group_routing   average_payment_amount=10000   "
+    enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=100000/group_size=$i  group_size=$i n_payments=5000 mpp=0 routing_method=group_routing   average_payment_amount=100000  "
 done
 
 # Process the queue
