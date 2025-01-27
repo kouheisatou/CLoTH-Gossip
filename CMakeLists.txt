@@ -25,7 +25,6 @@ add_executable(${PROJECT_NAME}
         include/payments.h
         include/routing.h
         include/utils.h
-        include/hash.h
         src/array.c
         src/cloth.c
         src/event.c
@@ -35,8 +34,7 @@ add_executable(${PROJECT_NAME}
         src/network.c
         src/payments.c
         src/routing.c
-        src/utils.c
-        src/hash.c)
+        src/utils.c)
 
 find_package(GSL REQUIRED)
 target_link_libraries(${PROJECT_NAME} GSL::gsl GSL::gslcblas m)
