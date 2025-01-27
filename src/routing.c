@@ -507,7 +507,6 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
           distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
       }
       else{
-          double edge_probability, tmp_probability, edge_weight, tmp_weight, current_prob;
           from_node_id = edge->from_node_id;
 
           if(from_node_id == source){   // first hop
