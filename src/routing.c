@@ -534,7 +534,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
           if(tmp_timelock > TIMELOCKLIMIT) continue;
 
           // dijkstra link weight update
-          tmp_dist = to_node_dist.distance + edge_fee;
+          tmp_dist = to_node_dist.distance + edge_fee + PAYMENTATTEMPTPENALTY;
           current_dist = distance[p][from_node_id].distance;
           if(tmp_dist > current_dist) continue;
           if(tmp_dist == current_dist) continue;
