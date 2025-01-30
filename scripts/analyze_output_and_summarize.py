@@ -17,12 +17,13 @@ def find_output_dirs(root_dir):
     files = []
     for subdir, _, files_in_subdir in os.walk(root_dir):
         for f in files_in_subdir:
-            if f == "cloth_input.txt":
+            if f == "payments_output.csv":
                 files.append(subdir + "/")
     return files
 
 
 def save_histogram(data: list, x_label: str, y_label: str, filepath: str, bins):
+    return
     fig, ax = plt.subplots()
     ax.hist(data, bins=bins)
     ax.set_xlabel(x_label)
@@ -230,35 +231,35 @@ def analyze_output(output_dir_name):
             save_histogram(cul_distribution, "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
 
         result = result | {
-            "group_survival_time/average": np.mean(group_survival_time_distribution) if len(groups) else "",
-            "group_survival_time/var": np.var(group_survival_time_distribution) if len(groups) else "",
-            "group_survival_time/max": np.max(group_survival_time_distribution) if len(groups) else "",
-            "group_survival_time/min": np.min(group_survival_time_distribution) if len(groups) else "",
-            "group_survival_time/5-percentile": np.percentile(group_survival_time_distribution, 5) if len(groups) else "",
-            "group_survival_time/25-percentile": np.percentile(group_survival_time_distribution, 25) if len(groups) else "",
-            "group_survival_time/50-percentile": np.percentile(group_survival_time_distribution, 50) if len(groups) else "",
-            "group_survival_time/75-percentile": np.percentile(group_survival_time_distribution, 75) if len(groups) else "",
-            "group_survival_time/95-percentile": np.percentile(group_survival_time_distribution, 95) if len(groups) else "",
+            "group_survival_time/average": np.mean(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
+            "group_survival_time/var": np.var(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
+            "group_survival_time/max": np.max(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
+            "group_survival_time/min": np.min(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
+            "group_survival_time/5-percentile": np.percentile(group_survival_time_distribution, 5) if len(group_survival_time_distribution) else "",
+            "group_survival_time/25-percentile": np.percentile(group_survival_time_distribution, 25) if len(group_survival_time_distribution) else "",
+            "group_survival_time/50-percentile": np.percentile(group_survival_time_distribution, 50) if len(group_survival_time_distribution) else "",
+            "group_survival_time/75-percentile": np.percentile(group_survival_time_distribution, 75) if len(group_survival_time_distribution) else "",
+            "group_survival_time/95-percentile": np.percentile(group_survival_time_distribution, 95) if len(group_survival_time_distribution) else "",
 
-            "group_capacity/average": np.mean(group_capacity_distribution) if len(groups) else "",
-            "group_capacity/var": np.var(group_capacity_distribution) if len(groups) else "",
-            "group_capacity/max": np.max(group_capacity_distribution) if len(groups) else "",
-            "group_capacity/min": np.min(group_capacity_distribution) if len(groups) else "",
-            "group_capacity/5-percentile": np.percentile(group_capacity_distribution, 5) if len(groups) else "",
-            "group_capacity/25-percentile": np.percentile(group_capacity_distribution, 25) if len(groups) else "",
-            "group_capacity/50-percentile": np.percentile(group_capacity_distribution, 50) if len(groups) else "",
-            "group_capacity/75-percentile": np.percentile(group_capacity_distribution, 75) if len(groups) else "",
-            "group_capacity/95-percentile": np.percentile(group_capacity_distribution, 95) if len(groups) else "",
+            "group_capacity/average": np.mean(group_capacity_distribution) if len(group_survival_time_distribution) else "",
+            "group_capacity/var": np.var(group_capacity_distribution) if len(group_survival_time_distribution) else "",
+            "group_capacity/max": np.max(group_capacity_distribution) if len(group_survival_time_distribution) else "",
+            "group_capacity/min": np.min(group_capacity_distribution) if len(group_survival_time_distribution) else "",
+            "group_capacity/5-percentile": np.percentile(group_capacity_distribution, 5) if len(group_survival_time_distribution) else "",
+            "group_capacity/25-percentile": np.percentile(group_capacity_distribution, 25) if len(group_survival_time_distribution) else "",
+            "group_capacity/50-percentile": np.percentile(group_capacity_distribution, 50) if len(group_survival_time_distribution) else "",
+            "group_capacity/75-percentile": np.percentile(group_capacity_distribution, 75) if len(group_survival_time_distribution) else "",
+            "group_capacity/95-percentile": np.percentile(group_capacity_distribution, 95) if len(group_survival_time_distribution) else "",
 
-            "cul/average": np.mean(cul_distribution) if len(groups) else "",
-            "cul/var": np.var(cul_distribution) if len(groups) else "",
-            "cul/max": np.max(cul_distribution) if len(groups) else "",
-            "cul/min": np.min(cul_distribution) if len(groups) else "",
-            "cul/5-percentile": np.percentile(cul_distribution, 5) if len(groups) else "",
-            "cul/25-percentile": np.percentile(cul_distribution, 25) if len(groups) else "",
-            "cul/50-percentile": np.percentile(cul_distribution, 50) if len(groups) else "",
-            "cul/75-percentile": np.percentile(cul_distribution, 75) if len(groups) else "",
-            "cul/95-percentile": np.percentile(cul_distribution, 95) if len(groups) else "",
+            "cul/average": np.mean(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul/var": np.var(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul/max": np.max(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul/min": np.min(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul/5-percentile": np.percentile(cul_distribution, 5) if len(group_survival_time_distribution) else "",
+            "cul/25-percentile": np.percentile(cul_distribution, 25) if len(group_survival_time_distribution) else "",
+            "cul/50-percentile": np.percentile(cul_distribution, 50) if len(group_survival_time_distribution) else "",
+            "cul/75-percentile": np.percentile(cul_distribution, 75) if len(group_survival_time_distribution) else "",
+            "cul/95-percentile": np.percentile(cul_distribution, 95) if len(group_survival_time_distribution) else "",
         }
 
     return result
