@@ -237,7 +237,7 @@ void initialize_input_parameters(struct network_params *net_params, struct payme
   strcpy(net_params->nodes_filename, "\0");
   strcpy(net_params->channels_filename, "\0");
   strcpy(net_params->edges_filename, "\0");
-  pay_params->inverse_payment_rate = pay_params->average_amount = 0.0;
+  pay_params->inverse_payment_rate = pay_params->amount_mu = 0.0;
   pay_params->n_payments = 0;
   pay_params->payments_from_file = 0;
   strcpy(pay_params->payments_filename, "\0");
@@ -373,7 +373,10 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       pay_params->n_payments = strtol(value, NULL, 10);
     }
     else if(strcmp(parameter, "average_payment_amount")==0){
-      pay_params->average_amount = strtod(value, NULL);
+      pay_params->amount_mu = strtod(value, NULL);
+    }
+    else if(strcmp(parameter, "variance_payment_amount")==0){
+      pay_params->amount_sigma = strtod(value, NULL);
     }
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);

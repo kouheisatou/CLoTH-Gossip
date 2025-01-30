@@ -32,7 +32,8 @@ struct network_params{
 struct payments_params{
   double inverse_payment_rate;
   long n_payments;
-  double average_amount;
+  double amount_mu;
+  double amount_sigma;
   unsigned int payments_from_file;
   char payments_filename[256];
   unsigned int mpp;

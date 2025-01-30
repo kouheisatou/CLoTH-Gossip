@@ -60,8 +60,8 @@ void generate_random_payments(struct payments_params pay_params, long n_nodes, g
       sender_id = gsl_rng_uniform_int(random_generator,n_nodes);
       receiver_id = gsl_rng_uniform_int(random_generator, n_nodes);
     } while(sender_id==receiver_id);
-    payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator))*1000.0;
-//    payment_amount = fabs(pay_params.average_amount + gsl_ran_ugaussian(random_generator) * pay_params.variance_amount); // on few payment simulation, low success rate
+    payment_amount = fabs(pay_params.amount_mu + gsl_ran_ugaussian(random_generator)) * pay_params.amount_sigma;
+//    payment_amount = fabs(pay_params.amount_mu + gsl_ran_ugaussian(random_generator) * pay_params.amount_sigma); // on few payment simulation, low success rate
     /* payment interarrival time is an exponential (Poisson process) whose mean is the inverse of payment rate
        (expressed in payments per second, then multiplied to convert in milliseconds)
      */

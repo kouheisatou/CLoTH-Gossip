@@ -78,9 +78,9 @@ function display_progress() {
 
 for i in $(seq 2 1 20); do
     for j in $(seq 0 0.05 1.0); do
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=1000/group_size=$i/group_limit_rate=$j      n_payments=5000 mpp=0 payment_timeout=-1 routing_method=group_routing group_cap_update=true average_payment_amount=1000    group_size=$i  group_limit_rate=$j"
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=10000/group_size=$i/group_limit_rate=$j     n_payments=5000 mpp=0 payment_timeout=-1 routing_method=group_routing group_cap_update=true average_payment_amount=10000   group_size=$i  group_limit_rate=$j"
-        enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=100000/group_size=$i/group_limit_rate=$j    n_payments=5000 mpp=0 payment_timeout=-1 routing_method=group_routing group_cap_update=true average_payment_amount=100000  group_size=$i  group_limit_rate=$j"
+        enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=1000/group_size=$i/group_limit_rate=$j      n_payments=5000 mpp=0 payment_timeout=-1 routing_method=group_routing group_cap_update=true average_payment_amount=1000    variance_payment_amount=100    group_size=$i  group_limit_rate=$j"
+        enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=10000/group_size=$i/group_limit_rate=$j     n_payments=5000 mpp=0 payment_timeout=-1 routing_method=group_routing group_cap_update=true average_payment_amount=10000   variance_payment_amount=1000   group_size=$i  group_limit_rate=$j"
+        enqueue_simulation "./run-simulation.sh $seed $output_dir/routing_method=group_routing/avg_pmt_amt=100000/group_size=$i/group_limit_rate=$j    n_payments=5000 mpp=0 payment_timeout=-1 routing_method=group_routing group_cap_update=true average_payment_amount=100000  variance_payment_amount=10000  group_size=$i  group_limit_rate=$j"
     done
 done
 # Process the queue
