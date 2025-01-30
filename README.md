@@ -26,8 +26,10 @@ sudo apt-get install libgsl-dev -y
 sudo apt-get install python3 -y
 sudo apt-get install python3-pip -y
 sudo apt-get install cmake -y 
-pip install numpy
-pip install scipy
+pip install numpy --break-system-packages
+pip install scipy --break-system-packages
+pip install pandas --break-system-packages
+pip install matplotlib --break-system-packages
 ```
 
 ## Build
