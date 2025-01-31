@@ -97,7 +97,7 @@ struct array* generate_payments(struct payments_params pay_params) {
 
   fgets(row, 256, payments_file);
   while(fgets(row, 256, payments_file) != NULL) {
-    sscanf(row, "%ld,%ld,%ld,%lld,%lld", &id, &sender, &receiver, &amount, &time);
+    sscanf(row, "%ld,%ld,%ld,%"SCNu64",%"SCNu64"", &id, &sender, &receiver, &amount, &time);
     payment = new_payment(id, sender, receiver, amount, time);
     payments = array_insert(payments, payment);
   }
