@@ -22,10 +22,13 @@ done
 
 cp "$environment_dir/cloth_input.txt" "$2"
 cd "$environment_dir"
-cmake . &> "$result_dir/log/cmake.log"
-make &> "$result_dir/log/make.log"
+cmake . > "$result_dir/log/cmake.log" 2>&1
+make > "$result_dir/log/make.log" 2>&1
 
-GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" &> "$result_dir/log/cloth.log"
+# save all logging for debug
+#GSL_RNG_SEED="$seed"  strace -o "$result_dir/log/strace.log" ./CLoTH_Gossip "$result_dir/" > "$result_dir/log/cloth.log" 2>&1
+GSL_RNG_SEED="$seed"  ./CLoTH_Gossip "$result_dir/" > "$result_dir/log/cloth.log" 2>&1
+
 cat "$result_dir/output.log"
 echo "seed=$seed" >> "$result_dir/cloth_input.txt"
 echo "1" > "$result_dir/progress.tmp"

@@ -7,9 +7,18 @@ struct array* resize_array(struct array* a) {
   long i;
 
   new=malloc(sizeof(struct array));
+  if (new == NULL) {
+      fprintf(stderr, "ERROR: malloc failed for struct array");
+      exit(1);
+  }
   new->size = a->size*2;
   new->index = a->index;
   new->element = malloc(new->size*sizeof(void*));
+  if (new->element == NULL) {
+      fprintf(stderr, "ERROR: malloc failed for array elements");
+      free(a);
+      exit(1);
+  }
   for(i=0; i<new->index; i++)
     new->element[i]=a->element[i];
   for(;i<new->size;i++)
@@ -19,16 +28,23 @@ struct array* resize_array(struct array* a) {
 }
 
 struct array* array_initialize(long size) {
-  struct array* a;
+    struct array* a = malloc(sizeof(struct array));
+    if (a == NULL) {
+        fprintf(stderr, "ERROR: malloc failed for struct array");
+        exit(1);
+    }
 
-  a = malloc(sizeof(struct array));
-  a->size = size;
-  a->index = 0;
-  a->element = malloc(a->size*sizeof(void*));
+    a->size = size;
+    a->index = 0;
+    a->element = malloc(a->size * sizeof(void*));
+    if (a->element == NULL) {
+        fprintf(stderr, "ERROR: malloc failed for array elements");
+        free(a);
+        exit(1);
+    }
 
-  return a;
+    return a;
 }
-
 
 struct array* array_insert(struct array* a, void* data) {
   if(a->index >= a->size)

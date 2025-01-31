@@ -17,7 +17,7 @@ def find_output_dirs(root_dir):
     files = []
     for subdir, _, files_in_subdir in os.walk(root_dir):
         for f in files_in_subdir:
-            if f == "payments_output.csv":
+            if f == "cloth_input.txt":
                 files.append(subdir + "/")
     return files
 
@@ -280,7 +280,10 @@ def load_cloth_input(output_dir_name):
 def process_output_dir(output_dir):
     row_data = {}
     row_data.update(load_cloth_input(output_dir))
-    row_data.update(analyze_output(output_dir))
+    try:
+        row_data.update(analyze_output(output_dir))
+    except Exception as e:
+        print("FAILED SIMULATION : " + output_dir, file=sys.stderr)
     print(output_dir)
     return row_data
 
