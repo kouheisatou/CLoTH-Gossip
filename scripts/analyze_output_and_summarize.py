@@ -12,6 +12,123 @@ if len(sys.argv) < 1:
     exit(1)
 output_root_dir_name = sys.argv[1]
 
+SUMMARY_CSV_HEADER = [
+    "generate_network_from_file",
+    "nodes_filename",
+    "channels_filename",
+    "edges_filename",
+    "n_additional_nodes",
+    "n_channels_per_node",
+    "capacity_per_channel",
+    "faulty_node_probability",
+    "generate_payments_from_file",
+    "payment_timeout",
+    "average_payment_forward_interval",
+    "variance_payment_forward_interval",
+    "routing_method",
+    "group_size",
+    "group_limit_rate",
+    "group_cap_update",
+    "group_broadcast_delay",
+    "payments_filename",
+    "payment_rate",
+    "n_payments",
+    "average_payment_amount",
+    "variance_payment_amount",
+    "mpp",
+    "seed",
+    "request_amt_rate",
+    "simulation_time",
+    "success_rate",
+    "fail_no_path_rate",
+    "fail_timeout_rate",
+    "fail_no_alternative_path_rate",
+    "retry_rate",
+    "retry_no_balance_rate",
+    "time/average",
+    "time/variance",
+    "time/max",
+    "time/min",
+    "time/5-percentile",
+    "time/25-percentile",
+    "time/50-percentile",
+    "time/75-percentile",
+    "time/95-percentile",
+    "retry/average",
+    "retry/variance",
+    "retry/max",
+    "retry/min",
+    "retry/5-percentile",
+    "retry/25-percentile",
+    "retry/50-percentile",
+    "retry/75-percentile",
+    "retry/95-percentile",
+    "fee/average",
+    "fee/variance",
+    "fee/max",
+    "fee/min",
+    "fee/5-percentile",
+    "fee/25-percentile",
+    "fee/50-percentile",
+    "fee/75-percentile",
+    "fee/95-percentile",
+    "fee_per_satoshi/average",
+    "fee_per_satoshi/variance",
+    "fee_per_satoshi/max",
+    "fee_per_satoshi/min",
+    "fee_per_satoshi/5-percentile",
+    "fee_per_satoshi/25-percentile",
+    "fee_per_satoshi/50-percentile",
+    "fee_per_satoshi/75-percentile",
+    "fee_per_satoshi/95-percentile",
+    "route_len/average",
+    "route_len/variance",
+    "route_len/max",
+    "route_len/min",
+    "route_len/5-percentile",
+    "route_len/25-percentile",
+    "route_len/50-percentile",
+    "route_len/75-percentile",
+    "route_len/95-percentile",
+    "group_cover_rate",
+    "total_locked_balance_duration/average",
+    "total_locked_balance_duration/variance",
+    "total_locked_balance_duration/max",
+    "total_locked_balance_duration/min",
+    "total_locked_balance_duration/5-percentile",
+    "total_locked_balance_duration/25-percentile",
+    "total_locked_balance_duration/50-percentile",
+    "total_locked_balance_duration/75-percentile",
+    "total_locked_balance_duration/95-percentile",
+    "group_survival_time/average",
+    "group_survival_time/var",
+    "group_survival_time/max",
+    "group_survival_time/min",
+    "group_survival_time/5-percentile",
+    "group_survival_time/25-percentile",
+    "group_survival_time/50-percentile",
+    "group_survival_time/75-percentile",
+    "group_survival_time/95-percentile",
+    "group_capacity/average",
+    "group_capacity/var",
+    "group_capacity/max",
+    "group_capacity/min",
+    "group_capacity/5-percentile",
+    "group_capacity/25-percentile",
+    "group_capacity/50-percentile",
+    "group_capacity/75-percentile",
+    "group_capacity/95-percentile",
+    "cul/average",
+    "cul/var",
+    "cul/max",
+    "cul/min",
+    "cul/5-percentile",
+    "cul/25-percentile",
+    "cul/50-percentile",
+    "cul/75-percentile",
+    "cul/95-percentile",
+]
+
 
 def find_output_dirs(root_dir):
     files = []
@@ -23,7 +140,6 @@ def find_output_dirs(root_dir):
 
 
 def save_histogram(data: list, x_label: str, y_label: str, filepath: str, bins):
-    return
     fig, ax = plt.subplots()
     ax.hist(data, bins=bins)
     ax.set_xlabel(x_label)
@@ -101,10 +217,10 @@ def analyze_output(output_dir_name):
             total_retry_no_balance_num += int(pay["no_balance_count"])
             time_distribution.append(time)
 
-        save_histogram(time_distribution, "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
-        save_histogram(retry_distribution, "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
-        save_histogram(fee_distribution, "Fee [satoshi]", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
-        save_histogram(route_len_distribution, "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
+        # save_histogram(time_distribution, "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
+        # save_histogram(retry_distribution, "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
+        # save_histogram(fee_distribution, "Fee [satoshi]", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
+        # save_histogram(route_len_distribution, "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
 
         result = result | {
             "simulation_time": simulation_time,  # シミュレーション時間
@@ -188,7 +304,7 @@ def analyze_output(output_dir_name):
                 locked_balance_and_duration = [tuple(map(int, pair.split('x'))) for pair in edge["locked_balance_and_duration"].split("-")]
                 total_locked_balance_and_duration = 0
                 for (locked_balance, locked_duration) in locked_balance_and_duration:
-                    total_locked_balance_and_duration += locked_balance * locked_duration # [millisatoshi*ms]
+                    total_locked_balance_and_duration += locked_balance * locked_duration  # [millisatoshi*ms]
                 locked_balance_and_duration_distribution.append(total_locked_balance_and_duration)
 
         result = result | {
@@ -225,10 +341,10 @@ def analyze_output(output_dir_name):
             except Exception:
                 continue
 
-        if len(groups) != 0:
-            save_histogram(group_survival_time_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
-            save_histogram(group_capacity_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
-            save_histogram(cul_distribution, "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
+        # if len(groups) != 0:
+        #     save_histogram(group_survival_time_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
+        #     save_histogram(group_capacity_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
+        #     save_histogram(cul_distribution, "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
 
         result = result | {
             "group_survival_time/average": np.mean(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
@@ -273,7 +389,7 @@ def load_cloth_input(output_dir_name):
             if line and not line.startswith('#'):
                 key, value = line.split('=')
                 cloth_input[key.strip()] = value.strip()
-    cloth_input["request_amt_rate"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"]) # 単位時間に発生する送金リクエスト額[satoshi/sec]
+    cloth_input["request_amt_rate"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"])  # 単位時間に発生する送金リクエスト額[satoshi/sec]
     return cloth_input
 
 
@@ -302,8 +418,7 @@ if __name__ == "__main__":
             rows.append(future.result())
 
     with open(output_root_dir_name + "/summary.csv", "w", encoding="utf-8") as summary:
-        fieldnames = rows[0].keys() if rows else []
-        writer = csv.DictWriter(summary, fieldnames=fieldnames)
+        writer = csv.DictWriter(summary, fieldnames=SUMMARY_CSV_HEADER)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
