@@ -404,7 +404,7 @@ def process_output_dir(output_dir):
         row_data.update(analyze_output(output_dir))
     except Exception as e:
         print("FAILED SIMULATION : " + output_dir, file=sys.stderr)
-    print(row_data["path"])
+    print(row_data["simulation_id"])
     return row_data
 
 
