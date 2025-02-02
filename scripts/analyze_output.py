@@ -36,6 +36,8 @@ SUMMARY_CSV_HEADER = [
     "n_payments",
     "average_payment_amount",
     "variance_payment_amount",
+    "average_max_fee_limit",
+    "variance_max_fee_limit",
     "mpp",
     "seed",
     "request_amt_rate",
@@ -404,7 +406,7 @@ def process_output_dir(output_dir):
         row_data.update(analyze_output(output_dir))
     except Exception as e:
         print("FAILED SIMULATION : " + output_dir, file=sys.stderr)
-    print(row_data["simulation_id"])
+    print(output_dir)
     return row_data
 
 

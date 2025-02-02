@@ -191,7 +191,7 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
 
 struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment){
   struct payment* shard;
-  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time);
+  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit);
   shard->attempts = 1;
   shard->is_shard = 1;
   return shard;
@@ -222,7 +222,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       if (payment->attempts == 1) {
           path = paths[payment->id];
       }else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
       }
   } else {
 
@@ -252,10 +252,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
               // if path capacity is not enough to send the payment, find new path
               if (path_cap < payment->amount + fee) {
-                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
+                  path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
               }
           } else {
-              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
+              path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
           }
       } else {
 
@@ -267,7 +267,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
             exclude_edges = push(exclude_edges, exclude_edge);
           }
 
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, exclude_edges);
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, exclude_edges, payment->max_fee_limit);
       }
   }
 
@@ -280,12 +280,12 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
     shard1_amount = payment->amount/2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
+    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
     if(shard1_path == NULL){
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL);
+    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
     if(shard2_path == NULL){
       payment->end_time = simulation->current_time;
       return;

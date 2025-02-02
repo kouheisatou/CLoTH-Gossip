@@ -79,7 +79,7 @@ void* dijkstra_thread(void*arg) {
     pthread_mutex_lock(&data_mutex);
     payment = array_get(thread_args->payments, payment_id);
     pthread_mutex_unlock(&data_mutex);
-    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method, NULL);
+    hops = dijkstra(payment->sender, payment->receiver, payment->amount, thread_args->network, thread_args->current_time, thread_args->data_index, &error, thread_args->routing_method, NULL, payment->max_fee_limit);
     paths[payment->id] = hops;
   }
 
@@ -389,7 +389,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 }
 
 /* a modified version of dijkstra to find a path connecting the source (payment sender) to the target (payment receiver) */
-struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges) {
+struct array* dijkstra(long source, long target, uint64_t amount, struct network* network, uint64_t current_time, long p, enum pathfind_error *error, enum routing_method routing_method, struct element* exclude_edges, uint64_t max_fee_limit) {
   struct distance *d=NULL, to_node_dist;
   long i, best_node_id, j, from_node_id, curr;
   struct node *source_node, *best_node;
@@ -477,6 +477,8 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
             edge_fee = compute_fee(amt_to_send, edge->policy);
             edge_timelock = edge->policy.timelock;
           }
+          uint64_t tmp_fee = to_node_dist.fee + edge_fee;
+          if(tmp_fee > max_fee_limit) continue;
 
           amt_to_receive = amt_to_send + edge_fee;
 
@@ -502,6 +504,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
           distance[p][from_node_id].timelock = tmp_timelock;
           distance[p][from_node_id].probability = tmp_probability;  // calculated by edge_probability?
           distance[p][from_node_id].next_edge = edge->id;
+          distance[p][from_node_id].fee = tmp_fee;
 
           // update edge weight comparing distance or probability in compare_distance()
           distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
@@ -529,7 +532,11 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
               edge_fee = compute_fee(amt_to_send, edge->policy);
               edge_timelock = edge->policy.timelock;
           }
+          uint64_t tmp_fee = to_node_dist.fee + edge_fee;
+          if(tmp_fee > max_fee_limit) continue;
+
           amt_to_receive = amt_to_send + edge_fee;
+
           tmp_timelock = to_node_dist.timelock + edge_timelock;
           if(tmp_timelock > TIMELOCKLIMIT) continue;
 
@@ -546,10 +553,10 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
           distance[p][from_node_id].timelock = tmp_timelock;
           distance[p][from_node_id].probability = 0; // unused
           distance[p][from_node_id].next_edge = edge->id;
+          distance[p][from_node_id].fee = tmp_fee;
 
           // update edge weight comparing distance or probability in compare_distance()
           distance_heap[p] = heap_insert_or_update(distance_heap[p], &distance[p][from_node_id], compare_distance, is_key_equal);
-
       }
     }
   }

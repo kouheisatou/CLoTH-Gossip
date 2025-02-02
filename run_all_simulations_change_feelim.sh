@@ -76,13 +76,13 @@ function display_progress() {
     done
 }
 
-for i in $(seq 1.0 0.2 5.0); do
-    avg_pmt_amt=$(python3 -c "print('{:.0f}'.format(10**$i))")
-    var_pmt_amt=$(("$avg_pmt_amt"/10))
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/average_payment_amount=$avg_pmt_amt    payment_timeout=-1 n_payments=5000 mpp=0 routing_method=cloth_original group_cap_update=        average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=   group_limit_rate=   "
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=channel_update/average_payment_amount=$avg_pmt_amt    payment_timeout=-1 n_payments=5000 mpp=0 routing_method=channel_update group_cap_update=        average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=   group_limit_rate=   "
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=ideal/average_payment_amount=$avg_pmt_amt             payment_timeout=-1 n_payments=5000 mpp=0 routing_method=ideal          group_cap_update=        average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=   group_limit_rate=   "
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=group_routing/average_payment_amount=$avg_pmt_amt     payment_timeout=-1 n_payments=5000 mpp=0 routing_method=group_routing  group_cap_update=true    average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=10 group_limit_rate=0.1"
+for i in $(seq -6.0 1.0 1.0); do
+    avg_fee_lim=$(python3 -c "print('{:.5f}'.format(10**$i))")
+    var_fee_lim=$(python3 -c "print('{:.5f}'.format(10**$i/10))")
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/max_fee_limit=$avg_fee_lim    payment_timeout=-1 n_payments=5000 mpp=0 routing_method=cloth_original group_cap_update=      average_max_fee_limit=$avg_fee_lim  variance_max_fee_limit=$var_fee_lim  average_payment_amount=1000  variance_payment_amount=100  group_size=   group_limit_rate=   "
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=channel_update/max_fee_limit=$avg_fee_lim    payment_timeout=-1 n_payments=5000 mpp=0 routing_method=channel_update group_cap_update=      average_max_fee_limit=$avg_fee_lim  variance_max_fee_limit=$var_fee_lim  average_payment_amount=1000  variance_payment_amount=100  group_size=   group_limit_rate=   "
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=ideal/max_fee_limit=$avg_fee_lim             payment_timeout=-1 n_payments=5000 mpp=0 routing_method=ideal          group_cap_update=      average_max_fee_limit=$avg_fee_lim  variance_max_fee_limit=$var_fee_lim  average_payment_amount=1000  variance_payment_amount=100  group_size=   group_limit_rate=   "
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=group_routing/max_fee_limit=$avg_fee_lim     payment_timeout=-1 n_payments=5000 mpp=0 routing_method=group_routing  group_cap_update=true  average_max_fee_limit=$avg_fee_lim  variance_max_fee_limit=$var_fee_lim  average_payment_amount=1000  variance_payment_amount=100  group_size=10 group_limit_rate=0.1"
 done
 
 # Process the queue

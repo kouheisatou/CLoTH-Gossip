@@ -32,11 +32,13 @@ struct network_params{
 struct payments_params{
   double inverse_payment_rate;
   long n_payments;
-  double amount_mu;
-  double amount_sigma;
+  double amount_mu; // average_payment_amount [satoshi]
+  double amount_sigma; // variance_payment_amount [satoshi]
   unsigned int payments_from_file;
   char payments_filename[256];
   unsigned int mpp;
+  double max_fee_limit_mu; // average_max_fee_limit [satoshi]
+  double max_fee_limit_sigma; // variance_max_fee_limit [satoshi]
 };
 
 struct simulation{

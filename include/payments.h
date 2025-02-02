@@ -26,6 +26,7 @@ struct payment {
   long sender;
   long receiver;
   uint64_t amount; //millisatoshis
+  uint64_t max_fee_limit; //millisatoshis
   struct route* route;
   uint64_t start_time;
   uint64_t end_time;
@@ -51,7 +52,7 @@ struct attempt {
   short is_succeeded;
 };
 
-struct payment* new_payment(long id, long sender, long receiver, uint64_t amount, uint64_t start_time);
+struct payment* new_payment(long id, long sender, long receiver, uint64_t amount, uint64_t start_time, uint64_t max_fee_limit);
 struct array* initialize_payments(struct payments_params pay_params, long n_nodes, gsl_rng* random_generator);
 void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded);
 

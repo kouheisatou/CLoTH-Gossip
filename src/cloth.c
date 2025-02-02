@@ -156,11 +156,11 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open payment_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
+  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
   for(i=0; i<array_len(payments); i++)  {
     payment = array_get(payments, i);
     if (payment->id == -1) continue;
-    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
+    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->max_fee_limit, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
     route = payment->route;
     if(route==NULL)
       fprintf(csv_payment_output, ",,");
@@ -380,6 +380,12 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     }
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);
+    }
+    else if(strcmp(parameter, "average_max_fee_limit")==0){
+        pay_params->max_fee_limit_mu = strtod(value, NULL);
+    }
+    else if(strcmp(parameter, "variance_max_fee_limit")==0){
+        pay_params->max_fee_limit_sigma = strtod(value, NULL);
     }
     else{
       fprintf(stderr, "ERROR: unknown parameter <%s>\n", parameter);

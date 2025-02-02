@@ -91,7 +91,7 @@ while [ "${#queue[@]}" -gt 0 ] || [ "$running_processes" -gt 0 ]; do
 done
 wait
 echo -e "\nAll simulations have completed. \nOutputs saved at $output_dir"
-python3 scripts/analyze_output_and_summarize.py "$output_dir"
+python3 scripts/analyze_output.py "$output_dir"
 end_time=$(date +%s)
 echo "START : $(date --date @"$start_time")"
 echo "  END : $(date --date @"$end_time")"
