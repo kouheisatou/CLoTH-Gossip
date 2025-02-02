@@ -8,11 +8,12 @@ from matplotlib import pyplot as plt
 
 csv.field_size_limit(200_000_000)
 if len(sys.argv) < 1:
-    print("python3 analyze_output_and_summarize.py <output_dir>")
+    print("python3 analyze_output.py <output_dir>")
     exit(1)
 output_root_dir_name = sys.argv[1]
 
 SUMMARY_CSV_HEADER = [
+    "path",
     "generate_network_from_file",
     "nodes_filename",
     "channels_filename",
@@ -394,13 +395,13 @@ def load_cloth_input(output_dir_name):
 
 
 def process_output_dir(output_dir):
-    row_data = {}
+    row_data = {"path": output_dir.replace(output_root_dir_name, "")}
     row_data.update(load_cloth_input(output_dir))
     try:
         row_data.update(analyze_output(output_dir))
     except Exception as e:
         print("FAILED SIMULATION : " + output_dir, file=sys.stderr)
-    print(output_dir)
+    print(row_data["path"])
     return row_data
 
 
