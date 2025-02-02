@@ -13,7 +13,7 @@ if len(sys.argv) < 1:
 output_root_dir_name = sys.argv[1]
 
 SUMMARY_CSV_HEADER = [
-    "path",
+    "simulation_id",
     "generate_network_from_file",
     "nodes_filename",
     "channels_filename",
@@ -395,7 +395,10 @@ def load_cloth_input(output_dir_name):
 
 
 def process_output_dir(output_dir):
-    row_data = {"path": output_dir.replace(output_root_dir_name, "")}
+    relative_path = output_dir.replace(output_root_dir_name, "")
+    if relative_path.startswith("/"):
+        relative_path = relative_path[1:]
+    row_data = {"simulation_id": relative_path}
     row_data.update(load_cloth_input(output_dir))
     try:
         row_data.update(analyze_output(output_dir))
