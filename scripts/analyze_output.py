@@ -57,6 +57,24 @@ SUMMARY_CSV_HEADER = [
     "time/50-percentile",
     "time/75-percentile",
     "time/95-percentile",
+    "time_success/average",
+    "time_success/variance",
+    "time_success/max",
+    "time_success/min",
+    "time_success/5-percentile",
+    "time_success/25-percentile",
+    "time_success/50-percentile",
+    "time_success/75-percentile",
+    "time_success/95-percentile",
+    "time_fail/average",
+    "time_fail/variance",
+    "time_fail/max",
+    "time_fail/min",
+    "time_fail/5-percentile",
+    "time_fail/25-percentile",
+    "time_fail/50-percentile",
+    "time_fail/75-percentile",
+    "time_fail/95-percentile",
     "retry/average",
     "retry/variance",
     "retry/max",
@@ -183,6 +201,8 @@ def analyze_output(output_dir_name):
         total_retry_no_balance_num = 0
         total_fail_no_alternative_path_num = 0
         time_distribution = []
+        time_success_distribution = []
+        time_fail_distribution = []
         retry_distribution = []
         fee_distribution = []
         fee_per_satoshi_distribution = []
@@ -201,6 +221,7 @@ def analyze_output(output_dir_name):
                 simulation_time = end_time
 
             if is_success:
+                time_success_distribution.append(time)
                 total_success_num += 1
                 total_fee = int(pay["total_fee"])
                 retry_distribution.append(retry)
@@ -208,6 +229,7 @@ def analyze_output(output_dir_name):
                 fee_per_satoshi_distribution.append(total_fee / amount)
                 route_len_distribution.append(len(pay['route'].split('-')))
             else:
+                time_fail_distribution.append(time)
                 if (pay["route"] == "") and (attempts == 1):
                     total_fail_no_path_num += 1
                 elif pay["timeout_exp"] == 1:
@@ -236,7 +258,7 @@ def analyze_output(output_dir_name):
             "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりの平均リトライ発生回数
             "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによる平均リトライ発生回数
 
-            # 送金開始から送金が完了するまでにかかる時間
+            # 送金開始から送金が完了するまでにかかる時間（送金の成否に関わらず全ての平均）
             "time/average": np.mean(time_distribution),
             "time/variance": np.var(time_distribution),
             "time/max": np.max(time_distribution),
@@ -246,6 +268,28 @@ def analyze_output(output_dir_name):
             "time/50-percentile": np.percentile(time_distribution, 50),
             "time/75-percentile": np.percentile(time_distribution, 75),
             "time/95-percentile": np.percentile(time_distribution, 95),
+
+            # 送金開始から送金が完了するまでにかかる時間（送金の成否に関わらず全ての平均）
+            "time_success/average": np.mean(time_success_distribution),
+            "time_success/variance": np.var(time_success_distribution),
+            "time_success/max": np.max(time_success_distribution),
+            "time_success/min": np.min(time_success_distribution),
+            "time_success/5-percentile": np.percentile(time_success_distribution, 5),
+            "time_success/25-percentile": np.percentile(time_success_distribution, 25),
+            "time_success/50-percentile": np.percentile(time_success_distribution, 50),
+            "time_success/75-percentile": np.percentile(time_success_distribution, 75),
+            "time_success/95-percentile": np.percentile(time_success_distribution, 95),
+
+            # 送金開始から送金が完了するまでにかかる時間（送金の成否に関わらず全ての平均）
+            "time_fail/average": np.mean(time_fail_distribution),
+            "time_fail/variance": np.var(time_fail_distribution),
+            "time_fail/max": np.max(time_fail_distribution),
+            "time_fail/min": np.min(time_fail_distribution),
+            "time_fail/5-percentile": np.percentile(time_fail_distribution, 5),
+            "time_fail/25-percentile": np.percentile(time_fail_distribution, 25),
+            "time_fail/50-percentile": np.percentile(time_fail_distribution, 50),
+            "time_fail/75-percentile": np.percentile(time_fail_distribution, 75),
+            "time_fail/95-percentile": np.percentile(time_fail_distribution, 95),
 
             # 送金1回あたりのリトライ回数
             "retry/average": np.mean(retry_distribution),
