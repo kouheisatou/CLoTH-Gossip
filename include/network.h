@@ -57,7 +57,7 @@ struct edge {
   unsigned int is_closed;
   uint64_t tot_flows;
   struct group* group;
-  struct element* channel_updates;
+  struct element* pmt_fail;
 };
 
 
@@ -66,16 +66,16 @@ struct edge_snapshot {
   uint64_t balance;
   short is_in_group;
   uint64_t group_cap;
-  short does_channel_update_exist;
-  uint64_t last_channle_update_value;
+  short does_pmt_fail_exist;
+  uint64_t last_pmt_fail_value;
   uint64_t sent_amt;
 };
 
 
-struct channel_update {
+struct pmt_fail_msg {
     long edge_id;
     uint64_t time;
-    uint64_t htlc_maximum_msat;
+    uint64_t failed_amount;
 };
 
 

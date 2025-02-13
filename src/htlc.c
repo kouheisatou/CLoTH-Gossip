@@ -648,7 +648,7 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
 
 /* print FAIL_NO_BALANCE error
     struct channel* channel = array_get(network->channels, error_edge->channel_id);
-    printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
+    printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct pmt_fail_msg*)(error_edge->pmt_fail_msg->data))->failed_amount, channel->capacity);
     printf("\n\tPATH  : ");
     for(int i = 0; i < array_len(payment->route->route_hops); i++){
         struct route_hop* hop = array_get(payment->route->route_hops, i);
@@ -664,12 +664,12 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     printf("\n");
 */
 
-    // record channel_update
-    struct channel_update *channel_update = malloc(sizeof(struct channel_update));
-    channel_update->htlc_maximum_msat = payment->amount;
-    channel_update->edge_id = error_edge->id;
-    channel_update->time = simulation->current_time;
-    error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
+    // record pmt_fail_msg
+    struct pmt_fail_msg *pmt_fail_msg = malloc(sizeof(struct pmt_fail_msg));
+    pmt_fail_msg->failed_amount = payment->amount;
+    pmt_fail_msg->edge_id = error_edge->id;
+    pmt_fail_msg->time = simulation->current_time;
+    error_edge->pmt_fail = push(error_edge->pmt_fail, pmt_fail_msg);
 
   add_attempt_history(payment, network, simulation->current_time, 0);
 

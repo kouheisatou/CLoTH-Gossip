@@ -50,11 +50,11 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   edge->is_closed = 0;
   edge->tot_flows = 0;
   edge->group = NULL;
-  struct channel_update* channel_update = malloc(sizeof(struct channel_update));
-  channel_update->htlc_maximum_msat = channel_capacity;
-  channel_update->edge_id = edge->id;
-  channel_update->time = 0;
-  edge->channel_updates = push(NULL, channel_update);
+  struct pmt_fail_msg* pmt_fail_msg = malloc(sizeof(struct pmt_fail_msg));
+  pmt_fail_msg->failed_amount = channel_capacity;
+  pmt_fail_msg->edge_id = id;
+  pmt_fail_msg->time = 0;
+  edge->pmt_fail = push(NULL, pmt_fail_msg);
   return edge;
 }
 
@@ -430,13 +430,13 @@ struct edge_snapshot* take_edge_snapshot(struct edge* e, uint64_t sent_amt, shor
     snapshot->sent_amt = sent_amt;
     snapshot->is_in_group = is_in_group;
     snapshot->group_cap = group_cap;
-    if(e->channel_updates != NULL) {
-        struct channel_update* cu = e->channel_updates->data;
-        snapshot->does_channel_update_exist = 1;
-        snapshot->last_channle_update_value = cu->htlc_maximum_msat;
+    if(e->pmt_fail != NULL) {
+        struct pmt_fail_msg* cu = e->pmt_fail->data;
+        snapshot->does_pmt_fail_exist = 1;
+        snapshot->last_pmt_fail_value = cu->failed_amount;
     }else {
-        snapshot->does_channel_update_exist = 0;
-        snapshot->last_channle_update_value = 0;
+        snapshot->does_pmt_fail_exist = 0;
+        snapshot->last_pmt_fail_value = 0;
     }
     return snapshot;
 }
@@ -454,7 +454,7 @@ void free_network(struct network* network){
     for(uint64_t i = 0; array_len(network->edges); i++){
         struct edge* e = array_get(network->edges, i);
         if(e == NULL) continue;
-        list_free(e->channel_updates);
+        list_free(e->pmt_fail);
         free(e);
     }
     for(uint64_t i = 0; array_len(network->channels); i++){

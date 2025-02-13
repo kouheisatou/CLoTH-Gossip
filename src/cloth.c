@@ -110,32 +110,14 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,group\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
     fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
-    char channel_updates_text[1000000] = "";
-    for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
-        struct channel_update *channel_update = iterator->data;
-        char temp[1000000];
-        int written = 0;
-        if(iterator->next != NULL) {
-            written = snprintf(temp, sizeof(temp), "-%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
-        }else{
-            written = snprintf(temp, sizeof(temp), "%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
-        }
-        // Check if the output was truncated
-        if (written < 0 || (size_t)written >= sizeof(temp)) {
-            fprintf(stderr, "Error: Buffer overflow detected.\n");
-            exit(1);
-        }
-        strncpy(channel_updates_text, temp, sizeof(channel_updates_text) - 1);
-    }
-    fprintf(csv_edge_output, "%s,", channel_updates_text);
     if(edge->group == NULL){
-        fprintf(csv_edge_output, "NULL,");
+        fprintf(csv_edge_output, "NULL");
     }else{
-        fprintf(csv_edge_output, "%ld,", edge->group->id);
+        fprintf(csv_edge_output, "%ld", edge->group->id);
     }
     fprintf(csv_edge_output, "\n");
   }
@@ -180,8 +162,8 @@ void write_output(struct network* network, struct array* payments, char output_d
                 fprintf(csv_payment_output,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,\"\"sent_amt\"\":%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
                 if(edge_snapshot->is_in_group) fprintf(csv_payment_output, "\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
                 else fprintf(csv_payment_output,"\"\"group_cap\"\":null,");
-                if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-                else fprintf(csv_payment_output,"\"\"channel_update\"\":}");
+                if(edge_snapshot->does_pmt_fail_exist) fprintf(csv_payment_output, "\"\"pmt_fail_msg\"\":%lu}", edge_snapshot->last_pmt_fail_value);
+                else fprintf(csv_payment_output,"\"\"pmt_fail_msg\"\":}");
                 if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
             }
             fprintf(csv_payment_output, "]}");
@@ -334,7 +316,7 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       else if(strcmp(value, "RBB")==0)
         net_params->routing_method=RBB;
       else{
-        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are [\"cloth_original\", \"channel_update\", \"group_routing\", \"ideal\"]\n", parameter);
+        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are [\"cloth_original\", \"pmt_fail_msg\", \"group_routing\", \"ideal\"]\n", parameter);
         fclose(input_file);
         exit(-1);
       }

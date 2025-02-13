@@ -7,7 +7,7 @@
 #include <gsl/gsl_randist.h>
 
 enum routing_method{
-    LN, // Routing by Frequency of channel_update like Lightning Network
+    LN, // Routing by Frequency of pmt_fail_msg like Lightning Network
     FBB, // Failed Balance Broadcast
     GCB_MIN, // Group Capacity Broadcast (Broadcast Minimum Capacity in the Group)
     GCB_AVE, // Group Capacity Broadcast (Broadcast Average Capacity of the Group)

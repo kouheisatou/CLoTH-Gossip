@@ -346,25 +346,25 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
         }
     }
 
-    // judge by channel_update (conventional method)
+    // judge by pmt_fail_msg (conventional method)
     else if (routing_method == FBB){
 
-        // search for valid channel_updates that is less than channel_capacity starting from the latest
-        struct channel_update* valid_channel_update = NULL;
-        if(edge->channel_updates != NULL) {
-            for(struct element* iterator = edge->channel_updates; iterator->next != NULL; iterator = iterator->next){
-                valid_channel_update = iterator->data;
+        // search for valid pmt_fail_msg that is less than channel_capacity starting from the latest
+        struct pmt_fail_msg* valid_pmt_fail_msg = NULL;
+        if(edge->pmt_fail != NULL) {
+            for(struct element* iterator = edge->pmt_fail; iterator->next != NULL; iterator = iterator->next){
+                valid_pmt_fail_msg = iterator->data;
 
-                // if the valid_channel_update value does not exceed channel_capacity
-                if(valid_channel_update->htlc_maximum_msat < channel->capacity) break;
+                // if the valid_pmt_fail_msg value does not exceed channel_capacity
+                if(valid_pmt_fail_msg->failed_amount < channel->capacity) break;
 
-                // oldest channel_update
-                if(iterator->next == NULL) valid_channel_update = edge->channel_updates->data;
+                // oldest pmt_fail_msg
+                if(iterator->next == NULL) valid_pmt_fail_msg = edge->pmt_fail->data;
             }
         }
 
-        if(valid_channel_update != NULL){
-            estimated_capacity = valid_channel_update->htlc_maximum_msat;
+        if(valid_pmt_fail_msg != NULL){
+            estimated_capacity = valid_pmt_fail_msg->failed_amount;
         }else{
             estimated_capacity = channel->capacity;
         }
@@ -466,7 +466,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
             continue;
 
 
-          // calc probability by past channel_update msg(node_result)
+          // calc probability by past pmt_fail_msg msg(node_result)
           edge_probability = get_probability(from_node_id, to_node_dist.node, amt_to_send, source, current_time, network);
 
           if(edge_probability == 0) continue;
