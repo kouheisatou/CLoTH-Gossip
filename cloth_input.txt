@@ -13,7 +13,6 @@ variance_payment_forward_interval=1
 routing_method=LN
 group_size=5
 group_limit_rate=0.1
-group_cap_update=true
 group_broadcast_delay=0
 payments_filename=
 payment_rate=1

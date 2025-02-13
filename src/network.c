@@ -386,10 +386,12 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     // update group cap
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
+    uint64_t ave = 0;
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
         if(edge->balance < min) min = edge->balance;
         if(edge->balance > max) max = edge->balance;
+        ave += (edge->balance / array_len(group->edges));
 
         if(!can_join_group(group, edge)){
             close_flg = 1;
@@ -399,10 +401,10 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     // update group capacity
     group->max_cap = max;
     group->min_cap = min;
-    if(net_params.group_cap_update) {
+    if(net_params.routing_method == GCB_MIN) {
         group->group_cap = min;
-    }else{
-        group->group_cap = group->min_cap_limit;
+    }else if(net_params.routing_method == GCB_AVE){
+        group->group_cap = ave;
     }
 
     // record group_update history

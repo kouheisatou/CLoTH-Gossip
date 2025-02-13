@@ -27,7 +27,6 @@ struct network_params{
   unsigned int average_payment_forward_interval;
   unsigned int variance_payment_forward_interval;
   enum routing_method routing_method;
-  unsigned int group_cap_update;
   unsigned int group_broadcast_delay;
   int group_size;
   float group_limit_rate;

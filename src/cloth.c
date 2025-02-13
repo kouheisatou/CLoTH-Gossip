@@ -321,14 +321,6 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         exit(-1);
       }
     }
-    else if(strcmp(parameter, "group_cap_update")==0){
-      if(strcmp(value, "true")==0)
-        net_params->group_cap_update=1;
-      else if(strcmp(value, "false")==0)
-        net_params->group_cap_update=0;
-      else
-        net_params->group_cap_update=-1;
-    }
     else if(strcmp(parameter, "group_size")==0){
         if(strcmp(value, "")==0) net_params->group_size = -1;
         else net_params->group_size = strtol(value, NULL, 10);
@@ -375,10 +367,6 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       }
       if(net_params->group_size < 0){
           fprintf(stderr, "ERROR: wrong value of parameter <group_size> in <cloth_input.txt>.\n");
-          exit(-1);
-      }
-      if(net_params->group_cap_update == -1){
-          fprintf(stderr, "ERROR: wrong value of parameter <group_cap_update> in <cloth_input.txt>.\n");
           exit(-1);
       }
   }
@@ -440,6 +428,7 @@ int main(int argc, char *argv[]) {
   struct array* payments;
   struct simulation* simulation;
   char output_dir_name[256];
+  struct element* group_add_queue = NULL;
 
   if(argc != 2) {
     fprintf(stderr, "ERROR cloth.c: please specify the output directory\n");
@@ -456,16 +445,6 @@ int main(int argc, char *argv[]) {
   network = initialize_network(net_params, simulation->random_generator);
   n_nodes = array_len(network->nodes);
   n_edges = array_len(network->edges);
-
-    // add edge which is not a member of any group to group_add_queue
-    struct element* group_add_queue = NULL;
-    if(net_params.routing_method == GCB_MIN) {
-        for (int i = 0; i < n_edges; i++) {
-            group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
-        }
-        group_add_queue = construct_groups(simulation, group_add_queue, network, net_params);
-    }
-    printf("group_cover_rate on init : %f\n", (float)(array_len(network->edges) - list_len(group_add_queue)) / (float)(array_len(network->edges)));
 
   printf("PAYMENTS INITIALIZATION\n");
   payments = initialize_payments(pay_params,  n_nodes, simulation->random_generator);
