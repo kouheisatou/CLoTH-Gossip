@@ -218,7 +218,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   }
 
   // find path
-  if(routing_method == CLOTH_ORIGINAL) {
+  if(routing_method == LN) {
       if (payment->attempts == 1) {
           path = paths[payment->id];
       }else {
@@ -291,7 +291,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       return;
     }
     // if shard1_path and shard2_path is same route, return
-    if(routing_method != CLOTH_ORIGINAL) {
+    if(routing_method != LN) {
         long shard1_path_len = array_len(shard1_path);
         long shard2_path_len = array_len(shard2_path);
         if (shard1_path_len == shard2_path_len) {
@@ -571,26 +571,11 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
 
   add_attempt_history(payment, network, simulation->current_time, 1);
 
-  // store edge locked time and balance for statistics
-  for(int i = 0; i < array_len(payment->route->route_hops); i++){
-      struct route_hop* route_hop = array_get(payment->route->route_hops, i);
-      struct edge* edge = array_get(network->edges, route_hop->edge_id);
-
-      struct edge_locked_balance_and_duration* edge_locked_balance_time = malloc(sizeof(struct edge_locked_balance_and_duration));
-      edge_locked_balance_time->locked_balance = route_hop->amount_to_forward;
-      edge_locked_balance_time->locked_start_time = route_hop->edges_lock_start_time;
-      edge_locked_balance_time->locked_end_time = route_hop->edges_lock_end_time;
-      if (route_hop->edges_lock_start_time > route_hop->edges_lock_end_time){
-          edge_locked_balance_time->locked_end_time = simulation->current_time;
-      }
-      edge->edge_locked_balance_and_durations = push(edge->edge_locked_balance_and_durations, edge_locked_balance_time);
-  }
-
     // next event
     uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
 
     // request_group_update event
-    if (net_params.routing_method == GROUP_ROUTING) {
+    if (net_params.routing_method == GCB_MIN) {
         struct event *next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
         simulation->events = heap_insert(simulation->events, next_event, compare_event);
     }
@@ -687,22 +672,6 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
 
   add_attempt_history(payment, network, simulation->current_time, 0);
-
-    for(int i = 0; i < array_len(payment->route->route_hops); i++){
-        struct route_hop* route_hop = array_get(payment->route->route_hops, i);
-        struct edge* edge = array_get(network->edges, route_hop->edge_id);
-
-        struct edge_locked_balance_and_duration* edge_locked_balance_time = malloc(sizeof(struct edge_locked_balance_and_duration));
-        edge_locked_balance_time->locked_balance = route_hop->amount_to_forward;
-        edge_locked_balance_time->locked_start_time = route_hop->edges_lock_start_time;
-        edge_locked_balance_time->locked_end_time = route_hop->edges_lock_end_time;
-        if (route_hop->edges_lock_start_time > route_hop->edges_lock_end_time){
-            edge_locked_balance_time->locked_end_time = simulation->current_time;
-        }
-        edge->edge_locked_balance_and_durations = push(edge->edge_locked_balance_and_durations, edge_locked_balance_time);
-
-        if(payment->error.hop->edge_id == edge->id) break;
-    }
 
   next_event_time = simulation->current_time;
   next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);

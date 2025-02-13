@@ -7,7 +7,11 @@
 #include <gsl/gsl_randist.h>
 
 enum routing_method{
-    CLOTH_ORIGINAL, CHANNEL_UPDATE, GROUP_ROUTING, IDEAL
+    LN, // Routing by Frequency of channel_update like Lightning Network
+    FBB, // Failed Balance Broadcast
+    GCB_MIN, // Group Capacity Broadcast (Broadcast Minimum Capacity in the Group)
+    GCB_AVE, // Group Capacity Broadcast (Broadcast Average Capacity of the Group)
+    RBB // Real-time Balance Broadcast
 };
 
 struct network_params{

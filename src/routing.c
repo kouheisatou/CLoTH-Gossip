@@ -338,7 +338,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 
     // intermediate edges
     // judge edge has enough capacity by group_capacity (proposed method)
-    if(routing_method == GROUP_ROUTING){
+    if(routing_method == GCB_MIN){
         if(edge->group != NULL){
             estimated_capacity = edge->group->group_cap;
         }else{
@@ -347,7 +347,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
     }
 
     // judge by channel_update (conventional method)
-    else if (routing_method == CHANNEL_UPDATE){
+    else if (routing_method == FBB){
 
         // search for valid channel_updates that is less than channel_capacity starting from the latest
         struct channel_update* valid_channel_update = NULL;
@@ -371,12 +371,12 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
     }
 
     // judge by channel capacity (cloth method)
-    else if (routing_method == CLOTH_ORIGINAL){
+    else if (routing_method == LN){
         estimated_capacity = channel->capacity;
     }
 
     // judge by edge capacity (ideal for routing but no privacy)
-    else if (routing_method == IDEAL){
+    else if (routing_method == RBB){
         estimated_capacity = edge->balance;
     }
 
@@ -448,7 +448,7 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
       edge = array_get(best_node->open_edges, j);
       edge = array_get(network->edges, edge->counter_edge_id);
 
-      if(routing_method == CLOTH_ORIGINAL){
+      if(routing_method == LN){
           double edge_probability, tmp_probability, edge_weight, tmp_weight, current_prob;
           from_node_id = edge->from_node_id;
 
