@@ -309,8 +309,8 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "routing_method")==0){
       if(strcmp(value, "LN")==0)
         net_params->routing_method=LN;
-      else if(strcmp(value, "FBB")==0)
-        net_params->routing_method=FBB;
+      else if(strcmp(value, "FAB")==0)
+        net_params->routing_method=FAB;
       else if(strcmp(value, "GCB_MIN")==0)
         net_params->routing_method=GCB_MIN;
       else if(strcmp(value, "RBB")==0)

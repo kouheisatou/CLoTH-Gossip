@@ -347,7 +347,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
     }
 
     // judge by pmt_fail_msg (conventional method)
-    else if (routing_method == FBB){
+    else if (routing_method == FAB){
 
         // search for valid pmt_fail_msg that is less than channel_capacity starting from the latest
         struct pmt_fail_msg* valid_pmt_fail_msg = NULL;
