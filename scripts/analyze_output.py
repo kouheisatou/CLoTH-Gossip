@@ -38,6 +38,7 @@ SUMMARY_CSV_HEADER = [
     "variance_payment_amount",
     "average_max_fee_limit",
     "variance_max_fee_limit",
+    "enable_fake_balance_update",
     "mpp",
     "seed",
     "request_amt_rate",

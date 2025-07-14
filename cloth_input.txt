@@ -22,4 +22,5 @@ average_payment_amount=100
 variance_payment_amount=10
 average_max_fee_limit=-1
 variance_max_fee_limit=-1
+enable_fake_balance_update=false
 mpp=1

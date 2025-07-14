@@ -17,6 +17,4 @@ int is_present(long element, struct array* long_array);
 
 int is_key_equal(struct distance* a, struct distance* b);
 
-int can_join_group(struct group* group, struct edge* edge);
-
 #endif

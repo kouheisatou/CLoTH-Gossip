@@ -722,7 +722,7 @@ struct element* request_group_update(struct event* event, struct simulation* sim
 
         if(edge->group != NULL) {
             struct group* group = edge->group;
-            int close_flg = update_group(edge->group, net_params, simulation->current_time);
+            int close_flg = update_group(edge->group, net_params, simulation->current_time, simulation->random_generator, net_params.enable_fake_balance_update, edge);
 
             if(close_flg){
                 group->is_closed = simulation->current_time;
@@ -743,7 +743,7 @@ struct element* request_group_update(struct event* event, struct simulation* sim
 
         if(counter_edge->group != NULL) {
             struct group* group = counter_edge->group;
-            int close_flg = update_group(counter_edge->group, net_params, simulation->current_time);
+            int close_flg = update_group(counter_edge->group, net_params, simulation->current_time, simulation->random_generator, net_params.enable_fake_balance_update, counter_edge);
 
             if(close_flg){
                 group->is_closed = simulation->current_time;
@@ -764,6 +764,26 @@ struct element* request_group_update(struct event* event, struct simulation* sim
     }
 
     return group_add_queue;
+}
+
+int can_join_group(struct group* group, struct edge* edge){
+
+    if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
+        return 0;
+    }
+
+    for(int i = 0; i < array_len(group->edges); i++) {
+        struct edge *e = array_get(group->edges, i);
+        if (edge == e) return 0;
+        if (edge->to_node_id == e->to_node_id ||
+            edge->to_node_id == e->from_node_id ||
+            edge->from_node_id == e->to_node_id ||
+            edge->from_node_id == e->from_node_id) {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 struct element* construct_groups(struct simulation* simulation, struct element* group_add_queue, struct network *network, struct network_params net_params){
@@ -828,7 +848,7 @@ struct element* construct_groups(struct simulation* simulation, struct element* 
         // register group
         if(array_len(group->edges) == net_params.group_size){
             // init group_cap
-            update_group(group, net_params, simulation->current_time);
+            update_group(group, net_params, simulation->current_time, simulation->random_generator, net_params.enable_fake_balance_update, NULL);
             network->groups = array_insert(network->groups, group);
             for(int i = 0; i < array_len(group->edges); i++){
                 struct edge* group_member_edge = array_get(group->edges, i);

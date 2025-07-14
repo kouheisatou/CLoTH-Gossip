@@ -91,6 +91,9 @@ struct group_update {
     uint64_t time;
     uint64_t group_cap;
     uint64_t* edge_balances;
+    long fake_balance_updated_edge_id; // if not -1, it means that the group cap is updated with a fake value and this is the edge id that triggered the update
+    uint64_t fake_balance_updated_edge_actual_balance;
+    long triggered_edge_id; // if -1, it means that this group update is not triggered by an edge update, but by a group construction
 };
 
 
@@ -99,8 +102,6 @@ struct group {
     struct array* edges;
     uint64_t max_cap_limit;
     uint64_t min_cap_limit;
-    uint64_t max_cap;
-    uint64_t min_cap;
     uint64_t group_cap;
     uint64_t is_closed; // if not zero, it describes closed time
     uint64_t constructed_time;
@@ -133,7 +134,7 @@ void open_channel(struct network* network, gsl_rng* random_generator);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 
-int update_group(struct group* group, struct network_params net_params, uint64_t current_time);
+int update_group(struct group* group, struct network_params net_params, uint64_t current_time, gsl_rng* random_generator, int enable_fake_balance_update, struct edge* triggered_edge);
 
 long get_edge_balance(struct edge* e);
 

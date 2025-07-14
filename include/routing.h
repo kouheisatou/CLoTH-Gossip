@@ -81,8 +81,6 @@ struct array* dijkstra(long source, long destination, uint64_t amount, struct ne
 
 struct route* transform_path_into_route(struct array* path_hops, uint64_t amount_to_send, struct network* network, uint64_t time);
 
-void print_hop(struct route_hop* hop);
-
 int compare_distance(struct distance* a, struct distance* b);
 
 void free_route(struct route* route);

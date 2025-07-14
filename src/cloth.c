@@ -66,7 +66,7 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open groups_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_group_output, "id,edges,balances,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,max_edge_balance,min_edge_balance,group_capacity,cul\n");
+  fprintf(csv_group_output, "id,edges,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,group_update_history,cul,used_count\n");
   for(i=0; i<array_len(network->groups); i++) {
     struct group *group = array_get(network->groups, i);
     fprintf(csv_group_output, "%ld,", group->id);
@@ -80,26 +80,33 @@ void write_output(struct network* network, struct array* payments, char output_d
             fprintf(csv_group_output, ",");
         }
     }
-    for(j=0; j< n_members; j++){
-        struct edge* edge_snapshot = array_get(group->edges, j);
-        fprintf(csv_group_output, "%lu", edge_snapshot->balance);
-        if(j < n_members -1){
-            fprintf(csv_group_output, "-");
-        }else{
+    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit);
+    fprintf(csv_group_output, "\"[");
+    float cul_avg = 0.0f;
+    for(struct element* iterator = group->history; iterator != NULL; iterator = iterator->next) {
+        struct group_update* group_update = iterator->data;
+        fprintf(csv_group_output, "{\"\"edge_balances\"\":[");
+        float sum_cul = 0.0f;
+        for(j=0; j<n_members; j++) {
+            struct edge* e = array_get(group->edges, j);
+            if(group_update->fake_balance_updated_edge_id == e->id){
+                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"fake_balance_update\"\":%s,\"\"actual_balance\"\":%ld}", e->id, group_update->edge_balances[j], "true", group_update->fake_balance_updated_edge_actual_balance);
+            }else{
+                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"fake_balance_update\"\":%s}", e->id, group_update->edge_balances[j], "false");
+            }
+            if(j < n_members - 1) {
+                fprintf(csv_group_output, ",");
+            }
+            sum_cul += (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
+        }
+        float cul = sum_cul / (float)n_members;
+        cul_avg += cul / (float) list_len(group->history);
+        fprintf(csv_group_output, "],\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"cul\"\":%f,\"\"triggered_edge_id\"\":%ld}", group_update->time, group_update->group_cap, cul, group_update->fake_balance_updated_edge_id, group_update->fake_balance_updated_edge_actual_balance, group_update->triggered_edge_id);
+        if(iterator->next != NULL) {
             fprintf(csv_group_output, ",");
         }
     }
-    struct group_update* group_update;
-    if(group->is_closed){
-        group_update = group->history->next->data;
-    }else{
-        group_update = group->history->data;
-    }
-    float sum_cul = 0.0f;
-    for(j=0; j< n_members; j++){
-        sum_cul += (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
-    }
-    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%f\n", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit, group->max_cap, group->min_cap, group->group_cap, sum_cul / (float)n_members);
+    fprintf(csv_group_output, "]\",%f,%ld\n", cul_avg, list_len(group->history)-1);
   }
   fclose(csv_group_output);
 
@@ -314,6 +321,17 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         pay_params->payments_from_file=1;
       else if(strcmp(value, "false")==0)
         pay_params->payments_from_file=0;
+      else{
+        fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
+        fclose(input_file);
+        exit(-1);
+      }
+    }
+    else if(strcmp(parameter, "enable_fake_balance_update")==0){
+      if(strcmp(value, "true")==0)
+        net_params->enable_fake_balance_update = 1;
+      else if(strcmp(value, "false")==0)
+        net_params->enable_fake_balance_update = 0;
       else{
         fprintf(stderr, "ERROR: wrong value of parameter <%s> in <cloth_input.txt>. Possible values are <true> or <false>\n", parameter);
         fclose(input_file);

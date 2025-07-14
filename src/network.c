@@ -381,25 +381,40 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   generate_random_channel(channel, 1000, network, random_generator);
 }
 
-int update_group(struct group* group, struct network_params net_params, uint64_t current_time){
+// if triggered_edge is NULL, it means that this function is called by construct_groups()
+int update_group(struct group* group, struct network_params net_params, uint64_t current_time, gsl_rng* random_generator, int enable_fake_balance_update, struct edge* triggered_edge) {
     int close_flg = 0;
 
     // update group cap
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
+    struct edge* fake_value_edge = NULL;
+    uint64_t fake_value = 0;
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
-        if(edge->balance < min) min = edge->balance;
-        if(edge->balance > max) max = edge->balance;
 
-        if(!can_join_group(group, edge)){
-            close_flg = 1;
+        if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit) close_flg = 1;
+
+        // if the edge is prev triggered edge, update by fake value
+        if(enable_fake_balance_update == 1 && close_flg != 1 && triggered_edge != NULL) {
+            if(edge->id == triggered_edge->id) {
+                // gen fake value by exponential distribution
+                double r = gsl_ran_beta(random_generator, 1.0, 3.0);
+                fake_value = edge->balance + (uint64_t)((double)(group->max_cap_limit - edge->balance) * r);
+                fake_value_edge = edge;
+                if(fake_value < min) min = fake_value;
+                if(fake_value > max) max = fake_value;
+            }else{
+                if(edge->balance < min) min = edge->balance;
+                if(edge->balance > max) max = edge->balance;
+            }
+        }else{
+            if(edge->balance < min) min = edge->balance;
+            if(edge->balance > max) max = edge->balance;
         }
     }
 
     // update group capacity
-    group->max_cap = max;
-    group->min_cap = min;
     if(net_params.group_cap_update) {
         group->group_cap = min;
     }else{
@@ -410,10 +425,30 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     struct group_update* group_update = malloc(sizeof(struct group_update));
     group_update->group_cap = group->group_cap;
     group_update->time = current_time;
+    if(triggered_edge != NULL) {
+        group_update->triggered_edge_id = triggered_edge->id;
+    }else{
+        group_update->triggered_edge_id = -1;
+    }
     group_update->edge_balances = malloc(sizeof(uint64_t) * array_len(group->edges));
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
-        group_update->edge_balances[i] = edge->balance;
+        if(fake_value_edge != NULL){
+            if(edge->id == fake_value_edge->id){
+                group_update->edge_balances[i] = fake_value;
+            }else{
+                group_update->edge_balances[i] = edge->balance;
+            }
+        }else{
+            group_update->edge_balances[i] = edge->balance;
+        }
+    }
+    if(fake_value_edge != NULL) {
+        group_update->fake_balance_updated_edge_id = fake_value_edge->id;
+        group_update->fake_balance_updated_edge_actual_balance = fake_value_edge->balance;
+    }else {
+        group_update->fake_balance_updated_edge_id = -1;
+        group_update->fake_balance_updated_edge_actual_balance = 0;
     }
     group->history = push(group->history, group_update);
 

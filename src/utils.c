@@ -34,23 +34,3 @@ int is_present(long element, struct array* long_array) {
 
   return 0;
 }
-
-int can_join_group(struct group* group, struct edge* edge){
-
-    if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
-        return 0;
-    }
-
-    for(int i = 0; i < array_len(group->edges); i++) {
-        struct edge *e = array_get(group->edges, i);
-        if (edge == e) return 0;
-        if (edge->to_node_id == e->to_node_id ||
-            edge->to_node_id == e->from_node_id ||
-            edge->from_node_id == e->to_node_id ||
-            edge->from_node_id == e->from_node_id) {
-            return 0;
-        }
-    }
-
-    return 1;
-}

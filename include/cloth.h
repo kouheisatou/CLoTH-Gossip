@@ -27,6 +27,7 @@ struct network_params{
   unsigned int group_broadcast_delay;
   int group_size;
   float group_limit_rate;
+  unsigned int enable_fake_balance_update; // if set to 1, update group cap with fake value
 };
 
 struct payments_params{
