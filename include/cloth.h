@@ -111,14 +111,14 @@ struct network_params {
      * MUST be set if generate_from_network is true
      * generate_from_network=falseかつ指定しない場合、cul_threshold_factorはedges_ln.csvの値を利用される
      */
-    double cul_threshold_factor_dist_alpha;
+    double cul_threshold_dist_alpha;
 
     /**
      * GROUP_ROUTING_CULで利用するとき、edgeごとに設定されるcul_threshold_factorをランダムに設定するためのベータ分布パラメータβ
      * MUST be set if generate_from_network is true
      * generate_from_network=falseかつ指定しない場合、cul_threshold_factorはedges_ln.csvの値を利用される
      */
-    double cul_threshold_factor_dist_beta;
+    double cul_threshold_dist_beta;
 };
 
 struct payments_params {

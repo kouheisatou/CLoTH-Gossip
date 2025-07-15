@@ -789,9 +789,7 @@ int can_join_group(struct group* group, struct edge* edge, enum routing_method r
     }
     else if(routing_method == GROUP_ROUTING_CUL){
 
-        uint64_t edge_cul_threshold = edge->balance - (uint64_t)((double)edge->balance * edge->policy.cul_threshold_factor);
-
-        if(group->group_cap < edge->balance - edge_cul_threshold) return 0;
+        if(group->group_cap < edge->balance - (uint64_t)((double)edge->balance * edge->policy.cul_threshold)) return 0;
         if(group->group_cap > edge->balance) return 0;
 
         for(int i = 0; i < array_len(group->edges); i++) {
@@ -901,49 +899,43 @@ struct element* construct_groups(struct simulation* simulation, struct element* 
             group->constructed_time = simulation->current_time;
             group->history = NULL;
 
-            // requesting_edgeの許容最大CUL値
-            uint64_t requesting_edge_cul_threshold = (uint64_t)((double)requesting_edge->balance * requesting_edge->policy.cul_threshold_factor);
-
-            // グループ構築次のみ、requesting_edge容量秘匿のため、一時的にgroup_capを以下の値に設定する
-            group->group_cap = requesting_edge->balance - requesting_edge_cul_threshold;
+            // グループ構築次のみ、requesting_edgeの容量秘匿のため、一時的にgroup_capを以下の値に設定する
+            group->group_cap = requesting_edge->balance - (uint64_t)((double)requesting_edge->balance * requesting_edge->policy.cul_threshold);
 
             // search the closest balance edge from neighbors
-            struct element* bottom = iterator;
-            struct element* top = iterator;
-            while(bottom != NULL || top != NULL){
+            struct element* i_bottom = iterator;
+            struct element* i_top = iterator;
+            while(i_bottom != NULL || i_top != NULL){
 
                 // both edge are out of group limit, skip this group
-                if(top != NULL && bottom != NULL){
-                    struct edge* bottom_edge = bottom->data;
-                    struct edge* top_edge = top->data;
-
-                    uint64_t top_edge_cul_threshold = (uint64_t)((double)top_edge->balance * top_edge->policy.cul_threshold_factor);
-                    uint64_t bottom_edge_cul_threshold = (uint64_t)((double)bottom_edge->balance * bottom_edge->policy.cul_threshold_factor);
+                if(i_top != NULL && i_bottom != NULL){
+                    struct edge* bottom_edge = i_bottom->data;
+                    struct edge* top_edge = i_top->data;
 
                     // group_reqブロードキャストメッセージを受け取ったedgeが範囲外でグループに所属できない場合の判定
                     // https://www.notion.so/cul-230d4e598f3480d5882ef98559d5caaa?source=copy_link
-                    if(top_edge->balance < group->group_cap) break;
-                    if(top_edge->balance - top_edge_cul_threshold > group->group_cap) break;
-                    if(bottom_edge->balance < group->group_cap) break;
-                    if(bottom_edge->balance - bottom_edge_cul_threshold > group->group_cap) break;
+                    if(group->group_cap > top_edge->balance) break;
+                    if(group->group_cap < top_edge->balance - (uint64_t)((double)top_edge->balance * top_edge->policy.cul_threshold)) break;
+                    if(group->group_cap > bottom_edge->balance) break;
+                    if(group->group_cap < bottom_edge->balance - (uint64_t)((double)bottom_edge->balance * bottom_edge->policy.cul_threshold)) break;
                 }
 
-                // join bottom and top edge to group
-                if(bottom != NULL){
-                    struct edge* bottom_edge = bottom->data;
+                // join i_bottom and i_top edge to group
+                if(i_bottom != NULL){
+                    struct edge* bottom_edge = i_bottom->data;
                     if(can_join_group(group, bottom_edge, net_params.routing_method)){
                         group->edges = array_insert(group->edges, bottom_edge);
                         if(array_len(group->edges) == net_params.group_size) break;
                     }
-                    bottom = bottom->prev;
+                    i_bottom = i_bottom->prev;
                 }
-                if(top != NULL){
-                    struct edge* top_edge = top->data;
+                if(i_top != NULL){
+                    struct edge* top_edge = i_top->data;
                     if(can_join_group(group, top_edge, net_params.routing_method)){
                         group->edges = array_insert(group->edges, top_edge);
                         if(array_len(group->edges) == net_params.group_size) break;
                     }
-                    top = top->next;
+                    i_top = i_top->next;
                 }
             }
 

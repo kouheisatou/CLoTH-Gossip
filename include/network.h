@@ -24,7 +24,7 @@ struct policy {
   uint64_t fee_proportional;
   uint64_t min_htlc;
   uint32_t timelock;
-  double cul_threshold_factor;
+  double cul_threshold;
 };
 
 /* a node of the payment-channel network */
