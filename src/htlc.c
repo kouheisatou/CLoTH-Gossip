@@ -791,9 +791,8 @@ int can_join_group(struct group* group, struct edge* edge, enum routing_method r
 
         uint64_t edge_cul_threshold = edge->balance - (uint64_t)((double)edge->balance * edge->policy.cul_threshold_factor);
 
-        if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
-            return 0;
-        }
+        if(group->group_cap < edge->balance - edge_cul_threshold) return 0;
+        if(group->group_cap > edge->balance) return 0;
 
         for(int i = 0; i < array_len(group->edges); i++) {
             struct edge *e = array_get(group->edges, i);
