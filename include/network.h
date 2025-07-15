@@ -24,6 +24,7 @@ struct policy {
   uint64_t fee_proportional;
   uint64_t min_htlc;
   uint32_t timelock;
+  double cul_threshold_factor;
 };
 
 /* a node of the payment-channel network */
@@ -130,7 +131,7 @@ struct channel* new_channel(long id, long direction1, long direction2, long node
 
 struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_node_id, long to_node_id, uint64_t balance, struct policy policy, uint64_t channel_capacity);
 
-void open_channel(struct network* network, gsl_rng* random_generator);
+void open_channel(struct network* network, gsl_rng* random_generator, struct network_params net_params);
 
 struct network* initialize_network(struct network_params net_params, gsl_rng* random_generator);
 

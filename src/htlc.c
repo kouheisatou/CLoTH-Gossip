@@ -713,6 +713,7 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
+// 送金に使用された全てのedgeのグループ更新を行う
 struct element* request_group_update(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct element* group_add_queue){
 
     for(long i = 0; i < array_len(event->payment->route->route_hops); i++){
@@ -766,24 +767,51 @@ struct element* request_group_update(struct event* event, struct simulation* sim
     return group_add_queue;
 }
 
-int can_join_group(struct group* group, struct edge* edge){
+int can_join_group(struct group* group, struct edge* edge, enum routing_method routing_method){
 
-    if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
-        return 0;
-    }
-
-    for(int i = 0; i < array_len(group->edges); i++) {
-        struct edge *e = array_get(group->edges, i);
-        if (edge == e) return 0;
-        if (edge->to_node_id == e->to_node_id ||
-            edge->to_node_id == e->from_node_id ||
-            edge->from_node_id == e->to_node_id ||
-            edge->from_node_id == e->from_node_id) {
+    if(routing_method == GROUP_ROUTING){
+        if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
             return 0;
         }
-    }
 
-    return 1;
+        for(int i = 0; i < array_len(group->edges); i++) {
+            struct edge *e = array_get(group->edges, i);
+            if (edge == e) return 0;
+            if (edge->to_node_id == e->to_node_id ||
+                edge->to_node_id == e->from_node_id ||
+                edge->from_node_id == e->to_node_id ||
+                edge->from_node_id == e->from_node_id) {
+                return 0;
+            }
+        }
+
+        return 1;
+    }
+    else if(routing_method == GROUP_ROUTING_CUL){
+
+        uint64_t edge_cul_threshold = edge->balance - (uint64_t)((double)edge->balance * edge->policy.cul_threshold_factor);
+
+        if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit){
+            return 0;
+        }
+
+        for(int i = 0; i < array_len(group->edges); i++) {
+            struct edge *e = array_get(group->edges, i);
+            if (edge == e) return 0;
+            if (edge->to_node_id == e->to_node_id ||
+                edge->to_node_id == e->from_node_id ||
+                edge->from_node_id == e->to_node_id ||
+                edge->from_node_id == e->from_node_id) {
+                return 0;
+            }
+        }
+
+        return 1;
+    }
+    else{
+        printf(stderr, "ERROR: can_join_group called with unsupported routing method %d\n", routing_method);
+        exit(1);
+    }
 }
 
 struct element* construct_groups(struct simulation* simulation, struct element* group_add_queue, struct network *network, struct network_params net_params){
@@ -794,71 +822,147 @@ struct element* construct_groups(struct simulation* simulation, struct element* 
 
         struct edge* requesting_edge = iterator->data;
 
-        // new group
-        struct group* group = malloc(sizeof(struct group));
-        group->edges = array_initialize(net_params.group_size);
-        group->edges = array_insert(group->edges, requesting_edge);
-        if(net_params.group_limit_rate != -1) {
-            group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-            group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
-            if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
-            if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
-        }else {
-            group->max_cap_limit = UINT64_MAX;
+        if(net_params.routing_method == GROUP_ROUTING) {
+
+            // new group
+            struct group* group = malloc(sizeof(struct group));
+            group->edges = array_initialize(net_params.group_size);
+            group->edges = array_insert(group->edges, requesting_edge);
+            if(net_params.group_limit_rate != -1) {
+                group->max_cap_limit = requesting_edge->balance + (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+                group->min_cap_limit = requesting_edge->balance - (uint64_t)((float)requesting_edge->balance * net_params.group_limit_rate);
+                if(group->max_cap_limit < requesting_edge->balance) group->max_cap_limit = UINT64_MAX;
+                if(group->min_cap_limit > requesting_edge->balance) group->min_cap_limit = 0;
+            }else {
+                group->max_cap_limit = UINT64_MAX;
+                group->min_cap_limit = 0;
+            }
+            group->id = array_len(network->groups);
+            group->is_closed = 0;
+            group->constructed_time = simulation->current_time;
+            group->history = NULL;
+
+            // search the closest balance edge from neighbors
+            struct element* bottom = iterator;
+            struct element* top = iterator;
+            while(bottom != NULL || top != NULL){
+
+                // both edge are out of group limit, skip this group
+                if(top != NULL && bottom != NULL){
+                    struct edge* bottom_edge = bottom->data;
+                    struct edge* top_edge = top->data;
+                    if(bottom_edge->balance < group->min_cap_limit && top_edge->balance > group->max_cap_limit){
+                        break;
+                    }
+                }
+
+                // join bottom and top edge to group
+                if(bottom != NULL){
+                    struct edge* bottom_edge = bottom->data;
+                    if(can_join_group(group, bottom_edge, net_params.routing_method)){
+                        group->edges = array_insert(group->edges, bottom_edge);
+                        if(array_len(group->edges) == net_params.group_size) break;
+                    }
+                    bottom = bottom->prev;
+                }
+                if(top != NULL){
+                    struct edge* top_edge = top->data;
+                    if(can_join_group(group, top_edge, net_params.routing_method)){
+                        group->edges = array_insert(group->edges, top_edge);
+                        if(array_len(group->edges) == net_params.group_size) break;
+                    }
+                    top = top->next;
+                }
+            }
+
+            // register group
+            if(array_len(group->edges) == net_params.group_size){
+                // init group_cap
+                update_group(group, net_params, simulation->current_time, simulation->random_generator, net_params.enable_fake_balance_update, NULL);
+                network->groups = array_insert(network->groups, group);
+                for(int i = 0; i < array_len(group->edges); i++){
+                    struct edge* group_member_edge = array_get(group->edges, i);
+                    group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) is_equal_edge);
+                    group_member_edge->group = group;
+                }
+                if(iterator == NULL) break;
+            }else{
+                array_free(group->edges);
+                free(group);
+            }
+        }
+        else if (net_params.routing_method == GROUP_ROUTING_CUL) {
+            struct group* group = malloc(sizeof(struct group));
+            group->edges = array_initialize(net_params.group_size);
+            group->edges = array_insert(group->edges, requesting_edge);
             group->min_cap_limit = 0;
-        }
-        group->id = array_len(network->groups);
-        group->is_closed = 0;
-        group->constructed_time = simulation->current_time;
-        group->history = NULL;
+            group->max_cap_limit = 0;
+            group->id = array_len(network->groups);
+            group->is_closed = 0;
+            group->constructed_time = simulation->current_time;
+            group->history = NULL;
 
-        // search the closest balance edge from neighbor
-        struct element* bottom = iterator;
-        struct element* top = iterator;
-        while(bottom != NULL || top != NULL){
+            // requesting_edgeの許容最大CUL値
+            uint64_t requesting_edge_cul_threshold = (uint64_t)((double)requesting_edge->balance * requesting_edge->policy.cul_threshold_factor);
 
-            // both edge are out of group limit, skip this group
-            if(top != NULL && bottom != NULL){
-                struct edge* bottom_edge = bottom->data;
-                struct edge* top_edge = top->data;
-                if(bottom_edge->balance < group->min_cap_limit && top_edge->balance > group->max_cap_limit){
-                    break;
+            // グループ構築次のみ、requesting_edge容量秘匿のため、一時的にgroup_capを以下の値に設定する
+            group->group_cap = requesting_edge->balance - requesting_edge_cul_threshold;
+
+            // search the closest balance edge from neighbors
+            struct element* bottom = iterator;
+            struct element* top = iterator;
+            while(bottom != NULL || top != NULL){
+
+                // both edge are out of group limit, skip this group
+                if(top != NULL && bottom != NULL){
+                    struct edge* bottom_edge = bottom->data;
+                    struct edge* top_edge = top->data;
+
+                    uint64_t top_edge_cul_threshold = (uint64_t)((double)top_edge->balance * top_edge->policy.cul_threshold_factor);
+                    uint64_t bottom_edge_cul_threshold = (uint64_t)((double)bottom_edge->balance * bottom_edge->policy.cul_threshold_factor);
+
+                    // group_reqブロードキャストメッセージを受け取ったedgeが範囲外でグループに所属できない場合の判定
+                    // https://www.notion.so/cul-230d4e598f3480d5882ef98559d5caaa?source=copy_link
+                    if(top_edge->balance < group->group_cap) break;
+                    if(top_edge->balance - top_edge_cul_threshold > group->group_cap) break;
+                    if(bottom_edge->balance < group->group_cap) break;
+                    if(bottom_edge->balance - bottom_edge_cul_threshold > group->group_cap) break;
+                }
+
+                // join bottom and top edge to group
+                if(bottom != NULL){
+                    struct edge* bottom_edge = bottom->data;
+                    if(can_join_group(group, bottom_edge, net_params.routing_method)){
+                        group->edges = array_insert(group->edges, bottom_edge);
+                        if(array_len(group->edges) == net_params.group_size) break;
+                    }
+                    bottom = bottom->prev;
+                }
+                if(top != NULL){
+                    struct edge* top_edge = top->data;
+                    if(can_join_group(group, top_edge, net_params.routing_method)){
+                        group->edges = array_insert(group->edges, top_edge);
+                        if(array_len(group->edges) == net_params.group_size) break;
+                    }
+                    top = top->next;
                 }
             }
 
-            // join bottom and top edge to group
-            if(bottom != NULL){
-                struct edge* bottom_edge = bottom->data;
-                if(can_join_group(group, bottom_edge)){
-                    group->edges = array_insert(group->edges, bottom_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
+            // register group
+            if(array_len(group->edges) == net_params.group_size){
+                // init group_cap
+                update_group(group, net_params, simulation->current_time, simulation->random_generator, net_params.enable_fake_balance_update, NULL);
+                network->groups = array_insert(network->groups, group);
+                for(int i = 0; i < array_len(group->edges); i++){
+                    struct edge* group_member_edge = array_get(group->edges, i);
+                    group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) is_equal_edge);
+                    group_member_edge->group = group;
                 }
-                bottom = bottom->prev;
+                if(iterator == NULL) break;
+            }else{
+                array_free(group->edges);
+                free(group);
             }
-            if(top != NULL){
-                struct edge* top_edge = top->data;
-                if(can_join_group(group, top_edge)){
-                    group->edges = array_insert(group->edges, top_edge);
-                    if(array_len(group->edges) == net_params.group_size) break;
-                }
-                top = top->next;
-            }
-        }
-
-        // register group
-        if(array_len(group->edges) == net_params.group_size){
-            // init group_cap
-            update_group(group, net_params, simulation->current_time, simulation->random_generator, net_params.enable_fake_balance_update, NULL);
-            network->groups = array_insert(network->groups, group);
-            for(int i = 0; i < array_len(group->edges); i++){
-                struct edge* group_member_edge = array_get(group->edges, i);
-                group_add_queue = list_delete(group_add_queue, &iterator, group_member_edge, (int (*)(void *, void *)) is_equal_edge);
-                group_member_edge->group = group;
-            }
-            if(iterator == NULL) break;
-        }else{
-            array_free(group->edges);
-            free(group);
         }
     }
     return group_add_queue;

@@ -338,7 +338,7 @@ uint64_t estimate_capacity(struct edge* edge, struct network* network, enum rout
 
     // intermediate edges
     // judge edge has enough capacity by group_capacity (proposed method)
-    if(routing_method == GROUP_ROUTING){
+    if(routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL){
         if(edge->group != NULL){
             estimated_capacity = edge->group->group_cap;
         }else{

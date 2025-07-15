@@ -120,7 +120,7 @@ void update_probability_per_node(double *probability_per_node, int *channels_per
 }
 
 /* generate a channel (connecting node1_id and node2_id) with random values */
-void generate_random_channel(struct channel channel_data, uint64_t mean_channel_capacity, struct network* network, gsl_rng*random_generator) {
+void generate_random_channel(struct channel channel_data, uint64_t mean_channel_capacity, struct network* network, gsl_rng*random_generator, double cul_threshold_factor_dist_alpha, double cul_threshold_factor_dist_beta) {
   uint64_t capacity, edge1_balance, edge2_balance;
   struct policy edge1_policy, edge2_policy;
   double min_htlcP[]={0.7, 0.2, 0.05, 0.05}, fraction_capacity;
@@ -145,11 +145,13 @@ void generate_random_channel(struct channel channel_data, uint64_t mean_channel_
   edge1_policy.timelock = gsl_rng_uniform_int(random_generator, MAXTIMELOCK-MINTIMELOCK)+MINTIMELOCK;
   edge1_policy.min_htlc = gsl_pow_int(10, gsl_ran_discrete(random_generator, min_htlc_discrete));
   edge1_policy.min_htlc = edge1_policy.min_htlc == 1 ? 0 : edge1_policy.min_htlc;
+  edge1_policy.cul_threshold_factor = gsl_ran_beta(random_generator, cul_threshold_factor_dist_alpha, cul_threshold_factor_dist_beta);
   edge2_policy.fee_base = gsl_rng_uniform_int(random_generator, MAXFEEBASE - MINFEEBASE) + MINFEEBASE;
   edge2_policy.fee_proportional = (gsl_rng_uniform_int(random_generator, MAXFEEPROP-MINFEEPROP)+MINFEEPROP);
   edge2_policy.timelock = gsl_rng_uniform_int(random_generator, MAXTIMELOCK-MINTIMELOCK)+MINTIMELOCK;
   edge2_policy.min_htlc = gsl_pow_int(10, gsl_ran_discrete(random_generator, min_htlc_discrete));
   edge2_policy.min_htlc = edge2_policy.min_htlc == 1 ? 0 : edge2_policy.min_htlc;
+  edge2_policy.cul_threshold_factor = gsl_ran_beta(random_generator, cul_threshold_factor_dist_alpha, cul_threshold_factor_dist_beta);
 
   edge1 = new_edge(channel_data.edge1, channel_data.id, channel_data.edge2, channel_data.node1, channel_data.node2, edge1_balance, edge1_policy, channel_data.capacity);
   edge2 = new_edge(channel_data.edge2, channel_data.id, channel_data.edge1, channel_data.node2, channel_data.node1, edge2_balance, edge2_policy, channel_data.capacity);
@@ -219,7 +221,7 @@ struct network* generate_random_network(struct network_params net_params, gsl_rn
   fgets(row, 256, channels_input_file);
   while(fgets(row, 256, channels_input_file)!=NULL) {
     sscanf(row, "%ld,%ld,%ld,%ld,%ld,%*d,%*d", &(channel.id), &(channel.edge1), &(channel.edge2), &(channel.node1), &(channel.node2));
-    generate_random_channel(channel, net_params.capacity_per_channel, network, random_generator);
+    generate_random_channel(channel, net_params.capacity_per_channel, network, random_generator, net_params.cul_threshold_factor_dist_alpha, net_params.cul_threshold_factor_dist_beta);
     channels_per_node[channel.node1] += 1;
     channels_per_node[channel.node2] += 1;
     ++channel_id_counter;
@@ -251,7 +253,7 @@ struct network* generate_random_network(struct network_params net_params, gsl_rn
       channel.edge2 = edge_id_counter + 1;
       channel.node1 = node->id;
       channel.node2 = node_to_connect_id;
-      generate_random_channel(channel, net_params.capacity_per_channel, network, random_generator);
+      generate_random_channel(channel, net_params.capacity_per_channel, network, random_generator, net_params.cul_threshold_factor_dist_alpha, net_params.cul_threshold_factor_dist_beta);
       channel_id_counter++;
       edge_id_counter += 2;
       update_probability_per_node(probability_per_node, channels_per_node, tot_nodes, node->id, node_to_connect_id, channel_id_counter);
@@ -325,7 +327,7 @@ struct network* generate_network_from_files(char nodes_filename[256], char chann
 
   fgets(row, 2048, edges_file);
   while(fgets(row, 2048, edges_file)!=NULL) {
-    sscanf(row, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d", &id, &channel_id, &other_direction, &node_id1, &node_id2, &balance, &policy.fee_base, &policy.fee_proportional, &policy.min_htlc, &policy.timelock);
+    sscanf(row, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%lf", &id, &channel_id, &other_direction, &node_id1, &node_id2, &balance, &policy.fee_base, &policy.fee_proportional, &policy.min_htlc, &policy.timelock, &policy.cul_threshold_factor);
     channel = array_get(network->channels, channel_id);
     edge = new_edge(id, channel_id, other_direction, node_id1, node_id2, balance, policy, channel->capacity);
     network->edges = array_insert(network->edges, edge);
@@ -345,10 +347,19 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
   long i, j;
   struct node* node;
 
-  if(net_params.network_from_file)
-    network = generate_network_from_files(net_params.nodes_filename, net_params.channels_filename, net_params.edges_filename);
-  else
-    network = generate_random_network(net_params, random_generator);
+  if(net_params.network_from_file) {
+      network = generate_network_from_files(net_params.nodes_filename, net_params.channels_filename,net_params.edges_filename);
+
+      // override the cul_threshold_factor if cul_threshold is set in cloth_input.txt
+      if(net_params.cul_threshold_factor_dist_alpha != -1 && net_params.cul_threshold_factor_dist_beta != -1) {
+          for(i=0; i<array_len(network->edges); i++) {
+              struct edge* edge = array_get(network->edges, i);
+              edge->policy.cul_threshold_factor = gsl_ran_beta(random_generator, net_params.cul_threshold_factor_dist_alpha, net_params.cul_threshold_factor_dist_beta);
+          }
+      }
+  }else {
+      network = generate_random_network(net_params, random_generator);
+  }
 
   faulty_prob[0] = 1-net_params.faulty_node_prob;
   faulty_prob[1] = net_params.faulty_node_prob;
@@ -369,7 +380,7 @@ struct network* initialize_network(struct network_params net_params, gsl_rng* ra
 
 /* open a new channel during the simulation */
 /* currenlty NOT USED */
-void open_channel(struct network* network, gsl_rng* random_generator){
+void open_channel(struct network* network, gsl_rng* random_generator, struct network_params net_params) {
   struct channel channel;
   channel.id = array_len(network->channels);
   channel.edge1 = array_len(network->edges);
@@ -378,7 +389,7 @@ void open_channel(struct network* network, gsl_rng* random_generator){
   do{
     channel.node2 = gsl_rng_uniform_int(random_generator, array_len(network->nodes));
   } while(channel.node2==channel.node1);
-  generate_random_channel(channel, 1000, network, random_generator);
+  generate_random_channel(channel, 1000, network, random_generator, net_params.cul_threshold_factor_dist_alpha, net_params.cul_threshold_factor_dist_beta);
 }
 
 // if triggered_edge is NULL, it means that this function is called by construct_groups()
@@ -393,7 +404,9 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
 
-        if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit) close_flg = 1;
+        if(net_params.routing_method == GROUP_ROUTING){
+            if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit) close_flg = 1;
+        }
 
         // if the edge is prev triggered edge, update by fake value
         if(enable_fake_balance_update == 1 && close_flg != 1 && triggered_edge != NULL) {

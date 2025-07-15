@@ -117,10 +117,10 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open edge_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,channel_updates,group,locked_balance_and_duration\n");
+  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,cul_threshold_factor,channel_updates,group,locked_balance_and_duration\n");
   for(i=0; i<array_len(network->edges); i++) {
     edge = array_get(network->edges, i);
-    fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows);
+    fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,%lf", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows, edge->policy.cul_threshold_factor);
     char channel_updates_text[1000000] = "";
     for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
         struct channel_update *channel_update = iterator->data;
@@ -355,6 +355,8 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
         net_params->routing_method=CLOTH_ORIGINAL;
       else if(strcmp(value, "channel_update")==0)
         net_params->routing_method=CHANNEL_UPDATE;
+      else if(strcmp(value, "group_routing_cul")==0)
+        net_params->routing_method=GROUP_ROUTING_CUL;
       else if(strcmp(value, "group_routing")==0)
         net_params->routing_method=GROUP_ROUTING;
       else if(strcmp(value, "ideal")==0)
@@ -380,6 +382,14 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "group_limit_rate")==0){
         if(strcmp(value, "")==0) net_params->group_limit_rate = -1;
         else net_params->group_limit_rate = strtof(value, NULL);
+    }
+    else if(strcmp(parameter, "cul_threshold_factor_dist_alpha")==0){
+        if(strcmp(value, "")==0) net_params->cul_threshold_factor_dist_alpha = -1;
+        else net_params->cul_threshold_factor_dist_alpha = strtof(value, NULL);
+    }
+    else if(strcmp(parameter, "cul_threshold_factor_dist_beta")==0){
+        if(strcmp(value, "")==0) net_params->cul_threshold_factor_dist_beta = -1;
+        else net_params->cul_threshold_factor_dist_beta = strtof(value, NULL);
     }
     else if(strcmp(parameter, "payments_filename")==0){
       strcpy(pay_params->payments_filename, value);
@@ -503,7 +513,7 @@ int main(int argc, char *argv[]) {
 
     // add edge which is not a member of any group to group_add_queue
     struct element* group_add_queue = NULL;
-    if(net_params.routing_method == GROUP_ROUTING) {
+    if(net_params.routing_method == GROUP_ROUTING || net_params.routing_method == GROUP_ROUTING_CUL) {
         for (int i = 0; i < n_edges; i++) {
             group_add_queue = list_insert_sorted_position(group_add_queue, array_get(network->edges, i), (long (*)(void *)) get_edge_balance);
         }
@@ -561,7 +571,7 @@ int main(int argc, char *argv[]) {
       receive_fail(event, simulation, network, net_params);
       break;
     case OPENCHANNEL:
-      open_channel(network, simulation->random_generator);
+      open_channel(network, simulation->random_generator, net_params);
       break;
     case CHANNELUPDATEFAIL:
       channel_update_fail(event, simulation, network);
