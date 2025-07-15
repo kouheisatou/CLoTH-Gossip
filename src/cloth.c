@@ -89,19 +89,20 @@ void write_output(struct network* network, struct array* payments, char output_d
         float sum_cul = 0.0f;
         for(j=0; j<n_members; j++) {
             struct edge* e = array_get(group->edges, j);
+            float cul = (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
+            sum_cul += cul;
             if(group_update->fake_balance_updated_edge_id == e->id){
-                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"fake_balance_update\"\":%s,\"\"actual_balance\"\":%ld}", e->id, group_update->edge_balances[j], "true", group_update->fake_balance_updated_edge_actual_balance);
+                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"cul\"\":%f,\"\"fake_balance_update\"\":%s,\"\"actual_balance\"\":%ld}", e->id, group_update->edge_balances[j], cul, "true", group_update->fake_balance_updated_edge_actual_balance);
             }else{
-                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"fake_balance_update\"\":%s}", e->id, group_update->edge_balances[j], "false");
+                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"cul\"\":%f,\"\"fake_balance_update\"\":%s}", e->id, group_update->edge_balances[j], cul, "false");
             }
             if(j < n_members - 1) {
                 fprintf(csv_group_output, ",");
             }
-            sum_cul += (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
         }
         float cul = sum_cul / (float)n_members;
         cul_avg += cul / (float) list_len(group->history);
-        fprintf(csv_group_output, "],\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"cul\"\":%f,\"\"triggered_edge_id\"\":%ld}", group_update->time, group_update->group_cap, cul, group_update->fake_balance_updated_edge_id, group_update->fake_balance_updated_edge_actual_balance, group_update->triggered_edge_id);
+        fprintf(csv_group_output, "],\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"cul_avg\"\":%f,\"\"triggered_edge_id\"\":%ld}", group_update->time, group_update->group_cap, cul, group_update->fake_balance_updated_edge_id, group_update->fake_balance_updated_edge_actual_balance, group_update->triggered_edge_id);
         if(iterator->next != NULL) {
             fprintf(csv_group_output, ",");
         }

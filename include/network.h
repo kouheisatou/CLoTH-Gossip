@@ -94,7 +94,13 @@ struct group_update {
     uint64_t* edge_balances;
     long fake_balance_updated_edge_id; // if not -1, it means that the group cap is updated with a fake value and this is the edge id that triggered the update
     uint64_t fake_balance_updated_edge_actual_balance;
-    long triggered_edge_id; // if -1, it means that this group update is not triggered by an edge update, but by a group construction
+
+    /**
+     * triggered_edge_id is the edge that triggered this group update.
+     * Payments that are forwarded through this edge will be recorded in the group history.
+     * if -1, it means that this group update is not triggered by an edge update, but by a group construction
+     */
+    long triggered_edge_id;
 };
 
 

@@ -100,9 +100,9 @@ struct network_params {
     float group_limit_rate;
 
     /**
-     * グループ更新時、group_capメッセージの半分以下嘘の値で最小値更新するか否か
+     * グループ更新時、自リンクが2連続でグループの最小値だった場合、プライバシー向上のため、嘘の値でグループ容量を更新する
      * if set to 1, update group cap with fake value
-     * MUST be set if routing_method is GROUP_ROUTING
+     * MUST be set if routing_method is GROUP_ROUTING or GROUP_ROUTING_CUL
      */
     unsigned int enable_fake_balance_update;
 

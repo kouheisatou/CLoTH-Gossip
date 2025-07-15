@@ -404,27 +404,31 @@ int update_group(struct group* group, struct network_params net_params, uint64_t
     for (int i = 0; i < array_len(group->edges); i++) {
         struct edge* edge = array_get(group->edges, i);
 
-        if(net_params.routing_method == GROUP_ROUTING){
-            if(edge->balance < group->min_cap_limit || edge->balance > group->max_cap_limit) close_flg = 1;
-        }
-
-        // if the edge is prev triggered edge, update by fake value
-        if(enable_fake_balance_update == 1 && close_flg != 1 && triggered_edge != NULL) {
-            if(edge->id == triggered_edge->id) {
-                // gen fake value by exponential distribution
+        // 前回最小値だったedgeは嘘の値で更新する
+        uint64_t group_cap_msg_value;
+        if(enable_fake_balance_update == 1 && triggered_edge != NULL) {
+            if(group->group_cap == edge->balance) {
+                // gen fake value by beta distribution
                 double r = gsl_ran_beta(random_generator, 1.0, 3.0);
                 fake_value = edge->balance + (uint64_t)((double)(group->max_cap_limit - edge->balance) * r);
                 fake_value_edge = edge;
-                if(fake_value < min) min = fake_value;
-                if(fake_value > max) max = fake_value;
+                group_cap_msg_value = fake_value;
             }else{
-                if(edge->balance < min) min = edge->balance;
-                if(edge->balance > max) max = edge->balance;
+                group_cap_msg_value = edge->balance;
             }
         }else{
-            if(edge->balance < min) min = edge->balance;
-            if(edge->balance > max) max = edge->balance;
+            group_cap_msg_value = edge->balance;
         }
+        if(group_cap_msg_value < min) min = group_cap_msg_value;
+        if(group_cap_msg_value > max) max = group_cap_msg_value;
+
+        if(net_params.routing_method == GROUP_ROUTING){
+            if(group_cap_msg_value < group->min_cap_limit || group_cap_msg_value > group->max_cap_limit) close_flg = 1;
+        }
+    }
+
+    if(net_params.routing_method == GROUP_ROUTING_CUL){
+
     }
 
     // update group capacity
