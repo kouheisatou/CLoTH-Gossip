@@ -59,14 +59,6 @@ struct edge {
   uint64_t tot_flows;
   struct group* group;
   struct element* channel_updates;
-  struct element* edge_locked_balance_and_durations;
-};
-
-
-struct edge_locked_balance_and_duration{
-    uint64_t locked_balance;
-    uint64_t locked_start_time;
-    uint64_t locked_end_time;
 };
 
 

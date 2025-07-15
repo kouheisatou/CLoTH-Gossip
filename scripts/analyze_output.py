@@ -337,62 +337,36 @@ def analyze_output(output_dir_name):
             "route_len/95-percentile": np.percentile(route_len_distribution, 95),
         }
 
-    edge_fee = {}  # edge_idとそのエッジの手数料の紐付け
     with open(output_dir_name + 'edges_output.csv', 'r') as csv_edge:
         edges = list(csv.DictReader(csv_edge))
 
         edge_in_group_num = 0
-        locked_balance_and_duration_distribution = []
 
         for edge in edges:
-            edge_fee[edge["id"]] = {"fee_base": edge["fee_base"], "fee_proportional": edge["fee_proportional"]}
-            if edge["group"] != "NULL":
+            if edge["group"] != "NULL" and edge["group"] != "":
                 edge_in_group_num += 1
-            if edge["locked_balance_and_duration"] != "":
-                locked_balance_and_duration = [tuple(map(int, pair.split('x'))) for pair in edge["locked_balance_and_duration"].split("-")]
-                total_locked_balance_and_duration = 0
-                for (locked_balance, locked_duration) in locked_balance_and_duration:
-                    total_locked_balance_and_duration += locked_balance * locked_duration  # [millisatoshi*ms]
-                locked_balance_and_duration_distribution.append(total_locked_balance_and_duration)
 
         result = result | {
             "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
-
-            # edgeごとの、ロックされた残高×ロックされた時間の合計の平均[millisatoshi*ms]
-            "total_locked_balance_duration/average": np.mean(locked_balance_and_duration_distribution),
-            "total_locked_balance_duration/variance": np.var(locked_balance_and_duration_distribution),
-            "total_locked_balance_duration/max": np.max(locked_balance_and_duration_distribution),
-            "total_locked_balance_duration/min": np.min(locked_balance_and_duration_distribution),
-            "total_locked_balance_duration/5-percentile": np.percentile(locked_balance_and_duration_distribution, 5),
-            "total_locked_balance_duration/25-percentile": np.percentile(locked_balance_and_duration_distribution, 25),
-            "total_locked_balance_duration/50-percentile": np.percentile(locked_balance_and_duration_distribution, 50),
-            "total_locked_balance_duration/75-percentile": np.percentile(locked_balance_and_duration_distribution, 75),
-            "total_locked_balance_duration/95-percentile": np.percentile(locked_balance_and_duration_distribution, 95),
         }
 
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
         groups = list(csv.DictReader(csv_group))
 
         group_survival_time_distribution = []
-        group_capacity_distribution = []
         cul_distribution = []
 
         for group in groups:
             try:
-                group_capacity_distribution.append(int(group["group_capacity"]))
                 if group["is_closed(closed_time)"] != "0":
                     closed_time = int(group["is_closed(closed_time)"])
                     constructed_time = int(group["constructed_time"])
                     group_survival_time_distribution.append(closed_time - constructed_time)
                 else:
-                    cul_distribution.append(float(group["cul"]))
-            except Exception:
+                    cul_distribution.append(float(group["cul_average"]))
+            except Exception as e:
+                print(e)
                 continue
-
-        # if len(groups) != 0:
-        #     save_histogram(group_survival_time_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_survival_time_histogram.pdf", 500)
-        #     save_histogram(group_capacity_distribution, "Group Survival Time", "Frequency", f"{output_dir_name}/group_capacity_histogram.pdf", 500)
-        #     save_histogram(cul_distribution, "CUL", "Frequency", f"{output_dir_name}/cul_histogram.pdf", 500)
 
         result = result | {
             "group_survival_time/average": np.mean(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
@@ -405,25 +379,15 @@ def analyze_output(output_dir_name):
             "group_survival_time/75-percentile": np.percentile(group_survival_time_distribution, 75) if len(group_survival_time_distribution) else "",
             "group_survival_time/95-percentile": np.percentile(group_survival_time_distribution, 95) if len(group_survival_time_distribution) else "",
 
-            "group_capacity/average": np.mean(group_capacity_distribution) if len(group_survival_time_distribution) else "",
-            "group_capacity/var": np.var(group_capacity_distribution) if len(group_survival_time_distribution) else "",
-            "group_capacity/max": np.max(group_capacity_distribution) if len(group_survival_time_distribution) else "",
-            "group_capacity/min": np.min(group_capacity_distribution) if len(group_survival_time_distribution) else "",
-            "group_capacity/5-percentile": np.percentile(group_capacity_distribution, 5) if len(group_survival_time_distribution) else "",
-            "group_capacity/25-percentile": np.percentile(group_capacity_distribution, 25) if len(group_survival_time_distribution) else "",
-            "group_capacity/50-percentile": np.percentile(group_capacity_distribution, 50) if len(group_survival_time_distribution) else "",
-            "group_capacity/75-percentile": np.percentile(group_capacity_distribution, 75) if len(group_survival_time_distribution) else "",
-            "group_capacity/95-percentile": np.percentile(group_capacity_distribution, 95) if len(group_survival_time_distribution) else "",
-
-            "cul/average": np.mean(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul/var": np.var(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul/max": np.max(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul/min": np.min(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul/5-percentile": np.percentile(cul_distribution, 5) if len(group_survival_time_distribution) else "",
-            "cul/25-percentile": np.percentile(cul_distribution, 25) if len(group_survival_time_distribution) else "",
-            "cul/50-percentile": np.percentile(cul_distribution, 50) if len(group_survival_time_distribution) else "",
-            "cul/75-percentile": np.percentile(cul_distribution, 75) if len(group_survival_time_distribution) else "",
-            "cul/95-percentile": np.percentile(cul_distribution, 95) if len(group_survival_time_distribution) else "",
+            "cul_average/average": np.mean(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul_average/var": np.var(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul_average/max": np.max(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul_average/min": np.min(cul_distribution) if len(group_survival_time_distribution) else "",
+            "cul_average/5-percentile": np.percentile(cul_distribution, 5) if len(group_survival_time_distribution) else "",
+            "cul_average/25-percentile": np.percentile(cul_distribution, 25) if len(group_survival_time_distribution) else "",
+            "cul_average/50-percentile": np.percentile(cul_distribution, 50) if len(group_survival_time_distribution) else "",
+            "cul_average/75-percentile": np.percentile(cul_distribution, 75) if len(group_survival_time_distribution) else "",
+            "cul_average/95-percentile": np.percentile(cul_distribution, 95) if len(group_survival_time_distribution) else "",
         }
 
     return result
@@ -436,8 +400,7 @@ def load_cloth_input(output_dir_name):
             line = line.strip()
             if line and not line.startswith('#'):
                 key, value = line.split('=')
-                cloth_input[key.strip()] = value.strip()
-    cloth_input["request_amt_rate"] = int(cloth_input["average_payment_amount"]) * int(cloth_input["payment_rate"])  # 単位時間に発生する送金リクエスト額[satoshi/sec]
+                cloth_input["#param/" + key.strip()] = value.strip()
     return cloth_input
 
 
@@ -450,7 +413,7 @@ def process_output_dir(output_dir):
     try:
         row_data.update(analyze_output(output_dir))
     except Exception as e:
-        print("FAILED SIMULATION : " + output_dir, file=sys.stderr)
+        print("FAILED SIMULATION : " + output_dir, e, file=sys.stderr)
     print(output_dir)
     return row_data
 
@@ -468,8 +431,13 @@ if __name__ == "__main__":
         for future in futures:
             rows.append(future.result())
 
+    summary_csv_header = set()
+    for row in rows:
+        for column in row:
+            summary_csv_header.add(column)
+
     with open(output_root_dir_name + "/summary.csv", "w", encoding="utf-8") as summary:
-        writer = csv.DictWriter(summary, fieldnames=SUMMARY_CSV_HEADER)
+        writer = csv.DictWriter(summary, fieldnames=sorted(summary_csv_header))
         writer.writeheader()
         for row in rows:
             writer.writerow(row)

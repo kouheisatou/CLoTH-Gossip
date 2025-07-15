@@ -55,7 +55,6 @@ struct edge* new_edge(long id, long channel_id, long counter_edge_id, long from_
   channel_update->edge_id = edge->id;
   channel_update->time = 0;
   edge->channel_updates = push(NULL, channel_update);
-  edge->edge_locked_balance_and_durations = NULL;
   return edge;
 }
 
@@ -515,7 +514,6 @@ void free_network(struct network* network){
         struct edge* e = array_get(network->edges, i);
         if(e == NULL) continue;
         list_free(e->channel_updates);
-        list_free(e->edge_locked_balance_and_durations);
         free(e);
     }
     for(uint64_t i = 0; array_len(network->channels); i++){
