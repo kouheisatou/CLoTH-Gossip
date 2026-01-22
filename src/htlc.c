@@ -209,14 +209,14 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
   // find path
   if(routing_method == CLOTH_ORIGINAL) {
-      if (payment->attempts == 1) {
+      if (payment->attempts == 1 && payment->parent_id == -1) {  // Only use pre-computed path for parent payments
           path = paths[payment->id];
       }else {
           path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
       }
   } else {
 
-      if (payment->attempts == 1) {
+      if (payment->attempts == 1 && payment->parent_id == -1) {  // Only use pre-computed path for parent payments
           path = paths[payment->id];
           if (path != NULL) {
 
