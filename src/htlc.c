@@ -189,23 +189,13 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
 }
 
 
-struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment){
-  struct payment* shard;
-  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit);
-  shard->attempts = 1;
-  shard->is_shard = 1;
-  return shard;
-}
-
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
 void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params) {
-  struct payment *payment, *shard1, *shard2;
-  struct array *path, *shard1_path, *shard2_path;
-  uint64_t shard1_amount, shard2_amount;
+  struct payment *payment;
+  struct array *path;
   enum pathfind_error error;
-  long shard1_id, shard2_id;
 
   payment = event->payment;
 
@@ -276,56 +266,126 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  //  if a path is not found, try to split the payment in two shards (multi-path payment)
-  if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
-    shard1_amount = payment->amount/2;
-    shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard1_path == NULL){
-      payment->end_time = simulation->current_time;
-      return;
+  // no path found -> try MPP splitting if possible
+  struct payment* parent = (payment->parent_id == -1) ? payment : array_get(*payments, payment->parent_id);
+  
+  // Check timeout
+  if(net_params.payment_timeout != -1 && 
+     simulation->current_time > parent->start_time + net_params.payment_timeout) {
+    parent->end_time = simulation->current_time;
+    parent->is_timeout = 1;
+    if (payment->parent_id != -1) {
+      parent->num_shards_pending--;
+      parent->num_shards_failed++;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard2_path == NULL){
-      payment->end_time = simulation->current_time;
-      return;
-    }
-    // if shard1_path and shard2_path is same route, return
-    if(routing_method != CLOTH_ORIGINAL) {
-        long shard1_path_len = array_len(shard1_path);
-        long shard2_path_len = array_len(shard2_path);
-        if (shard1_path_len == shard2_path_len) {
-            int duplicated = 0;
-            for (int i = 0; i < shard1_path_len; i++) {
-                struct route_hop *shard1_hop = array_get(shard1_path, i);
-                for (int j = 0; j < shard2_path_len; j++) {
-                    struct route_hop *shard2_hop = array_get(shard2_path, j);
-                    if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
-                }
-            }
-            // all hop of shade1_path is same as shade2_path's, return
-            if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
-                payment->end_time = simulation->current_time;
-                return;
-            }
-        }
-    }
-    shard1_id = array_len(*payments);
-    shard2_id = array_len(*payments) + 1;
-    shard1 = create_payment_shard(shard1_id, shard1_amount, payment);
-    shard2 = create_payment_shard(shard2_id, shard2_amount, payment);
-    *payments = array_insert(*payments, shard1);
-    *payments = array_insert(*payments, shard2);
-    payment->is_shard = 1;
-    payment->shards_id[0] = shard1_id;
-    payment->shards_id[1] = shard2_id;
-    generate_send_payment_event(shard1, shard1_path, simulation, network);
-    generate_send_payment_event(shard2, shard2_path, simulation, network);
     return;
   }
-
-  // no path
-  payment->end_time = simulation->current_time;
+  
+  // MPP Splitting Logic (when no path found)
+  if (payment->parent_id == -1) {
+    // This is a parent payment with no path
+    uint64_t new_shard_amt = payment->amount / 2;
+    
+    if (mpp && 
+        new_shard_amt >= net_params.mpp_min_shard_amt &&
+        payment->total_shards_created + 2 <= net_params.mpp_max_shards) {
+      
+      // Split into 2 child shards
+      long shard1_id = array_len(*payments);
+      long shard2_id = shard1_id + 1;
+      
+      struct payment* shard1 = new_payment(shard1_id, payment->sender, payment->receiver, 
+                                           new_shard_amt, payment->start_time, payment->max_fee_limit / 2);
+      struct payment* shard2 = new_payment(shard2_id, payment->sender, payment->receiver, 
+                                           new_shard_amt, payment->start_time, payment->max_fee_limit / 2);
+      
+      shard1->is_shard = 1;
+      shard1->parent_id = payment->id;
+      shard2->is_shard = 1;
+      shard2->parent_id = payment->id;
+      
+      *payments = array_insert(*payments, shard1);
+      *payments = array_insert(*payments, shard2);
+      
+      // Update parent tracking
+      long* child1_id = malloc(sizeof(long));
+      long* child2_id = malloc(sizeof(long));
+      *child1_id = shard1_id;
+      *child2_id = shard2_id;
+      payment->child_shards = push(payment->child_shards, child1_id);
+      payment->child_shards = push(payment->child_shards, child2_id);
+      payment->num_shards_pending = 2;
+      payment->total_shards_created = 2;
+      
+      // Note: Can't record attempt history here because there's no route
+      // Just mark that splitting occurred
+      
+      // Emit FINDPATH events for both shards
+      struct event* event1 = new_event(simulation->current_time, FINDPATH, payment->sender, shard1);
+      struct event* event2 = new_event(simulation->current_time, FINDPATH, payment->sender, shard2);
+      simulation->events = heap_insert(simulation->events, event1, compare_event);
+      simulation->events = heap_insert(simulation->events, event2, compare_event);
+      return;
+    } else {
+      // Cannot split -> complete failure
+      payment->end_time = simulation->current_time;
+      return;
+    }
+  } else {
+    // This is a child shard with no path
+    uint64_t new_shard_amt = payment->amount / 2;
+    
+    if (mpp &&
+        new_shard_amt >= net_params.mpp_min_shard_amt &&
+        parent->total_shards_created + 2 <= net_params.mpp_max_shards) {
+      
+      // Split this child into 2 smaller shards
+      long child1_id = array_len(*payments);
+      long child2_id = child1_id + 1;
+      
+      struct payment* child1 = new_payment(child1_id, parent->sender, parent->receiver, 
+                                           new_shard_amt, parent->start_time, parent->max_fee_limit / 4);
+      struct payment* child2 = new_payment(child2_id, parent->sender, parent->receiver, 
+                                           new_shard_amt, parent->start_time, parent->max_fee_limit / 4);
+      
+      child1->is_shard = 1;
+      child1->parent_id = parent->id;
+      child2->is_shard = 1;
+      child2->parent_id = parent->id;
+      
+      *payments = array_insert(*payments, child1);
+      *payments = array_insert(*payments, child2);
+      
+      // Update parent tracking
+      long* id1 = malloc(sizeof(long));
+      long* id2 = malloc(sizeof(long));
+      *id1 = child1_id;
+      *id2 = child2_id;
+      parent->child_shards = push(parent->child_shards, id1);
+      parent->child_shards = push(parent->child_shards, id2);
+      parent->num_shards_pending += 1;  // -1 (this shard) + 2 (new children) = +1
+      parent->total_shards_created += 2;
+      
+      // Emit FINDPATH events
+      struct event* event1 = new_event(simulation->current_time, FINDPATH, parent->sender, child1);
+      struct event* event2 = new_event(simulation->current_time, FINDPATH, parent->sender, child2);
+      simulation->events = heap_insert(simulation->events, event1, compare_event);
+      simulation->events = heap_insert(simulation->events, event2, compare_event);
+      return;
+    } else {
+      // Cannot split -> notify parent of failure
+      parent->num_shards_pending--;
+      parent->num_shards_failed++;
+      
+      // Check if all shards are done
+      if (parent->num_shards_pending == 0) {
+        // All shards finished -> parent fails
+        parent->is_success = 0;
+        parent->end_time = simulation->current_time;
+      }
+      return;
+    }
+  }
 }
 
 /* send an HTLC for the payment (behavior of the payment sender) */
@@ -562,26 +622,50 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
 }
 
 /* receive an HTLC success (behavior of the payment sender node) */
-void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
+void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, struct network_params net_params){
   struct node* node;
   struct payment* payment;
+  struct payment* parent;
+  
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
-  event->payment->end_time = simulation->current_time;
+  payment->end_time = simulation->current_time;
+  payment->is_success = 1;
 
   add_attempt_history(payment, network, simulation->current_time, 1);
-    // next event
-    uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
-
-    // request_group_update event
-    if (net_params.routing_method == GROUP_ROUTING) {
-        struct event *next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
-        simulation->events = heap_insert(simulation->events, next_event, compare_event);
+  
+  // Handle MPP: notify parent if this is a child shard
+  if (payment->parent_id != -1) {
+    parent = array_get(*payments, payment->parent_id);
+    parent->num_shards_pending--;
+    parent->num_shards_succeeded++;
+    
+    // Check if all shards are done
+    if (parent->num_shards_pending == 0) {
+      if (parent->num_shards_failed == 0) {
+        // All shards succeeded!
+        parent->is_success = 1;
+        parent->end_time = simulation->current_time;
+      } else {
+        // Some shards failed -> parent fails
+        parent->is_success = 0;
+        parent->end_time = simulation->current_time;
+      }
     }
+  }
+  
+  // next event
+  uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
 
-    // channel update broadcast event
-    struct event *channel_update_event = new_event(next_event_time, CHANNELUPDATESUCCESS, node->id, payment);
-    simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+  // request_group_update event
+  if (net_params.routing_method == GROUP_ROUTING) {
+      struct event *next_event = new_event(next_event_time, UPDATEGROUP, event->node_id, event->payment);
+      simulation->events = heap_insert(simulation->events, next_event, compare_event);
+  }
+
+  // channel update broadcast event
+  struct event *channel_update_event = new_event(next_event_time, CHANNELUPDATESUCCESS, node->id, payment);
+  simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
 }
 
 /* forward an HTLC fail back to the payment sender (behavior of a intermediate hop node in the route) */
@@ -620,8 +704,9 @@ void forward_fail(struct event* event, struct simulation* simulation, struct net
 }
 
 /* receive an HTLC fail (behavior of the payment sender node) */
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, struct network_params net_params){
   struct payment* payment;
+  struct payment* parent;
   struct route_hop* first_hop, *error_hop;
   struct edge* next_edge, *error_edge;
   struct event* next_event;
@@ -645,24 +730,6 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     next_edge->balance += first_hop->amount_to_forward;
   }
 
-/* print FAIL_NO_BALANCE error
-    struct channel* channel = array_get(network->channels, error_edge->channel_id);
-    printf("\n\tERROR : RECEIVE_FAIL on sending payment(id=%ld, amount=%lu) at edge(id=%ld, balance=%lu, htlc_max_msat=%lu, channel_capacity=%lu) ", payment->id, payment->amount, error_edge->id, error_edge->balance, ((struct channel_update*)(error_edge->channel_updates->data))->htlc_maximum_msat, channel->capacity);
-    printf("\n\tPATH  : ");
-    for(int i = 0; i < array_len(payment->route->route_hops); i++){
-        struct route_hop* hop = array_get(payment->route->route_hops, i);
-        struct edge* edge = array_get(network->edges, hop->edge_id);
-        printf("(edge_id=%ld,edge_balance=%lu,", edge->id, edge->balance);
-        if(edge->group != NULL) {
-            printf("group_id=%ld,group_cap=%lu)", edge->group->id, edge->group->group_cap);
-        }else{
-            printf("group_id=NULL,group_cap=NULL)");
-        }
-        if (i != array_len(payment->route->route_hops) - 1) printf("-");
-    }
-    printf("\n");
-*/
-
     // record channel_update
     struct channel_update *channel_update = malloc(sizeof(struct channel_update));
     channel_update->htlc_maximum_msat = payment->amount;
@@ -671,14 +738,155 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     error_edge->channel_updates = push(error_edge->channel_updates, channel_update);
 
   add_attempt_history(payment, network, simulation->current_time, 0);
-
-  next_event_time = simulation->current_time;
-  next_event = new_event(next_event_time, FINDPATH, payment->sender, payment);
-  simulation->events = heap_insert(simulation->events, next_event, compare_event);
-
+  
+  // Get parent payment (or self if this is the parent)
+  parent = (payment->parent_id == -1) ? payment : array_get(*payments, payment->parent_id);
+  
+  // Timeout check
+  if(net_params.payment_timeout != -1 && 
+     simulation->current_time > parent->start_time + net_params.payment_timeout) {
+    parent->end_time = simulation->current_time;
+    parent->is_timeout = 1;
+    if (payment->parent_id != -1) {
+      parent->num_shards_pending--;
+      parent->num_shards_failed++;
+    }
+    
     // channel update broadcast event
     struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
     simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+    return;
+  }
+  
+  // MPP Splitting Logic
+  if (payment->parent_id == -1) {
+    // This is a parent payment failing
+    
+    // Can we split?
+    uint64_t new_shard_amt = payment->amount / 2;
+    if (net_params.mpp && 
+        payment->error.type == NOBALANCE &&
+        new_shard_amt >= net_params.mpp_min_shard_amt &&
+        payment->total_shards_created + 2 <= net_params.mpp_max_shards) {
+      
+      // Split into 2 child shards
+      long shard1_id = array_len(*payments);
+      long shard2_id = shard1_id + 1;
+      
+      struct payment* shard1 = new_payment(shard1_id, payment->sender, payment->receiver, 
+                                           new_shard_amt, payment->start_time, payment->max_fee_limit / 2);
+      struct payment* shard2 = new_payment(shard2_id, payment->sender, payment->receiver, 
+                                           new_shard_amt, payment->start_time, payment->max_fee_limit / 2);
+      
+      shard1->is_shard = 1;
+      shard1->parent_id = payment->id;
+      shard2->is_shard = 1;
+      shard2->parent_id = payment->id;
+      
+      *payments = array_insert(*payments, shard1);
+      *payments = array_insert(*payments, shard2);
+      
+      // Update parent tracking
+      long* child1_id = malloc(sizeof(long));
+      long* child2_id = malloc(sizeof(long));
+      *child1_id = shard1_id;
+      *child2_id = shard2_id;
+      payment->child_shards = push(payment->child_shards, child1_id);
+      payment->child_shards = push(payment->child_shards, child2_id);
+      payment->num_shards_pending = 2;
+      payment->total_shards_created = 2;
+      
+      // Record split in attempt history
+      add_split_attempt_history(payment, network, simulation->current_time, new_shard_amt, shard1_id, shard2_id);
+      
+      // Emit FINDPATH events for both shards
+      struct event* event1 = new_event(simulation->current_time, FINDPATH, payment->sender, shard1);
+      struct event* event2 = new_event(simulation->current_time, FINDPATH, payment->sender, shard2);
+      simulation->events = heap_insert(simulation->events, event1, compare_event);
+      simulation->events = heap_insert(simulation->events, event2, compare_event);
+      
+      // channel update broadcast event
+      struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
+      simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+      return;
+    } else {
+      // Cannot split -> complete failure
+      payment->is_success = 0;
+      payment->end_time = simulation->current_time;
+      
+      // channel update broadcast event
+      struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
+      simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+      return;
+    }
+  } else {
+    // This is a child shard failing
+    
+    // Can we split this shard further?
+    uint64_t new_shard_amt = payment->amount / 2;
+    if (net_params.mpp &&
+        payment->error.type == NOBALANCE &&
+        new_shard_amt >= net_params.mpp_min_shard_amt &&
+        parent->total_shards_created + 2 <= net_params.mpp_max_shards) {
+      
+      // Split this child into 2 smaller shards
+      long child1_id = array_len(*payments);
+      long child2_id = child1_id + 1;
+      
+      struct payment* child1 = new_payment(child1_id, parent->sender, parent->receiver, 
+                                           new_shard_amt, parent->start_time, parent->max_fee_limit / 4);
+      struct payment* child2 = new_payment(child2_id, parent->sender, parent->receiver, 
+                                           new_shard_amt, parent->start_time, parent->max_fee_limit / 4);
+      
+      child1->is_shard = 1;
+      child1->parent_id = parent->id;
+      child2->is_shard = 1;
+      child2->parent_id = parent->id;
+      
+      *payments = array_insert(*payments, child1);
+      *payments = array_insert(*payments, child2);
+      
+      // Update parent tracking
+      long* id1 = malloc(sizeof(long));
+      long* id2 = malloc(sizeof(long));
+      *id1 = child1_id;
+      *id2 = child2_id;
+      parent->child_shards = push(parent->child_shards, id1);
+      parent->child_shards = push(parent->child_shards, id2);
+      parent->num_shards_pending += 1;  // -1 (this shard) + 2 (new children) = +1
+      parent->total_shards_created += 2;
+      
+      // Record split in attempt history for the failed child shard
+      add_split_attempt_history(payment, network, simulation->current_time, new_shard_amt, child1_id, child2_id);
+      
+      // Emit FINDPATH events
+      struct event* event1 = new_event(simulation->current_time, FINDPATH, parent->sender, child1);
+      struct event* event2 = new_event(simulation->current_time, FINDPATH, parent->sender, child2);
+      simulation->events = heap_insert(simulation->events, event1, compare_event);
+      simulation->events = heap_insert(simulation->events, event2, compare_event);
+      
+      // channel update broadcast event
+      struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
+      simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+      return;
+    } else {
+      // Cannot split -> notify parent of failure
+      parent->num_shards_pending--;
+      parent->num_shards_failed++;
+      
+      // Check if all shards are done
+      if (parent->num_shards_pending == 0) {
+        // All shards finished -> parent fails (at least one failed)
+        parent->is_success = 0;
+        parent->end_time = simulation->current_time;
+      }
+      
+      // channel update broadcast event
+      struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
+      simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+      return;
+    }
+  }
 }
 
 // 送金に使用された全てのedgeのグループ更新を行う

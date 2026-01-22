@@ -34,11 +34,11 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
 
 void forward_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
+void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, struct network_params net_params);
 
 void forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
+void receive_fail(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, struct network_params net_params);
 
 void channel_update_fail(struct event* event, struct simulation* simulation, struct network* network);
 

@@ -179,7 +179,17 @@ void write_output(struct network* network, struct array* payments, char output_d
         fprintf(csv_payment_output, "\"[");
         for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
             struct attempt *attempt = iterator->data;
-            fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"end_time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"route\"\":[", attempt->attempts, attempt->is_succeeded, attempt->end_time, attempt->error_edge_id, attempt->error_type);
+            fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"end_time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,", attempt->attempts, attempt->is_succeeded, attempt->end_time, attempt->error_edge_id, attempt->error_type);
+            
+            // Add MPP split information
+            if(attempt->is_split) {
+                fprintf(csv_payment_output, "\"\"is_split\"\":1,\"\"split_amount\"\":%lu,\"\"child_shard1_id\"\":%ld,\"\"child_shard2_id\"\":%ld,", 
+                    attempt->split_amount, attempt->child_shard1_id, attempt->child_shard2_id);
+            } else {
+                fprintf(csv_payment_output, "\"\"is_split\"\":0,");
+            }
+            
+            fprintf(csv_payment_output, "\"\"route\"\":[");
             for (j = 0; j < array_len(attempt->route); j++) {
                 struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
                 edge = array_get(network->edges, edge_snapshot->id);
@@ -188,7 +198,7 @@ void write_output(struct network* network, struct array* payments, char output_d
                 if(edge_snapshot->is_in_group) fprintf(csv_payment_output, "\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
                 else fprintf(csv_payment_output,"\"\"group_cap\"\":null,");
                 if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-                else fprintf(csv_payment_output,"\"\"channel_update\"\":}");
+                else fprintf(csv_payment_output,"\"\"channel_update\"\":null}");
                 if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
             }
             fprintf(csv_payment_output, "]}");
@@ -236,6 +246,12 @@ void initialize_input_parameters(struct network_params *net_params, struct payme
   strcpy(net_params->nodes_filename, "\0");
   strcpy(net_params->channels_filename, "\0");
   strcpy(net_params->edges_filename, "\0");
+  
+  // MPP defaults (matching LND)
+  net_params->mpp_min_shard_amt = 10000000; // 10000 sat = 10000000 msat
+  net_params->mpp_max_shards = 16;
+  net_params->mpp = 0;
+  
   pay_params->inverse_payment_rate = pay_params->amount_mu = 0.0;
   pay_params->n_payments = 0;
   pay_params->payments_from_file = 0;
@@ -400,6 +416,7 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     }
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);
+      net_params->mpp = pay_params->mpp;  // Copy to net_params for use in receive_fail
     }
     else if(strcmp(parameter, "average_max_fee_limit")==0){
         pay_params->max_fee_limit_mu = strtod(value, NULL);
@@ -433,36 +450,25 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
 
 
 unsigned int has_shards(struct payment* payment){
-  return (payment->shards_id[0] != -1 && payment->shards_id[1] != -1);
+  return (payment->child_shards != NULL && payment->total_shards_created > 0);
 }
 
 
 /* process stats of payments that were split (mpp payments) */
 void post_process_payment_stats(struct array* payments){
   long i;
-  struct payment* payment, *shard1, *shard2;
+  struct payment* payment;
+  
+  // MPP stats are already aggregated in receive_success/receive_fail
+  // This function is now mainly for legacy compatibility
   for(i = 0; i < array_len(payments); i++){
     payment = array_get(payments, i);
     if(payment->id == -1) continue;
     if(!has_shards(payment)) continue;
-    shard1 = array_get(payments, payment->shards_id[0]);
-    shard2 = array_get(payments, payment->shards_id[1]);
-    payment->end_time = shard1->end_time > shard2->end_time ? shard1->end_time : shard2->end_time;
-    payment->is_success = shard1->is_success && shard2->is_success ? 1 : 0;
-    payment->no_balance_count = shard1->no_balance_count + shard2->no_balance_count;
-    payment->offline_node_count = shard1->offline_node_count + shard2->offline_node_count;
-    payment->is_timeout = shard1->is_timeout || shard2->is_timeout ? 1 : 0;
-    payment->attempts = shard1->attempts + shard2->attempts;
-    if(shard1->route != NULL && shard2->route != NULL){
-      payment->route = array_len(shard1->route->route_hops) > array_len(shard2->route->route_hops) ? shard1->route : shard2->route;
-      payment->route->total_fee = shard1->route->total_fee + shard2->route->total_fee;
-    }
-    else{
-      payment->route = NULL;
-    }
-    //a trick to avoid processing already processed shards
-    shard1->id = -1;
-    shard2->id = -1;
+    
+    // Parent payment stats were already set by child shard notifications
+    // The parent's is_success, end_time were set when all shards completed
+    // Individual shard stats (attempts, errors) remain in child payment objects
   }
 }
 
@@ -555,13 +561,13 @@ int main(int argc, char *argv[]) {
       forward_success(event, simulation, network, net_params);
       break;
     case RECEIVESUCCESS:
-      receive_success(event, simulation, network, net_params);
+      receive_success(event, simulation, network, &payments, net_params);
       break;
     case FORWARDFAIL:
       forward_fail(event, simulation, network, net_params);
       break;
     case RECEIVEFAIL:
-      receive_fail(event, simulation, network, net_params);
+      receive_fail(event, simulation, network, &payments, net_params);
       break;
     case OPENCHANNEL:
       open_channel(network, simulation->random_generator, net_params);

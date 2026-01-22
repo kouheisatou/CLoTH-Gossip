@@ -35,7 +35,12 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->error.type = NOERROR;
   p->error.hop = NULL;
   p->is_shard = 0;
-  p->shards_id[0] = p->shards_id[1] = -1;
+  p->parent_id = -1;
+  p->child_shards = NULL;
+  p->num_shards_pending = 0;
+  p->num_shards_succeeded = 0;
+  p->num_shards_failed = 0;
+  p->total_shards_created = 0;
   p->history = NULL;
   p->max_fee_limit = max_fee_limit;
   return p;
@@ -128,6 +133,41 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     attempt->error_type = pmt->error.type;
   }
   attempt->is_succeeded = is_succeeded;
+  
+  // Initialize MPP shard information
+  attempt->is_split = 0;
+  attempt->split_amount = 0;
+  attempt->child_shard1_id = -1;
+  attempt->child_shard2_id = -1;
+  
+  long route_len = array_len(pmt->route->route_hops);
+  attempt->route = array_initialize(route_len);
+
+  for(int i = 0; i < route_len; i++){
+    struct route_hop* route_hop = array_get(pmt->route->route_hops, i);
+    struct edge* edge = array_get(network->edges, route_hop->edge_id);
+    short is_in_group = 0;
+    if(edge->group != NULL) is_in_group = 1;
+    attempt->route = array_insert(attempt->route, take_edge_snapshot(edge, route_hop->amount_to_forward, is_in_group, route_hop->group_cap));
+  }
+
+  pmt->history = push(pmt->history, attempt);
+}
+
+void add_split_attempt_history(struct payment* pmt, struct network* network, uint64_t time, uint64_t split_amount, long child1_id, long child2_id){
+  struct attempt* attempt = malloc(sizeof(struct attempt));
+  attempt->attempts = pmt->attempts;
+  attempt->end_time = time;
+  attempt->error_edge_id = pmt->error.hop->edge_id;
+  attempt->error_type = pmt->error.type;
+  attempt->is_succeeded = 0;  // Split means the original attempt failed
+  
+  // MPP split information
+  attempt->is_split = 1;
+  attempt->split_amount = split_amount;
+  attempt->child_shard1_id = child1_id;
+  attempt->child_shard2_id = child2_id;
+  
   long route_len = array_len(pmt->route->route_hops);
   attempt->route = array_initialize(route_len);
 

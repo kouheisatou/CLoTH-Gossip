@@ -119,6 +119,22 @@ struct network_params {
      * generate_from_network=falseかつ指定しない場合、cul_threshold_factorはedges_ln.csvの値を利用される
      */
     double cul_threshold_dist_beta;
+
+    /**
+     * MPP: Minimum shard amount in millisatoshis (default: 10000 sat = 10000000 msat)
+     * Payments will not be split below this amount
+     */
+    uint64_t mpp_min_shard_amt;
+
+    /**
+     * MPP: Maximum number of shards allowed per payment (default: 16)
+     */
+    uint32_t mpp_max_shards;
+    
+    /**
+     * MPP: Enable multi-path payments (0 = disabled, 1 = enabled)
+     */
+    unsigned int mpp;
 };
 
 struct payments_params {

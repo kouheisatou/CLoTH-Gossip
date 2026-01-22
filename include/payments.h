@@ -25,7 +25,7 @@ struct payment {
   long id;
   long sender;
   long receiver;
-  uint64_t amount; //millisatoshis
+  uint64_t amount; //millisatoshis (target amount for parent, shard amount for child)
   uint64_t max_fee_limit; //millisatoshis
   struct route* route;
   uint64_t start_time;
@@ -34,7 +34,12 @@ struct payment {
   struct payment_error error;
   /* attributes for multi-path-payment (mpp)*/
   unsigned int is_shard;
-  long shards_id[2];
+  long parent_id; // -1 if this is a parent payment, else parent's payment id
+  struct element* child_shards; // parent only: list of child payment ids (long*)
+  uint32_t num_shards_pending; // parent only: number of shards still in-flight
+  uint32_t num_shards_succeeded; // parent only: number of shards that succeeded
+  uint32_t num_shards_failed; // parent only: number of shards that failed
+  uint32_t total_shards_created; // parent only: total number of shards created
   /* attributes used for computing stats */
   unsigned int is_success;
   int offline_node_count;
@@ -50,10 +55,16 @@ struct attempt {
   enum payment_error_type error_type;
   struct array* route; // array of `struct edge_snapshot`
   short is_succeeded;
+  // MPP shard information
+  short is_split;              // 1 if this attempt resulted in splitting
+  uint64_t split_amount;       // Amount that was split (0 if not split)
+  long child_shard1_id;        // First child shard ID (-1 if not split)
+  long child_shard2_id;        // Second child shard ID (-1 if not split)
 };
 
 struct payment* new_payment(long id, long sender, long receiver, uint64_t amount, uint64_t start_time, uint64_t max_fee_limit);
 struct array* initialize_payments(struct payments_params pay_params, long n_nodes, gsl_rng* random_generator);
 void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded);
+void add_split_attempt_history(struct payment* pmt, struct network* network, uint64_t time, uint64_t split_amount, long child1_id, long child2_id);
 
 #endif
