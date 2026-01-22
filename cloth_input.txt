@@ -26,3 +26,5 @@ enable_fake_balance_update=false
 cul_threshold_dist_alpha=2
 cul_threshold_dist_beta=10
 mpp=1
+mpp_min_shard_amt=10
+mpp_max_shards=16

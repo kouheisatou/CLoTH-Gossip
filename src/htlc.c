@@ -360,6 +360,9 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       *payments = array_insert(*payments, child1);
       *payments = array_insert(*payments, child2);
       
+      // IMPORTANT: Re-fetch parent pointer after array_insert (array may have been reallocated)
+      parent = array_get(*payments, child1->parent_id);
+      
       // Update parent tracking
       long* id1 = malloc(sizeof(long));
       long* id2 = malloc(sizeof(long));
@@ -866,6 +869,9 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
       
       *payments = array_insert(*payments, child1);
       *payments = array_insert(*payments, child2);
+      
+      // IMPORTANT: Re-fetch parent pointer after array_insert (array may have been reallocated)
+      parent = array_get(*payments, child1->parent_id);
       
       // Update parent tracking
       long* id1 = malloc(sizeof(long));

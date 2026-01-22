@@ -418,6 +418,12 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
       pay_params->mpp = strtoul(value, NULL, 10);
       net_params->mpp = pay_params->mpp;  // Copy to net_params for use in receive_fail
     }
+    else if(strcmp(parameter, "mpp_min_shard_amt")==0){
+      net_params->mpp_min_shard_amt = strtoull(value, NULL, 10) * 1000;  // Convert sat to msat
+    }
+    else if(strcmp(parameter, "mpp_max_shards")==0){
+      net_params->mpp_max_shards = strtoul(value, NULL, 10);
+    }
     else if(strcmp(parameter, "average_max_fee_limit")==0){
         pay_params->max_fee_limit_mu = strtod(value, NULL);
     }
