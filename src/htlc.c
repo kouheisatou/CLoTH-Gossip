@@ -317,6 +317,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       payment->num_shards_pending = 2;
       payment->total_shards_created = 2;
       
+      // Debug log
+      printf("[MPP] SPLIT (find_path): Payment %ld (%lu msat) -> Shards %ld (%lu msat) + %ld (%lu msat) [no route found]\n",
+             payment->id, payment->amount, shard1_id, new_shard_amt, shard2_id, new_shard_amt);
+      
       // Note: Can't record attempt history here because there's no route
       // Just mark that splitting occurred
       
@@ -365,6 +369,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       parent->child_shards = push(parent->child_shards, id2);
       parent->num_shards_pending += 1;  // -1 (this shard) + 2 (new children) = +1
       parent->total_shards_created += 2;
+      
+      // Debug log
+      printf("[MPP] SPLIT (find_path): Shard %ld (%lu msat, parent=%ld) -> Shards %ld + %ld (%lu msat each) [no route found]\n",
+             payment->id, payment->amount, parent->id, child1_id, child2_id, new_shard_amt);
       
       // Emit FINDPATH events
       struct event* event1 = new_event(simulation->current_time, FINDPATH, parent->sender, child1);
@@ -640,16 +648,25 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
     parent->num_shards_pending--;
     parent->num_shards_succeeded++;
     
+    // Debug log
+    printf("[MPP] SUCCESS: Shard %ld (%lu msat, parent=%ld) succeeded. Parent status: %d succeeded, %d failed, %d pending\n",
+           payment->id, payment->amount, parent->id, 
+           parent->num_shards_succeeded, parent->num_shards_failed, parent->num_shards_pending);
+    
     // Check if all shards are done
     if (parent->num_shards_pending == 0) {
       if (parent->num_shards_failed == 0) {
         // All shards succeeded!
         parent->is_success = 1;
         parent->end_time = simulation->current_time;
+        printf("[MPP] COMPLETE: Payment %ld (%lu msat) SUCCEEDED with %d shards\n",
+               parent->id, parent->amount, parent->num_shards_succeeded);
       } else {
         // Some shards failed -> parent fails
         parent->is_success = 0;
         parent->end_time = simulation->current_time;
+        printf("[MPP] COMPLETE: Payment %ld (%lu msat) FAILED (%d succeeded, %d failed)\n",
+               parent->id, parent->amount, parent->num_shards_succeeded, parent->num_shards_failed);
       }
     }
   }
@@ -796,6 +813,10 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
       payment->num_shards_pending = 2;
       payment->total_shards_created = 2;
       
+      // Debug log
+      printf("[MPP] SPLIT (receive_fail): Payment %ld (%lu msat) -> Shards %ld + %ld (%lu msat each) [error_type=%d, edge=%ld]\n",
+             payment->id, payment->amount, shard1_id, shard2_id, new_shard_amt, payment->error.type, error_edge->id);
+      
       // Record split in attempt history
       add_split_attempt_history(payment, network, simulation->current_time, new_shard_amt, shard1_id, shard2_id);
       
@@ -855,6 +876,10 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
       parent->child_shards = push(parent->child_shards, id2);
       parent->num_shards_pending += 1;  // -1 (this shard) + 2 (new children) = +1
       parent->total_shards_created += 2;
+      
+      // Debug log
+      printf("[MPP] SPLIT (receive_fail): Shard %ld (%lu msat, parent=%ld) -> Shards %ld + %ld (%lu msat each) [error_type=%d, edge=%ld]\n",
+             payment->id, payment->amount, parent->id, child1_id, child2_id, new_shard_amt, payment->error.type, error_edge->id);
       
       // Record split in attempt history for the failed child shard
       add_split_attempt_history(payment, network, simulation->current_time, new_shard_amt, child1_id, child2_id);
