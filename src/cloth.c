@@ -24,20 +24,302 @@
    additionally, it contains the the initialization functions,
    a function that reads the input and a function that writes the output values in csv files */
 
+void print_payment_history_recursive(FILE* stream, struct payment* payment, struct network* network, struct array* payments) {
+    fprintf(stream, "[");
+    if(payment->history != NULL) {
+        for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
+            struct attempt *attempt = iterator->data;
+            fprintf(stream, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"end_time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"split_depth\"\":%u,",
+                    attempt->attempts, attempt->is_succeeded, attempt->end_time, attempt->error_edge_id, attempt->error_type, attempt->split_depth);
+
+            fprintf(stream, "\"\"split_occurred\"\":%d,", attempt->split_occurred);
+            if(attempt->split_occurred) {
+                fprintf(stream, "\"\"split_reason\"\":\"\"%s\"\",\"\"child_shard_id1\"\":%ld,\"\"child_shard_id2\"\":%ld,\"\"child_shard_amount1\"\":%lu,\"\"child_shard_amount2\"\":%lu,",
+                        attempt->split_reason, attempt->child_shard_id1, attempt->child_shard_id2, attempt->child_shard_amount1, attempt->child_shard_amount2);
+
+                fprintf(stream, "\"\"shards\"\":[");
+
+                struct payment* child1 = array_get(payments, attempt->child_shard_id1);
+                fprintf(stream, "{\"\"id\"\":%ld,\"\"amount\"\":%lu,\"\"history\"\":", child1->id, child1->amount);
+                print_payment_history_recursive(stream, child1, network, payments);
+                fprintf(stream, "},");
+
+                struct payment* child2 = array_get(payments, attempt->child_shard_id2);
+                fprintf(stream, "{\"\"id\"\":%ld,\"\"amount\"\":%lu,\"\"history\"\":", child2->id, child2->amount);
+                print_payment_history_recursive(stream, child2, network, payments);
+                fprintf(stream, "}");
+
+                fprintf(stream, "],");
+            } else {
+                fprintf(stream, "\"\"split_reason\"\":null,\"\"child_shard_id1\"\":null,\"\"child_shard_id2\"\":null,\"\"child_shard_amount1\"\":null,\"\"child_shard_amount2\"\":null,");
+            }
+
+            fprintf(stream, "\"\"route\"\":[");
+            if(attempt->route != NULL) {
+                for (long j = 0; j < array_len(attempt->route); j++) {
+                    struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
+                    struct edge* edge = array_get(network->edges, edge_snapshot->id);
+                    struct channel* channel = array_get(network->channels, edge->channel_id);
+                    fprintf(stream,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,\"\"sent_amt\"\":%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,",
+                            edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
+                    if(edge_snapshot->is_in_group) fprintf(stream, "\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
+                    else fprintf(stream,"\"\"group_cap\"\":null,");
+                    if(edge_snapshot->does_channel_update_exist) fprintf(stream,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
+                    else fprintf(stream,"\"\"channel_update\"\":}");
+                    if (j != array_len(attempt->route) - 1) fprintf(stream, ",");
+                }
+            }
+            fprintf(stream, "]");
+
+            fprintf(stream, "}");
+            if (iterator->next != NULL) fprintf(stream, ",");
+        }
+    }
+    fprintf(stream, "]");
+}
+
+void print_mpp_routes(FILE* stream, struct payment* payment, struct array* payments, int* is_first) {
+    if (payment->child_shard_ids != NULL) {
+        for (struct element* it = payment->child_shard_ids; it != NULL; it = it->next) {
+            long* child_id = it->data;
+            struct payment* child = array_get(payments, *child_id);
+            if (child->is_success) {
+                print_mpp_routes(stream, child, payments, is_first);
+            }
+        }
+    } else if (payment->route != NULL) {
+        if (!(*is_first)) {
+            fprintf(stream, ",");
+        }
+        *is_first = 0;
+
+        struct array* hops = payment->route->route_hops;
+        for(int j=0; j<array_len(hops); j++) {
+            struct route_hop* hop = array_get(hops, j);
+            if(j == array_len(hops)-1)
+                fprintf(stream, "%ld", hop->edge_id);
+            else
+                fprintf(stream, "%ld-", hop->edge_id);
+        }
+    }
+}
+
+uint64_t calculate_total_fee(struct payment* payment, struct array* payments) {
+    uint64_t total_fee = 0;
+    if (payment->child_shard_ids != NULL) {
+        for (struct element* it = payment->child_shard_ids; it != NULL; it = it->next) {
+            long* child_id = it->data;
+            struct payment* child = array_get(payments, *child_id);
+            if (child->is_success) {
+                total_fee += calculate_total_fee(child, payments);
+            }
+        }
+    } else if (payment->route != NULL) {
+        total_fee = payment->route->total_fee;
+    }
+    return total_fee;
+}
+
+
+void write_channels_output(struct network* network, char output_dir_name[]) {
+    FILE* csv_channel_output;
+    struct channel* channel;
+    char output_filename[512];
+    long i;
+
+    strcpy(output_filename, output_dir_name);
+    strcat(output_filename, "channels_output.csv");
+    csv_channel_output = fopen(output_filename, "w");
+    if(csv_channel_output  == NULL) {
+        printf("ERROR cannot open channel_output.csv\n");
+        exit(-1);
+    }
+    fprintf(csv_channel_output, "id,edge1,edge2,node1,node2,capacity,is_closed\n");
+    for(i=0; i<array_len(network->channels); i++) {
+        channel = array_get(network->channels, i);
+        fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
+    }
+    fclose(csv_channel_output);
+}
+
+void write_groups_output(struct network* network, char output_dir_name[]) {
+    FILE* csv_group_output;
+    char output_filename[512];
+    long i, j;
+
+    strcpy(output_filename, output_dir_name);
+    strcat(output_filename, "groups_output.csv");
+    csv_group_output = fopen(output_filename, "w");
+    if(csv_group_output  == NULL) {
+        printf("ERROR cannot open groups_output.csv\n");
+        exit(-1);
+    }
+    fprintf(csv_group_output, "id,edges,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,group_update_history,cul_average,used_count\n");
+    for(i=0; i<array_len(network->groups); i++) {
+        struct group *group = array_get(network->groups, i);
+        fprintf(csv_group_output, "%ld,", group->id);
+        long n_members = array_len(group->edges);
+        for(j=0; j< n_members; j++){
+            struct edge* edge_snapshot = array_get(group->edges, j);
+            fprintf(csv_group_output, "%ld", edge_snapshot->id);
+            if(j < n_members -1){
+                fprintf(csv_group_output, "-");
+            }else{
+                fprintf(csv_group_output, ",");
+            }
+        }
+        fprintf(csv_group_output, "%lu,%lu,%lu,%lu,", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit);
+        fprintf(csv_group_output, "\"[");
+        float cul_avg = 0.0f;
+        for(struct element* iterator = group->history; iterator != NULL; iterator = iterator->next) {
+            struct group_update* group_update = iterator->data;
+            fprintf(csv_group_output, "{\"\"edge_balances\"\":[");
+            float sum_cul = 0.0f;
+            for(j=0; j<n_members; j++) {
+                struct edge* e = array_get(group->edges, j);
+                float cul = (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
+                sum_cul += cul;
+                if(group_update->fake_balance_updated_edge_id == e->id){
+                    fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"cul\"\":%f,\"\"fake_balance_update\"\":%s,\"\"actual_balance\"\":%ld}", e->id, group_update->edge_balances[j], cul, "true", group_update->fake_balance_updated_edge_actual_balance);
+                }else{
+                    fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"cul\"\":%f,\"\"fake_balance_update\"\":%s}", e->id, group_update->edge_balances[j], cul, "false");
+                }
+                if(j < n_members - 1) {
+                    fprintf(csv_group_output, ",");
+                }
+            }
+            float cul = sum_cul / (float)n_members;
+            cul_avg += cul / (float) list_len(group->history);
+            fprintf(csv_group_output, "],\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"cul_avg\"\":%f,\"\"triggered_edge_id\"\":%ld}", group_update->time, group_update->group_cap, cul, group_update->fake_balance_updated_edge_id, group_update->fake_balance_updated_edge_actual_balance, group_update->triggered_edge_id);
+            if(iterator->next != NULL) {
+                fprintf(csv_group_output, ",");
+            }
+        }
+        fprintf(csv_group_output, "]\",%f,%ld\n", cul_avg, list_len(group->history)-1);
+    }
+    fclose(csv_group_output);
+}
+
+void write_edges_output(struct network* network, char output_dir_name[]) {
+    FILE* csv_edge_output;
+    struct edge* edge;
+    char output_filename[512];
+    long i;
+
+    strcpy(output_filename, output_dir_name);
+    strcat(output_filename, "edges_output.csv");
+    csv_edge_output = fopen(output_filename, "w");
+    if(csv_edge_output  == NULL) {
+        printf("ERROR cannot open edge_output.csv\n");
+        exit(-1);
+    }
+    fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,cul_threshold,channel_updates,group\n");
+    for(i=0; i<array_len(network->edges); i++) {
+        edge = array_get(network->edges, i);
+        fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,%lf,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows, edge->policy.cul_threshold);
+        char channel_updates_text[1000000] = "";
+        for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
+            struct channel_update *channel_update = iterator->data;
+            char temp[1000000];
+            int written = 0;
+            if(iterator->next != NULL) {
+                written = snprintf(temp, sizeof(temp), "-%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
+            }else{
+                written = snprintf(temp, sizeof(temp), "%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
+            }
+            // Check if the output was truncated
+            if (written < 0 || (size_t)written >= sizeof(temp)) {
+                fprintf(stderr, "Error: Buffer overflow detected.\n");
+                exit(1);
+            }
+            strncpy(channel_updates_text, temp, sizeof(channel_updates_text) - 1);
+        }
+        fprintf(csv_edge_output, "%s,", channel_updates_text);
+        if(edge->group == NULL){
+            fprintf(csv_edge_output, "NULL\n");
+        }else{
+            fprintf(csv_edge_output, "%ld\n", edge->group->id);
+        }
+    }
+    fclose(csv_edge_output);
+}
+
+void write_payments_output(struct network* network, struct array* payments, char output_dir_name[]) {
+    FILE* csv_payment_output;
+    struct payment* payment;
+    char output_filename[512];
+    long i;
+
+    strcpy(output_filename, output_dir_name);
+    strcat(output_filename, "payments_output.csv");
+    csv_payment_output = fopen(output_filename, "w");
+    if(csv_payment_output  == NULL) {
+        printf("ERROR cannot open payment_output.csv\n");
+        exit(-1);
+    }
+    fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,parent_payment_id,split_depth,is_rolled_back,attempts_history\n");
+    for(i=0; i<array_len(payments); i++)  {
+        payment = array_get(payments, i);
+        if (payment->id == -1) continue;
+        fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->max_fee_limit, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
+
+        // Route output (MPP aware)
+        fprintf(csv_payment_output, "\"");
+        int is_first = 1;
+        print_mpp_routes(csv_payment_output, payment, payments, &is_first);
+        fprintf(csv_payment_output, "\",");
+
+        // Fee output (MPP aware)
+        uint64_t total_fee = calculate_total_fee(payment, payments);
+        fprintf(csv_payment_output, "%ld,", total_fee);
+
+        fprintf(csv_payment_output, "%ld,%u,%u,", payment->parent_payment_id, payment->split_depth, payment->is_rolled_back);
+        // build attempts history json
+        fprintf(csv_payment_output, "\"");
+        print_payment_history_recursive(csv_payment_output, payment, network, payments);
+        fprintf(csv_payment_output, "\"");
+        fprintf(csv_payment_output, "\n");
+    }
+    fclose(csv_payment_output);
+}
+
+void write_nodes_output(struct network* network, char output_dir_name[]) {
+    FILE* csv_node_output;
+    struct node* node;
+    long* id;
+    char output_filename[512];
+    long i, j;
+
+    strcpy(output_filename, output_dir_name);
+    strcat(output_filename, "nodes_output.csv");
+    csv_node_output = fopen(output_filename, "w");
+    if(csv_node_output  == NULL) {
+        printf("ERROR cannot open nodes_output.csv\n");
+        return;
+    }
+    fprintf(csv_node_output, "id,open_edges\n");
+    for(i=0; i<array_len(network->nodes); i++) {
+        node = array_get(network->nodes, i);
+        fprintf(csv_node_output, "%ld,", node->id);
+        if(array_len(node->open_edges)==0)
+            fprintf(csv_node_output, "-1");
+        else {
+            for(j=0; j<array_len(node->open_edges); j++) {
+                id = array_get(node->open_edges, j);
+                if(j==array_len(node->open_edges)-1)
+                    fprintf(csv_node_output,"%ld",*id);
+                else
+                    fprintf(csv_node_output,"%ld-",*id);
+            }
+        }
+        fprintf(csv_node_output,"\n");
+    }
+    fclose(csv_node_output);
+}
 
 /* write the final values of nodes, channels, edges and payments in csv files */
 void write_output(struct network* network, struct array* payments, char output_dir_name[]) {
-  FILE* csv_channel_output, *csv_group_output, *csv_edge_output, *csv_payment_output, *csv_node_output;
-  long i,j, *id;
-  struct channel* channel;
-  struct edge* edge;
-  struct payment* payment;
-  struct node* node;
-  struct route* route;
-  struct array* hops;
-  struct route_hop* hop;
   DIR* results_dir;
-  char output_filename[512];
 
   results_dir = opendir(output_dir_name);
   if(!results_dir){
@@ -45,204 +327,11 @@ void write_output(struct network* network, struct array* payments, char output_d
     strcpy(output_dir_name, "./");
   }
 
-  strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "channels_output.csv");
-  csv_channel_output = fopen(output_filename, "w");
-  if(csv_channel_output  == NULL) {
-    printf("ERROR cannot open channel_output.csv\n");
-    exit(-1);
-  }
-  fprintf(csv_channel_output, "id,edge1,edge2,node1,node2,capacity,is_closed\n");
-  for(i=0; i<array_len(network->channels); i++) {
-    channel = array_get(network->channels, i);
-    fprintf(csv_channel_output, "%ld,%ld,%ld,%ld,%ld,%ld,%d\n", channel->id, channel->edge1, channel->edge2, channel->node1, channel->node2, channel->capacity, channel->is_closed);
-  }
-  fclose(csv_channel_output);
-
-  strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "groups_output.csv");
-  csv_group_output = fopen(output_filename, "w");
-  if(csv_group_output  == NULL) {
-    printf("ERROR cannot open groups_output.csv\n");
-    exit(-1);
-  }
-  fprintf(csv_group_output, "id,edges,is_closed(closed_time),constructed_time,min_cap_limit,max_cap_limit,group_update_history,cul_average,used_count\n");
-  for(i=0; i<array_len(network->groups); i++) {
-    struct group *group = array_get(network->groups, i);
-    fprintf(csv_group_output, "%ld,", group->id);
-    long n_members = array_len(group->edges);
-    for(j=0; j< n_members; j++){
-        struct edge* edge_snapshot = array_get(group->edges, j);
-        fprintf(csv_group_output, "%ld", edge_snapshot->id);
-        if(j < n_members -1){
-            fprintf(csv_group_output, "-");
-        }else{
-            fprintf(csv_group_output, ",");
-        }
-    }
-    fprintf(csv_group_output, "%lu,%lu,%lu,%lu,", group->is_closed, group->constructed_time, group->min_cap_limit, group->max_cap_limit);
-    fprintf(csv_group_output, "\"[");
-    float cul_avg = 0.0f;
-    for(struct element* iterator = group->history; iterator != NULL; iterator = iterator->next) {
-        struct group_update* group_update = iterator->data;
-        fprintf(csv_group_output, "{\"\"edge_balances\"\":[");
-        float sum_cul = 0.0f;
-        for(j=0; j<n_members; j++) {
-            struct edge* e = array_get(group->edges, j);
-            float cul = (1.0f - ((float)group_update->group_cap / (float)group_update->edge_balances[j]));
-            sum_cul += cul;
-            if(group_update->fake_balance_updated_edge_id == e->id){
-                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"cul\"\":%f,\"\"fake_balance_update\"\":%s,\"\"actual_balance\"\":%ld}", e->id, group_update->edge_balances[j], cul, "true", group_update->fake_balance_updated_edge_actual_balance);
-            }else{
-                fprintf(csv_group_output, "{\"\"edge_id\"\":%ld,\"\"balance\"\":%ld,\"\"cul\"\":%f,\"\"fake_balance_update\"\":%s}", e->id, group_update->edge_balances[j], cul, "false");
-            }
-            if(j < n_members - 1) {
-                fprintf(csv_group_output, ",");
-            }
-        }
-        float cul = sum_cul / (float)n_members;
-        cul_avg += cul / (float) list_len(group->history);
-        fprintf(csv_group_output, "],\"\"time\"\":%lu,\"\"group_cap\"\":%lu,\"\"cul_avg\"\":%f,\"\"triggered_edge_id\"\":%ld}", group_update->time, group_update->group_cap, cul, group_update->fake_balance_updated_edge_id, group_update->fake_balance_updated_edge_actual_balance, group_update->triggered_edge_id);
-        if(iterator->next != NULL) {
-            fprintf(csv_group_output, ",");
-        }
-    }
-    fprintf(csv_group_output, "]\",%f,%ld\n", cul_avg, list_len(group->history)-1);
-  }
-  fclose(csv_group_output);
-
-  strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "edges_output.csv");
-  csv_edge_output = fopen(output_filename, "w");
-  if(csv_edge_output  == NULL) {
-    printf("ERROR cannot open edge_output.csv\n");
-    exit(-1);
-  }
-  fprintf(csv_edge_output, "id,channel_id,counter_edge_id,from_node_id,to_node_id,balance,fee_base,fee_proportional,min_htlc,timelock,is_closed,tot_flows,cul_threshold,channel_updates,group\n");
-  for(i=0; i<array_len(network->edges); i++) {
-    edge = array_get(network->edges, i);
-    fprintf(csv_edge_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d,%d,%ld,%lf,", edge->id, edge->channel_id, edge->counter_edge_id, edge->from_node_id, edge->to_node_id, edge->balance, edge->policy.fee_base, edge->policy.fee_proportional, edge->policy.min_htlc, edge->policy.timelock, edge->is_closed, edge->tot_flows, edge->policy.cul_threshold);
-    char channel_updates_text[1000000] = "";
-    for (struct element *iterator = edge->channel_updates; iterator != NULL; iterator = iterator->next) {
-        struct channel_update *channel_update = iterator->data;
-        char temp[1000000];
-        int written = 0;
-        if(iterator->next != NULL) {
-            written = snprintf(temp, sizeof(temp), "-%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
-        }else{
-            written = snprintf(temp, sizeof(temp), "%ld%s", channel_update->htlc_maximum_msat, channel_updates_text);
-        }
-        // Check if the output was truncated
-        if (written < 0 || (size_t)written >= sizeof(temp)) {
-            fprintf(stderr, "Error: Buffer overflow detected.\n");
-            exit(1);
-        }
-        strncpy(channel_updates_text, temp, sizeof(channel_updates_text) - 1);
-    }
-    fprintf(csv_edge_output, "%s,", channel_updates_text);
-    if(edge->group == NULL){
-        fprintf(csv_edge_output, "NULL\n");
-    }else{
-        fprintf(csv_edge_output, "%ld\n", edge->group->id);
-    }
-  }
-  fclose(csv_edge_output);
-
-  strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "payments_output.csv");
-  csv_payment_output = fopen(output_filename, "w");
-  if(csv_payment_output  == NULL) {
-    printf("ERROR cannot open payment_output.csv\n");
-    exit(-1);
-  }
-  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,parent_payment_id,split_depth,is_rolled_back,attempts_history\n");
-  for(i=0; i<array_len(payments); i++)  {
-    payment = array_get(payments, i);
-    if (payment->id == -1) continue;
-    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->max_fee_limit, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
-    route = payment->route;
-    if(route==NULL)
-      fprintf(csv_payment_output, ",,");
-    else {
-      hops = route->route_hops;
-      for(j=0; j<array_len(hops); j++) {
-        hop = array_get(hops, j);
-        if(j==array_len(hops)-1)
-          fprintf(csv_payment_output,"%ld,",hop->edge_id);
-        else
-          fprintf(csv_payment_output,"%ld-",hop->edge_id);
-      }
-      fprintf(csv_payment_output, "%ld,",route->total_fee);
-    }
-    fprintf(csv_payment_output, "%ld,%u,%u,", payment->parent_payment_id, payment->split_depth, payment->is_rolled_back);
-    // build attempts history json
-    if(payment->history != NULL) {
-        fprintf(csv_payment_output, "\"[");
-        for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
-            struct attempt *attempt = iterator->data;
-            fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"end_time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"split_depth\"\":%u,",
-                    attempt->attempts, attempt->is_succeeded, attempt->end_time, attempt->error_edge_id, attempt->error_type, attempt->split_depth);
-
-            // MPP split information
-            fprintf(csv_payment_output, "\"\"split_occurred\"\":%d,", attempt->split_occurred);
-            if(attempt->split_occurred) {
-                fprintf(csv_payment_output, "\"\"split_reason\"\":\"\"%s\"\",\"\"child_shard_id1\"\":%ld,\"\"child_shard_id2\"\":%ld,\"\"child_shard_amount1\"\":%lu,\"\"child_shard_amount2\"\":%lu,",
-                        attempt->split_reason, attempt->child_shard_id1, attempt->child_shard_id2, attempt->child_shard_amount1, attempt->child_shard_amount2);
-            } else {
-                fprintf(csv_payment_output, "\"\"split_reason\"\":null,\"\"child_shard_id1\"\":null,\"\"child_shard_id2\"\":null,\"\"child_shard_amount1\"\":null,\"\"child_shard_amount2\"\":null,");
-            }
-
-            // Route information
-            fprintf(csv_payment_output, "\"\"route\"\":[");
-            if(attempt->route != NULL) {
-                for (j = 0; j < array_len(attempt->route); j++) {
-                    struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
-                    edge = array_get(network->edges, edge_snapshot->id);
-                    channel = array_get(network->channels, edge->channel_id);
-                    fprintf(csv_payment_output,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,\"\"sent_amt\"\":%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,",
-                            edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
-                    if(edge_snapshot->is_in_group) fprintf(csv_payment_output, "\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
-                    else fprintf(csv_payment_output,"\"\"group_cap\"\":null,");
-                    if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-                    else fprintf(csv_payment_output,"\"\"channel_update\"\":}");
-                    if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
-                }
-            }
-            fprintf(csv_payment_output, "]}");
-            if (iterator->next != NULL) fprintf(csv_payment_output, ",");
-            else fprintf(csv_payment_output, "]");
-        }
-        fprintf(csv_payment_output, "\"");
-    }
-    fprintf(csv_payment_output, "\n");
-  }
-  fclose(csv_payment_output);
-
-  strcpy(output_filename, output_dir_name);
-  strcat(output_filename, "nodes_output.csv");
-  csv_node_output = fopen(output_filename, "w");
-  if(csv_node_output  == NULL) {
-    printf("ERROR cannot open nodes_output.csv\n");
-    return;
-  }
-  fprintf(csv_node_output, "id,open_edges\n");
-  for(i=0; i<array_len(network->nodes); i++) {
-    node = array_get(network->nodes, i);
-    fprintf(csv_node_output, "%ld,", node->id);
-    if(array_len(node->open_edges)==0)
-      fprintf(csv_node_output, "-1");
-    else {
-      for(j=0; j<array_len(node->open_edges); j++) {
-        id = array_get(node->open_edges, j);
-        if(j==array_len(node->open_edges)-1)
-          fprintf(csv_node_output,"%ld",*id);
-        else
-          fprintf(csv_node_output,"%ld-",*id);
-      }
-    }
-    fprintf(csv_node_output,"\n");
-  }
-  fclose(csv_node_output);
+  write_channels_output(network, output_dir_name);
+  write_groups_output(network, output_dir_name);
+  write_edges_output(network, output_dir_name);
+  write_payments_output(network, payments, output_dir_name);
+  write_nodes_output(network, output_dir_name);
 }
 
 
