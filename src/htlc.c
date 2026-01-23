@@ -17,6 +17,7 @@
 #include "../include/network.h"
 #include "../include/event.h"
 #include "../include/utils.h"
+#include "../include/list.h"
 
 /* Functions in this file simulate the HTLC mechanism for exchanging payments, as implemented in the Lightning Network.
    They are a (high-level) copy of functions in lnd-v0.9.1-beta (see files `routing/missioncontrol.go`, `htlcswitch/switch.go`, `htlcswitch/link.go`) */
@@ -191,9 +192,11 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
 
 struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment){
   struct payment* shard;
-  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit);
+  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit / 2);
   shard->attempts = 1;
   shard->is_shard = 1;
+  shard->parent_payment_id = payment->id;        // NEW: Link to parent
+  shard->split_depth = payment->split_depth + 1; // NEW: Track recursion depth
   return shard;
 }
 
@@ -212,6 +215,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   ++(payment->attempts);
 
   if(net_params.payment_timeout != -1 && simulation->current_time > payment->start_time + net_params.payment_timeout) {
+    char fail_reason[256];
+    snprintf(fail_reason, 256, "payment_timeout_%u_ms", net_params.payment_timeout);
+    add_failure_history(payment, simulation->current_time, fail_reason);
+
     payment->end_time = simulation->current_time;
     payment->is_timeout = 1;
     return;
@@ -222,7 +229,17 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       if (payment->attempts == 1) {
           path = paths[payment->id];
       }else {
-          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
+          // exclude edges
+          struct element* exclude_edges = NULL;
+          for(struct element* iterator = payment->history; iterator != NULL; iterator = iterator->next) {
+            struct attempt* a = iterator->data;
+            if(a->is_succeeded == 0) {
+              struct edge* exclude_edge = array_get(network->edges, a->error_edge_id);
+              exclude_edges = push(exclude_edges, exclude_edge);
+            }
+          }
+          path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, exclude_edges, payment->max_fee_limit);
+          list_free(exclude_edges);
       }
   } else {
 
@@ -263,11 +280,14 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           struct element* exclude_edges = NULL;
           for(struct element* iterator = payment->history; iterator != NULL; iterator = iterator->next) {
             struct attempt* a = iterator->data;
-            struct edge* exclude_edge = array_get(network->edges, a->error_edge_id);
-            exclude_edges = push(exclude_edges, exclude_edge);
+            if(a->is_succeeded == 0 && a->error_type != NOERROR) {
+              struct edge* exclude_edge = array_get(network->edges, a->error_edge_id);
+              exclude_edges = push(exclude_edges, exclude_edge);
+            }
           }
 
           path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, exclude_edges, payment->max_fee_limit);
+          list_free(exclude_edges);
       }
   }
 
@@ -277,55 +297,120 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   }
 
   //  if a path is not found, try to split the payment in two shards (multi-path payment)
-  if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
-    shard1_amount = payment->amount/2;
-    shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard1_path == NULL){
-      payment->end_time = simulation->current_time;
-      return;
+  // Recursive MPP: Check if we can split (removed is_shard and attempts==1 restrictions)
+  shard1_amount = payment->amount/2;
+  shard2_amount = payment->amount - shard1_amount;
+
+  int can_split = mpp &&
+                  payment->split_depth < net_params.max_mpp_split_depth;
+
+  if(!can_split) {
+    // Cannot split - mark as permanently failed
+    char fail_reason[256];
+    if (!mpp) {
+      snprintf(fail_reason, 256, "mpp_disabled_no_path");
+    } else if (payment->split_depth >= net_params.max_mpp_split_depth) {
+      snprintf(fail_reason, 256, "max_split_depth_reached_%u", net_params.max_mpp_split_depth);
+    } else {
+      snprintf(fail_reason, 256, "cannot_split_unknown_reason");
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard2_path == NULL){
-      payment->end_time = simulation->current_time;
-      return;
+    add_failure_history(payment, simulation->current_time, fail_reason);
+
+    payment->end_time = simulation->current_time;
+    payment->is_complete = 1;
+
+    // Notify parent if this is a shard
+    if (payment->parent_payment_id != -1) {
+      notify_parent_of_completion(*payments, payment, simulation, network, 0);
     }
-    // if shard1_path and shard2_path is same route, return
-    if(routing_method != CLOTH_ORIGINAL) {
-        long shard1_path_len = array_len(shard1_path);
-        long shard2_path_len = array_len(shard2_path);
-        if (shard1_path_len == shard2_path_len) {
-            int duplicated = 0;
-            for (int i = 0; i < shard1_path_len; i++) {
-                struct route_hop *shard1_hop = array_get(shard1_path, i);
-                for (int j = 0; j < shard2_path_len; j++) {
-                    struct route_hop *shard2_hop = array_get(shard2_path, j);
-                    if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
-                }
-            }
-            // all hop of shade1_path is same as shade2_path's, return
-            if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
-                payment->end_time = simulation->current_time;
-                return;
-            }
-        }
-    }
-    shard1_id = array_len(*payments);
-    shard2_id = array_len(*payments) + 1;
-    shard1 = create_payment_shard(shard1_id, shard1_amount, payment);
-    shard2 = create_payment_shard(shard2_id, shard2_amount, payment);
-    *payments = array_insert(*payments, shard1);
-    *payments = array_insert(*payments, shard2);
-    payment->is_shard = 1;
-    payment->shards_id[0] = shard1_id;
-    payment->shards_id[1] = shard2_id;
-    generate_send_payment_event(shard1, shard1_path, simulation, network);
-    generate_send_payment_event(shard2, shard2_path, simulation, network);
     return;
   }
 
-  // no path
-  payment->end_time = simulation->current_time;
+  // Try to find paths for both shards
+  shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
+  if(shard1_path == NULL){
+    char fail_reason[256];
+    snprintf(fail_reason, 256, "shard1_no_path_amount_%lu_msat", shard1_amount);
+    add_failure_history(payment, simulation->current_time, fail_reason);
+
+    payment->end_time = simulation->current_time;
+    payment->is_complete = 1;
+    if (payment->parent_payment_id != -1) {
+      notify_parent_of_completion(*payments, payment, simulation, network, 0);
+    }
+    return;
+  }
+  shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
+  if(shard2_path == NULL){
+    char fail_reason[256];
+    snprintf(fail_reason, 256, "shard2_no_path_amount_%lu_msat", shard2_amount);
+    add_failure_history(payment, simulation->current_time, fail_reason);
+
+    payment->end_time = simulation->current_time;
+    payment->is_complete = 1;
+    if (payment->parent_payment_id != -1) {
+      notify_parent_of_completion(*payments, payment, simulation, network, 0);
+    }
+    return;
+  }
+  // if shard1_path and shard2_path is same route, return
+  if(routing_method != CLOTH_ORIGINAL) {
+      long shard1_path_len = array_len(shard1_path);
+      long shard2_path_len = array_len(shard2_path);
+      if (shard1_path_len == shard2_path_len) {
+          int duplicated = 0;
+          for (int i = 0; i < shard1_path_len; i++) {
+              struct route_hop *shard1_hop = array_get(shard1_path, i);
+              for (int j = 0; j < shard2_path_len; j++) {
+                  struct route_hop *shard2_hop = array_get(shard2_path, j);
+                  if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
+              }
+          }
+          // all hop of shade1_path is same as shade2_path's, return
+          if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
+              char fail_reason[256];
+              snprintf(fail_reason, 256, "identical_shard_paths_cannot_split");
+              add_failure_history(payment, simulation->current_time, fail_reason);
+
+              payment->end_time = simulation->current_time;
+              payment->is_complete = 1;
+              if (payment->parent_payment_id != -1) {
+                notify_parent_of_completion(*payments, payment, simulation, network, 0);
+              }
+              return;
+          }
+      }
+  }
+
+  // Create shards
+  shard1_id = array_len(*payments);
+  shard2_id = array_len(*payments) + 1;
+  shard1 = create_payment_shard(shard1_id, shard1_amount, payment);
+  shard2 = create_payment_shard(shard2_id, shard2_amount, payment);
+  *payments = array_insert(*payments, shard1);
+  *payments = array_insert(*payments, shard2);
+
+  // Record split in payment history for debugging
+  char split_reason[256];
+  if (payment->split_depth == 0) {
+    snprintf(split_reason, 256, "no_path_found_initial_split");
+  } else {
+    snprintf(split_reason, 256, "recursive_split_depth_%u", payment->split_depth);
+  }
+  add_split_history(payment, simulation->current_time, shard1_id, shard2_id, shard1_amount, shard2_amount, split_reason);
+
+  // Link parent to children (use dynamic list instead of fixed array)
+  long* id1 = malloc(sizeof(long));
+  long* id2 = malloc(sizeof(long));
+  *id1 = shard1_id;
+  *id2 = shard2_id;
+  payment->child_shard_ids = push(payment->child_shard_ids, id1);
+  payment->child_shard_ids = push(payment->child_shard_ids, id2);
+  payment->pending_shards_count = 2;
+  payment->is_shard = 1; // Parent becomes a container
+
+  generate_send_payment_event(shard1, shard1_path, simulation, network);
+  generate_send_payment_event(shard2, shard2_path, simulation, network);
 }
 
 /* send an HTLC for the payment (behavior of the payment sender) */
@@ -379,6 +464,12 @@ void send_payment(struct event* event, struct simulation* simulation, struct net
   // update balance
   uint64_t prev_balance = next_edge->balance;
   next_edge->balance -= first_route_hop->amount_to_forward;
+
+  // NEW: Record locked route hop for rollback
+  if (payment->locked_route_hops == NULL) {
+    payment->locked_route_hops = array_initialize(10);
+  }
+  payment->locked_route_hops = array_insert(payment->locked_route_hops, first_route_hop);
 
   next_edge->tot_flows += 1;
 
@@ -479,6 +570,12 @@ void forward_payment(struct event* event, struct simulation* simulation, struct 
   uint64_t prev_balance = next_edge->balance;
   next_edge->balance -= next_route_hop->amount_to_forward;
 
+  // NEW: Record locked route hop
+  if (payment->locked_route_hops == NULL) {
+    payment->locked_route_hops = array_initialize(10);
+  }
+  payment->locked_route_hops = array_insert(payment->locked_route_hops, next_route_hop);
+
   next_edge->tot_flows += 1;
 
   // success forwarding
@@ -528,6 +625,68 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
   simulation->events = heap_insert(simulation->events, next_event, compare_event);
 }
 
+/* notify parent payment when a shard completes (for recursive MPP coordination) */
+void notify_parent_of_completion(struct array* payments, struct payment* shard,
+                                  struct simulation* simulation, struct network* network,
+                                  unsigned int is_success) {
+  if (shard->parent_payment_id == -1) return; // Root payment, no parent
+
+  struct payment* parent = array_get(payments, shard->parent_payment_id);
+
+  // Decrement pending counter
+  parent->pending_shards_count--;
+
+  // Check if all children completed
+  if (parent->pending_shards_count == 0) {
+    // Count successful children
+    long success_count = 0;
+    for (struct element* it = parent->child_shard_ids; it != NULL; it = it->next) {
+      long* child_id = it->data;
+      struct payment* child = array_get(payments, *child_id);
+      if (child->is_success) success_count++;
+    }
+
+    long total_children = list_len(parent->child_shard_ids);
+
+    if (success_count == total_children) {
+      // ALL children succeeded - parent succeeds
+      parent->is_success = 1;
+      parent->end_time = simulation->current_time;
+      parent->is_complete = 1;
+
+      // Propagate to grandparent if exists
+      if (parent->parent_payment_id != -1) {
+        notify_parent_of_completion(payments, parent, simulation, network, 1);
+      }
+    } else {
+      // AT LEAST ONE child failed - rollback all successful children
+      parent->is_success = 0;
+      parent->end_time = simulation->current_time;
+      parent->is_complete = 1;
+
+      // Schedule rollback for successful children
+      for (struct element* it = parent->child_shard_ids; it != NULL; it = it->next) {
+        long* child_id = it->data;
+        struct payment* child = array_get(payments, *child_id);
+        if (child->is_success && !child->is_rolled_back) {
+          struct event* rollback_event = new_event(
+            simulation->current_time + 1,
+            ROLLBACKPAYMENT,
+            parent->sender,
+            child
+          );
+          simulation->events = heap_insert(simulation->events, rollback_event, compare_event);
+        }
+      }
+
+      // Propagate failure to grandparent
+      if (parent->parent_payment_id != -1) {
+        notify_parent_of_completion(payments, parent, simulation, network, 0);
+      }
+    }
+  }
+}
+
 /* forward an HTLC success back to the payment sender (behavior of a intermediate hop node in the route) */
 void forward_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
   struct route_hop* prev_hop;
@@ -562,14 +721,20 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
 }
 
 /* receive an HTLC success (behavior of the payment sender node) */
-void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
+void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params, struct array* payments){
   struct node* node;
   struct payment* payment;
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
+  event->payment->is_complete = 1;  // NEW: Mark as complete
 
   add_attempt_history(payment, network, simulation->current_time, 1);
+
+  // NEW: Notify parent if this is a shard
+  if (payment->parent_payment_id != -1) {
+    notify_parent_of_completion(payments, payment, simulation, network, 1);
+  }
     // next event
     uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
 
@@ -679,6 +844,55 @@ void receive_fail(struct event* event, struct simulation* simulation, struct net
     // channel update broadcast event
     struct event *channel_update_event = new_event(simulation->current_time + net_params.group_broadcast_delay, CHANNELUPDATEFAIL, node->id, payment);
     simulation->events = heap_insert(simulation->events, channel_update_event, compare_event);
+}
+
+/* rollback a successful payment (for recursive MPP when sibling shard fails) */
+void rollback_payment(struct event* event, struct simulation* simulation,
+                      struct network* network, struct array* payments) {
+  struct payment* payment = event->payment;
+
+  if (payment->is_rolled_back) return; // Already rolled back
+
+  payment->is_rolled_back = 1;
+  payment->is_success = 0;
+
+  // Record rollback in history
+  char rollback_reason[256];
+  snprintf(rollback_reason, 256, "rolled_back_due_to_sibling_shard_failure");
+  add_failure_history(payment, simulation->current_time, rollback_reason);
+
+  // Rollback edge balances using locked route hops
+  if (payment->locked_route_hops != NULL) {
+    for (long i = 0; i < array_len(payment->locked_route_hops); i++) {
+      struct route_hop* hop = array_get(payment->locked_route_hops, i);
+      struct edge* forward_edge = array_get(network->edges, hop->edge_id);
+      struct edge* backward_edge = array_get(network->edges, forward_edge->counter_edge_id);
+
+      // Restore forward edge balance (undo the decrease from send/forward)
+      forward_edge->balance += hop->amount_to_forward;
+
+      // Restore backward edge balance (undo the increase from receive/forward_success)
+      backward_edge->balance -= hop->amount_to_forward;
+    }
+  }
+
+  // Recursively rollback successful children
+  if (payment->child_shard_ids != NULL) {
+    for (struct element* it = payment->child_shard_ids; it != NULL; it = it->next) {
+      long* child_id = it->data;
+      struct payment* child = array_get(payments, *child_id);
+
+      if (child->is_success && !child->is_rolled_back) {
+        struct event* rollback_event = new_event(
+          simulation->current_time + 1,
+          ROLLBACKPAYMENT,
+          payment->sender,
+          child
+        );
+        simulation->events = heap_insert(simulation->events, rollback_event, compare_event);
+      }
+    }
+  }
 }
 
 // 送金に使用された全てのedgeのグループ更新を行う

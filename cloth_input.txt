@@ -26,3 +26,4 @@ enable_fake_balance_update=false
 cul_threshold_dist_alpha=2
 cul_threshold_dist_beta=10
 mpp=1
+max_mpp_split_depth=4

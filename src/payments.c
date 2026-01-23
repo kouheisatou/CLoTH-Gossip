@@ -35,7 +35,13 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->error.type = NOERROR;
   p->error.hop = NULL;
   p->is_shard = 0;
-  p->shards_id[0] = p->shards_id[1] = -1;
+  p->parent_payment_id = -1;
+  p->child_shard_ids = NULL;
+  p->split_depth = 0;
+  p->pending_shards_count = 0;
+  p->is_complete = 0;
+  p->locked_route_hops = NULL;
+  p->is_rolled_back = 0;
   p->history = NULL;
   p->max_fee_limit = max_fee_limit;
   return p;
@@ -128,6 +134,16 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     attempt->error_type = pmt->error.type;
   }
   attempt->is_succeeded = is_succeeded;
+
+  // Initialize MPP split information
+  attempt->split_occurred = 0;
+  attempt->child_shard_id1 = -1;
+  attempt->child_shard_id2 = -1;
+  attempt->child_shard_amount1 = 0;
+  attempt->child_shard_amount2 = 0;
+  attempt->split_depth = pmt->split_depth;
+  strcpy(attempt->split_reason, "");
+
   long route_len = array_len(pmt->route->route_hops);
   attempt->route = array_initialize(route_len);
 
@@ -138,6 +154,50 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     if(edge->group != NULL) is_in_group = 1;
     attempt->route = array_insert(attempt->route, take_edge_snapshot(edge, route_hop->amount_to_forward, is_in_group, route_hop->group_cap));
   }
+
+  pmt->history = push(pmt->history, attempt);
+}
+
+void add_split_history(struct payment* pmt, uint64_t time, long child1_id, long child2_id, uint64_t child1_amount, uint64_t child2_amount, const char* reason){
+  struct attempt* attempt = malloc(sizeof(struct attempt));
+  attempt->attempts = pmt->attempts;
+  attempt->end_time = time;
+  attempt->error_edge_id = 0;
+  attempt->error_type = NOERROR;
+  attempt->is_succeeded = 0; // Split means current payment didn't succeed as-is
+  attempt->route = NULL; // No route for split events
+
+  // Record MPP split information
+  attempt->split_occurred = 1;
+  attempt->child_shard_id1 = child1_id;
+  attempt->child_shard_id2 = child2_id;
+  attempt->child_shard_amount1 = child1_amount;
+  attempt->child_shard_amount2 = child2_amount;
+  attempt->split_depth = pmt->split_depth;
+  strncpy(attempt->split_reason, reason, 255);
+  attempt->split_reason[255] = '\0';
+
+  pmt->history = push(pmt->history, attempt);
+}
+
+void add_failure_history(struct payment* pmt, uint64_t time, const char* reason){
+  struct attempt* attempt = malloc(sizeof(struct attempt));
+  attempt->attempts = pmt->attempts;
+  attempt->end_time = time;
+  attempt->error_edge_id = 0;
+  attempt->error_type = NOERROR;
+  attempt->is_succeeded = 0;
+  attempt->route = NULL;
+
+  // Record failure information
+  attempt->split_occurred = 0;
+  attempt->child_shard_id1 = -1;
+  attempt->child_shard_id2 = -1;
+  attempt->child_shard_amount1 = 0;
+  attempt->child_shard_amount2 = 0;
+  attempt->split_depth = pmt->split_depth;
+  strncpy(attempt->split_reason, reason, 255);
+  attempt->split_reason[255] = '\0';
 
   pmt->history = push(pmt->history, attempt);
 }

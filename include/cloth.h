@@ -52,6 +52,12 @@ struct network_params {
     unsigned int payment_timeout; // set -1 to disable payment timeout
 
     /**
+     * Recursive MPP: 最大分割深度
+     * この深度を超えて分割しない (default: 4 → max 2^4 = 16 shards)
+     */
+    unsigned int max_mpp_split_depth;
+
+    /**
      * 送金の平均遅延時間 [ms]
      * 送金の遅延時間は平均値と分散で決定される
      */
