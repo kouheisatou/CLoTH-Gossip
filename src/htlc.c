@@ -195,6 +195,10 @@ struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struc
   shard->attempts = 0;
   shard->is_shard = 1;
   shard->parent_payment_id = parent_id;
+
+  printf("[MPP DEBUG] Created shard: id=%ld, parent_id=%ld, amount=%lu, sender=%ld, receiver=%ld\n",
+         shard_id, parent_id, shard_amount, payment->sender, payment->receiver);
+
   return shard;
 }
 
@@ -231,6 +235,9 @@ void rollback_successful_shards(struct payment* root_payment, struct array* paym
       }
 
       shard->is_success = 0;
+      shard->is_rolledback = 1;  // ロールバックフラグを設定
+
+      printf("[MPP DEBUG] Rolled back shard: id=%ld, amount=%lu\n", shard->id, shard->amount);
     }
 
     // 子シャードも再帰的にロールバック

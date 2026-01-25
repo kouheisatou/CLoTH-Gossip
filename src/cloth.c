@@ -155,15 +155,62 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open payment_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
+  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_shard,parent_payment_id,shard1_id,shard2_id,is_success,is_rolledback,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
   for(i=0; i<array_len(payments); i++)  {
     payment = array_get(payments, i);
     if (payment->id == -1) continue;
-    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->max_fee_limit, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
+
+    // mpp: 親paymentが分割された場合1
+    unsigned int is_mpp = (payment->shard_ids != NULL && array_len(payment->shard_ids) > 0) ? 1 : 0;
+    // is_shard: 子ペイメントの場合1
+    unsigned int is_shard_flag = (payment->parent_payment_id != -1) ? 1 : 0;
+    // shard1_id, shard2_id: 最初の2つのシャードID
+    long shard1_id = -1, shard2_id = -1;
+    if(payment->shard_ids != NULL && array_len(payment->shard_ids) >= 1) {
+      long* ptr = array_get(payment->shard_ids, 0);
+      shard1_id = *ptr;
+    }
+    if(payment->shard_ids != NULL && array_len(payment->shard_ids) >= 2) {
+      long* ptr = array_get(payment->shard_ids, 1);
+      shard2_id = *ptr;
+    }
+
+    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,",
+      payment->id, payment->sender, payment->receiver, payment->amount,
+      payment->start_time, payment->max_fee_limit, payment->end_time,
+      is_mpp, is_shard_flag, payment->parent_payment_id, shard1_id, shard2_id,
+      payment->is_success, payment->is_rolledback,
+      payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
+
+    // route出力: MPPの場合は子シャードのルートをカンマ区切りで出力
     route = payment->route;
-    if(route==NULL)
+    uint64_t total_fee = 0;
+    if(is_mpp && payment->shard_ids != NULL) {
+      // MPPの場合: 成功した子シャードのルートを出力
+      fprintf(csv_payment_output, "\"");
+      int first_route = 1;
+      for(j=0; j<array_len(payment->shard_ids); j++) {
+        long* shard_id_ptr = array_get(payment->shard_ids, j);
+        struct payment* shard = array_get(payments, *shard_id_ptr);
+        if(shard->route != NULL && shard->is_success && !shard->is_rolledback) {
+          if(!first_route) fprintf(csv_payment_output, ",");
+          first_route = 0;
+          hops = shard->route->route_hops;
+          for(long k=0; k<array_len(hops); k++) {
+            hop = array_get(hops, k);
+            if(k==array_len(hops)-1)
+              fprintf(csv_payment_output,"%ld",hop->edge_id);
+            else
+              fprintf(csv_payment_output,"%ld-",hop->edge_id);
+          }
+          total_fee += shard->route->total_fee;
+        }
+      }
+      fprintf(csv_payment_output, "\",");
+      fprintf(csv_payment_output, "%ld,", total_fee);
+    } else if(route==NULL) {
       fprintf(csv_payment_output, ",,");
-    else {
+    } else {
       hops = route->route_hops;
       for(j=0; j<array_len(hops); j++) {
         hop = array_get(hops, j);
@@ -174,6 +221,7 @@ void write_output(struct network* network, struct array* payments, char output_d
       }
       fprintf(csv_payment_output, "%ld,",route->total_fee);
     }
+
     // build attempts history json
     if(payment->history != NULL) {
         fprintf(csv_payment_output, "\"[");
@@ -485,12 +533,7 @@ void post_process_payment_stats(struct array* payments){
     if(payment->end_time == 0) payment->end_time = max_end_time;
     payment->is_timeout = any_timeout;
 
-    // シャードをマーク（出力時にスキップ）
-    for(long j = 0; j < array_len(payment->shard_ids); j++) {
-      long* shard_id_ptr = array_get(payment->shard_ids, j);
-      struct payment* shard = array_get(payments, *shard_id_ptr);
-      shard->id = -1;
-    }
+    // シャードも出力するため、IDを-1にしない（以前はここでシャードをスキップしていた）
   }
 }
 

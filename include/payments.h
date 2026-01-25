@@ -41,6 +41,7 @@ struct payment {
   unsigned int success_shard_count;  // 成功したシャード数（ルートpaymentのみ有効）
   /* attributes used for computing stats */
   unsigned int is_success;
+  unsigned int is_rolledback;  // ロールバックされた場合1
   int offline_node_count;
   int no_balance_count;
   unsigned int is_timeout;

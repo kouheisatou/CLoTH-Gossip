@@ -26,6 +26,7 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->start_time = start_time;
   p->route = NULL;
   p->is_success = 0;
+  p->is_rolledback = 0;
   p->offline_node_count = 0;
   p->no_balance_count = 0;
 //  p->edge_occupied_count = 0;
