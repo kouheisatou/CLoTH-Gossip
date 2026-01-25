@@ -326,63 +326,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  // Try to find paths for both shards
-  shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-  if(shard1_path == NULL){
-    char fail_reason[256];
-    snprintf(fail_reason, 256, "shard1_no_path_amount_%lu_msat", shard1_amount);
-    add_failure_history(payment, simulation->current_time, fail_reason);
-
-    payment->end_time = simulation->current_time;
-    payment->is_complete = 1;
-    if (payment->parent_payment_id != -1) {
-      notify_parent_of_completion(*payments, payment, simulation, network, 0);
-    }
-    return;
-  }
-  shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-  if(shard2_path == NULL){
-    char fail_reason[256];
-    snprintf(fail_reason, 256, "shard2_no_path_amount_%lu_msat", shard2_amount);
-    add_failure_history(payment, simulation->current_time, fail_reason);
-
-    payment->end_time = simulation->current_time;
-    payment->is_complete = 1;
-    if (payment->parent_payment_id != -1) {
-      notify_parent_of_completion(*payments, payment, simulation, network, 0);
-    }
-    return;
-  }
-  // if shard1_path and shard2_path is same route, return
-  if(routing_method != CLOTH_ORIGINAL) {
-      long shard1_path_len = array_len(shard1_path);
-      long shard2_path_len = array_len(shard2_path);
-      if (shard1_path_len == shard2_path_len) {
-          int duplicated = 0;
-          for (int i = 0; i < shard1_path_len; i++) {
-              struct route_hop *shard1_hop = array_get(shard1_path, i);
-              for (int j = 0; j < shard2_path_len; j++) {
-                  struct route_hop *shard2_hop = array_get(shard2_path, j);
-                  if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
-              }
-          }
-          // all hop of shade1_path is same as shade2_path's, return
-          if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
-              char fail_reason[256];
-              snprintf(fail_reason, 256, "identical_shard_paths_cannot_split");
-              add_failure_history(payment, simulation->current_time, fail_reason);
-
-              payment->end_time = simulation->current_time;
-              payment->is_complete = 1;
-              if (payment->parent_payment_id != -1) {
-                notify_parent_of_completion(*payments, payment, simulation, network, 0);
-              }
-              return;
-          }
-      }
-  }
-
-  // Create shards
+  // Create shards (removed immediate path search for recursive splitting)
   shard1_id = array_len(*payments);
   shard2_id = array_len(*payments) + 1;
   shard1 = create_payment_shard(shard1_id, shard1_amount, payment);
@@ -409,8 +353,13 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   payment->pending_shards_count = 2;
   payment->is_shard = 1; // Parent becomes a container
 
-  generate_send_payment_event(shard1, shard1_path, simulation, network);
-  generate_send_payment_event(shard2, shard2_path, simulation, network);
+  // Schedule FINDPATH events for both shards (instead of SENDPAYMENT)
+  // This allows recursive splitting if shards also fail to find paths
+  struct event* shard1_event = new_event(simulation->current_time, FINDPATH, shard1->sender, shard1);
+  simulation->events = heap_insert(simulation->events, shard1_event, compare_event);
+
+  struct event* shard2_event = new_event(simulation->current_time, FINDPATH, shard2->sender, shard2);
+  simulation->events = heap_insert(simulation->events, shard2_event, compare_event);
 }
 
 /* send an HTLC for the payment (behavior of the payment sender) */
