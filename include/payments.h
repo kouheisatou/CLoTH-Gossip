@@ -34,7 +34,11 @@ struct payment {
   struct payment_error error;
   /* attributes for multi-path-payment (mpp)*/
   unsigned int is_shard;
-  long shards_id[2];
+  long parent_payment_id;        // 親paymentのID（-1なら親なし）
+  struct array* shard_ids;       // 子シャードのIDリスト（NULLなら子なし）
+  unsigned int shard_count;      // 現在のシャード総数（ルートpaymentのみ有効）
+  unsigned int pending_shard_count;  // 処理中のシャード数（ルートpaymentのみ有効）
+  unsigned int success_shard_count;  // 成功したシャード数（ルートpaymentのみ有効）
   /* attributes used for computing stats */
   unsigned int is_success;
   int offline_node_count;

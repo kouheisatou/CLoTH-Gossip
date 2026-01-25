@@ -189,20 +189,211 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
 }
 
 
-struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment){
+struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment, long parent_id){
   struct payment* shard;
-  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit);
-  shard->attempts = 1;
+  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit / 2);
+  shard->attempts = 0;
   shard->is_shard = 1;
+  shard->parent_payment_id = parent_id;
   return shard;
+}
+
+/* ルートpaymentを取得（親を辿る） */
+struct payment* get_root_payment(struct payment* payment, struct array* payments) {
+  while(payment->parent_payment_id != -1) {
+    payment = array_get(payments, payment->parent_payment_id);
+  }
+  return payment;
+}
+
+/* 成功したシャードをロールバック（部分的成功時に呼ばれる） */
+void rollback_successful_shards(struct payment* root_payment, struct array* payments, struct network* network, struct simulation* simulation, struct network_params net_params) {
+  if(root_payment->shard_ids == NULL) return;
+
+  for(long i = 0; i < array_len(root_payment->shard_ids); i++) {
+    long* shard_id_ptr = array_get(root_payment->shard_ids, i);
+    struct payment* shard = array_get(payments, *shard_id_ptr);
+
+    // 成功したシャードのみロールバック
+    if(shard->is_success && shard->route != NULL) {
+      struct array* route_hops = shard->route->route_hops;
+
+      // 各ホップのbalanceを元に戻す
+      for(long j = 0; j < array_len(route_hops); j++) {
+        struct route_hop* hop = array_get(route_hops, j);
+        struct edge* forward_edge = array_get(network->edges, hop->edge_id);
+        struct edge* backward_edge = array_get(network->edges, forward_edge->counter_edge_id);
+
+        // forward_edgeのbalanceを戻す（送信時に減らされた分）
+        forward_edge->balance += hop->amount_to_forward;
+        // backward_edgeのbalanceを戻す（受信時に増やされた分）
+        backward_edge->balance -= hop->amount_to_forward;
+      }
+
+      shard->is_success = 0;
+    }
+
+    // 子シャードも再帰的にロールバック
+    if(shard->shard_ids != NULL) {
+      rollback_successful_shards(shard, payments, network, simulation, net_params);
+    }
+  }
+}
+
+/* アクティブなリーフシャードの数を数える（再帰） */
+void count_active_leaf_shards(struct payment* payment, struct array* payments, unsigned int* total, unsigned int* success) {
+  // 分割済みシャードは子を見る
+  if(payment->shard_ids != NULL && array_len(payment->shard_ids) > 0) {
+    for(long i = 0; i < array_len(payment->shard_ids); i++) {
+      long* shard_id_ptr = array_get(payment->shard_ids, i);
+      struct payment* shard = array_get(payments, *shard_id_ptr);
+      count_active_leaf_shards(shard, payments, total, success);
+    }
+  } else {
+    // リーフシャード
+    (*total)++;
+    if(payment->is_success) (*success)++;
+  }
+}
+
+/* MPPの完了をチェックし、必要に応じて分割またはロールバックを行う */
+void check_mpp_completion(struct payment* payment, struct array** payments, struct simulation* simulation, struct network* network, struct network_params net_params, struct payments_params pay_params) {
+  struct payment* root_payment = get_root_payment(payment, *payments);
+
+  // ルートpaymentのpending_shard_countを減らす
+  root_payment->pending_shard_count--;
+
+  if(payment->is_success) {
+    root_payment->success_shard_count++;
+  }
+
+  // まだ処理中のシャードがある場合は待機
+  if(root_payment->pending_shard_count > 0) {
+    return;
+  }
+
+  // 全シャードが完了した - アクティブなリーフシャードを数える
+  unsigned int active_total = 0, active_success = 0;
+  count_active_leaf_shards(root_payment, *payments, &active_total, &active_success);
+
+  // 全て成功した場合
+  if(active_success == active_total) {
+    root_payment->is_success = 1;
+    root_payment->end_time = simulation->current_time;
+    return;
+  }
+
+  // 一部失敗した場合
+  // 最大分割数に達していない場合は、失敗したシャードを分割
+  if(active_total < pay_params.max_shard_count) {
+    // 成功したシャードをロールバック
+    rollback_successful_shards(root_payment, *payments, network, simulation, net_params);
+    root_payment->success_shard_count = 0;
+
+    // 失敗したリーフシャードを特定して分割
+    long current_shard_count = array_len(root_payment->shard_ids);
+    for(long i = 0; i < current_shard_count; i++) {
+      long* shard_id_ptr = array_get(root_payment->shard_ids, i);
+      struct payment* shard = array_get(*payments, *shard_id_ptr);
+
+      // 分割済みシャード、または子を持つシャードはスキップ
+      if(shard->is_shard == 2 || (shard->shard_ids != NULL && array_len(shard->shard_ids) > 0)) {
+        continue;
+      }
+
+      if(!shard->is_success) {
+        // このシャードを2分割
+        uint64_t shard1_amount = shard->amount / 2;
+        uint64_t shard2_amount = shard->amount - shard1_amount;
+
+        if(shard1_amount == 0 || shard2_amount == 0) {
+          // これ以上分割できない - 失敗として終了
+          root_payment->is_success = 0;
+          root_payment->end_time = simulation->current_time;
+          return;
+        }
+
+        // 最大分割数チェック
+        if(active_total + 1 > pay_params.max_shard_count) {
+          // これ以上分割できない
+          root_payment->is_success = 0;
+          root_payment->end_time = simulation->current_time;
+          return;
+        }
+
+        long shard1_id = array_len(*payments);
+        long shard2_id = array_len(*payments) + 1;
+
+        struct payment* new_shard1 = create_payment_shard(shard1_id, shard1_amount, shard, shard->id);
+        struct payment* new_shard2 = create_payment_shard(shard2_id, shard2_amount, shard, shard->id);
+
+        *payments = array_insert(*payments, new_shard1);
+        *payments = array_insert(*payments, new_shard2);
+
+        // 親シャードの子リストを更新
+        if(shard->shard_ids == NULL) {
+          shard->shard_ids = array_initialize(2);
+        }
+        long* id1 = malloc(sizeof(long));
+        long* id2 = malloc(sizeof(long));
+        *id1 = shard1_id;
+        *id2 = shard2_id;
+        shard->shard_ids = array_insert(shard->shard_ids, id1);
+        shard->shard_ids = array_insert(shard->shard_ids, id2);
+
+        // ルートpaymentのシャードリストにも追加（フラットリストとして）
+        long* id1_root = malloc(sizeof(long));
+        long* id2_root = malloc(sizeof(long));
+        *id1_root = shard1_id;
+        *id2_root = shard2_id;
+        root_payment->shard_ids = array_insert(root_payment->shard_ids, id1_root);
+        root_payment->shard_ids = array_insert(root_payment->shard_ids, id2_root);
+
+        root_payment->shard_count += 2;
+        root_payment->pending_shard_count += 2;
+        active_total++; // 1つ減って2つ増えるので+1
+
+        // 新しいシャードのFINDPATHイベントを生成
+        struct event* event1 = new_event(simulation->current_time, FINDPATH, new_shard1->sender, new_shard1);
+        struct event* event2 = new_event(simulation->current_time, FINDPATH, new_shard2->sender, new_shard2);
+        simulation->events = heap_insert(simulation->events, event1, compare_event);
+        simulation->events = heap_insert(simulation->events, event2, compare_event);
+
+        // 元のシャードはもう処理しない
+        shard->is_shard = 2; // 分割済みマーク
+      } else {
+        // 成功したシャードは再度FINDPATHイベントを生成
+        shard->is_success = 0; // リセット
+        shard->route = NULL;
+        shard->attempts = 0;
+        root_payment->pending_shard_count++;
+
+        struct event* event = new_event(simulation->current_time, FINDPATH, shard->sender, shard);
+        simulation->events = heap_insert(simulation->events, event, compare_event);
+      }
+    }
+
+    // pending_shard_countが0のままなら、分割できなかったので失敗
+    if(root_payment->pending_shard_count == 0) {
+      root_payment->is_success = 0;
+      root_payment->end_time = simulation->current_time;
+    }
+    return;
+  }
+
+  // 最大分割数に達した場合は失敗
+  // 成功したシャードをロールバック
+  rollback_successful_shards(root_payment, *payments, network, simulation, net_params);
+  root_payment->is_success = 0;
+  root_payment->end_time = simulation->current_time;
 }
 
 /*HTLC FUNCTIONS*/
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params) {
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params, struct payments_params pay_params) {
   struct payment *payment, *shard1, *shard2;
-  struct array *path, *shard1_path, *shard2_path;
+  struct array *path;
   uint64_t shard1_amount, shard2_amount;
   enum pathfind_error error;
   long shard1_id, shard2_id;
@@ -211,22 +402,29 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
   ++(payment->attempts);
 
+  // タイムアウトチェック
   if(net_params.payment_timeout != -1 && simulation->current_time > payment->start_time + net_params.payment_timeout) {
     payment->end_time = simulation->current_time;
     payment->is_timeout = 1;
+
+    // シャードの場合はMPP完了チェック
+    if(payment->is_shard == 1) {
+      check_mpp_completion(payment, payments, simulation, network, net_params, pay_params);
+    }
     return;
   }
 
   // find path
   if(routing_method == CLOTH_ORIGINAL) {
-      if (payment->attempts == 1) {
+      // シャードでない場合のみキャッシュを使用
+      if (payment->attempts == 1 && !payment->is_shard) {
           path = paths[payment->id];
       }else {
           path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
       }
   } else {
 
-      if (payment->attempts == 1) {
+      if (payment->attempts == 1 && !payment->is_shard) {
           path = paths[payment->id];
           if (path != NULL) {
 
@@ -276,51 +474,53 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  //  if a path is not found, try to split the payment in two shards (multi-path payment)
-  if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
-    shard1_amount = payment->amount/2;
+  // パスが見つからなかった場合
+  // シャードの場合はMPP完了チェック（失敗として）
+  if(payment->is_shard == 1) {
+    payment->end_time = simulation->current_time;
+    check_mpp_completion(payment, payments, simulation, network, net_params, pay_params);
+    return;
+  }
+
+  // MPP有効かつ初回試行の場合、2分割を試みる
+  if(mpp && payment->attempts == 1) {
+    shard1_amount = payment->amount / 2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard1_path == NULL){
+
+    if(shard1_amount == 0 || shard2_amount == 0) {
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard2_path == NULL){
-      payment->end_time = simulation->current_time;
-      return;
-    }
-    // if shard1_path and shard2_path is same route, return
-    if(routing_method != CLOTH_ORIGINAL) {
-        long shard1_path_len = array_len(shard1_path);
-        long shard2_path_len = array_len(shard2_path);
-        if (shard1_path_len == shard2_path_len) {
-            int duplicated = 0;
-            for (int i = 0; i < shard1_path_len; i++) {
-                struct route_hop *shard1_hop = array_get(shard1_path, i);
-                for (int j = 0; j < shard2_path_len; j++) {
-                    struct route_hop *shard2_hop = array_get(shard2_path, j);
-                    if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
-                }
-            }
-            // all hop of shade1_path is same as shade2_path's, return
-            if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
-                payment->end_time = simulation->current_time;
-                return;
-            }
-        }
-    }
+
     shard1_id = array_len(*payments);
     shard2_id = array_len(*payments) + 1;
-    shard1 = create_payment_shard(shard1_id, shard1_amount, payment);
-    shard2 = create_payment_shard(shard2_id, shard2_amount, payment);
+
+    shard1 = create_payment_shard(shard1_id, shard1_amount, payment, payment->id);
+    shard2 = create_payment_shard(shard2_id, shard2_amount, payment, payment->id);
+
     *payments = array_insert(*payments, shard1);
     *payments = array_insert(*payments, shard2);
-    payment->is_shard = 1;
-    payment->shards_id[0] = shard1_id;
-    payment->shards_id[1] = shard2_id;
-    generate_send_payment_event(shard1, shard1_path, simulation, network);
-    generate_send_payment_event(shard2, shard2_path, simulation, network);
+
+    // 親paymentの設定
+    payment->is_shard = 1; // 分割済みマーク
+    if(payment->shard_ids == NULL) {
+      payment->shard_ids = array_initialize(pay_params.max_shard_count);
+    }
+    long* id1 = malloc(sizeof(long));
+    long* id2 = malloc(sizeof(long));
+    *id1 = shard1_id;
+    *id2 = shard2_id;
+    payment->shard_ids = array_insert(payment->shard_ids, id1);
+    payment->shard_ids = array_insert(payment->shard_ids, id2);
+    payment->shard_count = 2;
+    payment->pending_shard_count = 2;
+    payment->success_shard_count = 0;
+
+    // 新しいシャードのFINDPATHイベントを生成
+    struct event* event1 = new_event(simulation->current_time, FINDPATH, shard1->sender, shard1);
+    struct event* event2 = new_event(simulation->current_time, FINDPATH, shard2->sender, shard2);
+    simulation->events = heap_insert(simulation->events, event1, compare_event);
+    simulation->events = heap_insert(simulation->events, event2, compare_event);
     return;
   }
 
@@ -562,14 +762,21 @@ void forward_success(struct event* event, struct simulation* simulation, struct 
 }
 
 /* receive an HTLC success (behavior of the payment sender node) */
-void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params){
+void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, struct network_params net_params, struct payments_params pay_params){
   struct node* node;
   struct payment* payment;
   payment = event->payment;
   node = array_get(network->nodes, event->node_id);
   event->payment->end_time = simulation->current_time;
+  payment->is_success = 1;
 
   add_attempt_history(payment, network, simulation->current_time, 1);
+
+  // シャードの場合はMPP完了チェック
+  if(payment->is_shard == 1) {
+    check_mpp_completion(payment, payments, simulation, network, net_params, pay_params);
+  }
+
     // next event
     uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
 
@@ -774,7 +981,7 @@ int can_join_group(struct group* group, struct edge* edge, enum routing_method r
         return 1;
     }
     else{
-        printf(stderr, "ERROR: can_join_group called with unsupported routing method %d\n", routing_method);
+        fprintf(stderr, "ERROR: can_join_group called with unsupported routing method %d\n", routing_method);
         exit(1);
     }
 }

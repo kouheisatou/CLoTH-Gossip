@@ -24,7 +24,7 @@ struct node_pair_result{
 
 uint64_t compute_fee(uint64_t amount_to_forward, struct policy policy);
 
-void find_path(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params);
+void find_path(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params, struct payments_params pay_params);
 
 void send_payment(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
@@ -34,7 +34,7 @@ void receive_payment(struct event* event, struct simulation* simulation, struct 
 
 void forward_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
-void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
+void receive_success(struct event* event, struct simulation* simulation, struct network* network, struct array** payments, struct network_params net_params, struct payments_params pay_params);
 
 void forward_fail(struct event* event, struct simulation* simulation, struct network* network, struct network_params net_params);
 
@@ -49,5 +49,10 @@ struct element* request_group_update(struct event* event, struct simulation* sim
 
 // return `struct element* group_add_queue`
 struct element* construct_groups(struct simulation* simulation, struct element* group_add_queue, struct network *network, struct network_params net_params);
+
+// MPP関連の関数
+struct payment* get_root_payment(struct payment* payment, struct array* payments);
+void rollback_successful_shards(struct payment* root_payment, struct array* payments, struct network* network, struct simulation* simulation, struct network_params net_params);
+void check_mpp_completion(struct payment* payment, struct array** payments, struct simulation* simulation, struct network* network, struct network_params net_params, struct payments_params pay_params);
 
 #endif

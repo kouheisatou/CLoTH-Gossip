@@ -35,7 +35,11 @@ struct payment* new_payment(long id, long sender, long receiver, uint64_t amount
   p->error.type = NOERROR;
   p->error.hop = NULL;
   p->is_shard = 0;
-  p->shards_id[0] = p->shards_id[1] = -1;
+  p->parent_payment_id = -1;
+  p->shard_ids = NULL;
+  p->shard_count = 0;
+  p->pending_shard_count = 0;
+  p->success_shard_count = 0;
   p->history = NULL;
   p->max_fee_limit = max_fee_limit;
   return p;

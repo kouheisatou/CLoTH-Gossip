@@ -241,6 +241,7 @@ void initialize_input_parameters(struct network_params *net_params, struct payme
   pay_params->payments_from_file = 0;
   strcpy(pay_params->payments_filename, "\0");
   pay_params->mpp = 0;
+  pay_params->max_shard_count = 16; // デフォルト値
 }
 
 
@@ -401,6 +402,9 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "mpp")==0){
       pay_params->mpp = strtoul(value, NULL, 10);
     }
+    else if(strcmp(parameter, "max_shard_count")==0){
+      pay_params->max_shard_count = strtoul(value, NULL, 10);
+    }
     else if(strcmp(parameter, "average_max_fee_limit")==0){
         pay_params->max_fee_limit_mu = strtod(value, NULL);
     }
@@ -432,37 +436,61 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
 }
 
 
-unsigned int has_shards(struct payment* payment){
-  return (payment->shards_id[0] != -1 && payment->shards_id[1] != -1);
-}
+/* 再帰的にシャードの統計を集計 */
+void aggregate_shard_stats(struct payment* payment, struct array* payments, int* total_attempts, int* total_no_balance, int* total_offline, uint64_t* max_end_time, uint64_t* total_fee, unsigned int* any_timeout) {
+  if(payment->shard_ids == NULL || array_len(payment->shard_ids) == 0) {
+    // リーフシャード
+    *total_attempts += payment->attempts;
+    *total_no_balance += payment->no_balance_count;
+    *total_offline += payment->offline_node_count;
+    if(payment->end_time > *max_end_time) *max_end_time = payment->end_time;
+    if(payment->is_timeout) *any_timeout = 1;
+    if(payment->route != NULL) *total_fee += payment->route->total_fee;
+    return;
+  }
 
+  // 子シャードを再帰的に処理
+  for(long i = 0; i < array_len(payment->shard_ids); i++) {
+    long* shard_id_ptr = array_get(payment->shard_ids, i);
+    struct payment* shard = array_get(payments, *shard_id_ptr);
+    aggregate_shard_stats(shard, payments, total_attempts, total_no_balance, total_offline, max_end_time, total_fee, any_timeout);
+  }
+}
 
 /* process stats of payments that were split (mpp payments) */
 void post_process_payment_stats(struct array* payments){
   long i;
-  struct payment* payment, *shard1, *shard2;
+  struct payment* payment;
+
   for(i = 0; i < array_len(payments); i++){
     payment = array_get(payments, i);
     if(payment->id == -1) continue;
-    if(!has_shards(payment)) continue;
-    shard1 = array_get(payments, payment->shards_id[0]);
-    shard2 = array_get(payments, payment->shards_id[1]);
-    payment->end_time = shard1->end_time > shard2->end_time ? shard1->end_time : shard2->end_time;
-    payment->is_success = shard1->is_success && shard2->is_success ? 1 : 0;
-    payment->no_balance_count = shard1->no_balance_count + shard2->no_balance_count;
-    payment->offline_node_count = shard1->offline_node_count + shard2->offline_node_count;
-    payment->is_timeout = shard1->is_timeout || shard2->is_timeout ? 1 : 0;
-    payment->attempts = shard1->attempts + shard2->attempts;
-    if(shard1->route != NULL && shard2->route != NULL){
-      payment->route = array_len(shard1->route->route_hops) > array_len(shard2->route->route_hops) ? shard1->route : shard2->route;
-      payment->route->total_fee = shard1->route->total_fee + shard2->route->total_fee;
+
+    // ルートpaymentのみ処理（親がいない、かつシャードを持つ）
+    if(payment->parent_payment_id != -1) continue;
+    if(payment->shard_ids == NULL || array_len(payment->shard_ids) == 0) continue;
+
+    int total_attempts = 0;
+    int total_no_balance = 0;
+    int total_offline = 0;
+    uint64_t max_end_time = 0;
+    uint64_t total_fee = 0;
+    unsigned int any_timeout = 0;
+
+    aggregate_shard_stats(payment, payments, &total_attempts, &total_no_balance, &total_offline, &max_end_time, &total_fee, &any_timeout);
+
+    payment->attempts = total_attempts;
+    payment->no_balance_count = total_no_balance;
+    payment->offline_node_count = total_offline;
+    if(payment->end_time == 0) payment->end_time = max_end_time;
+    payment->is_timeout = any_timeout;
+
+    // シャードをマーク（出力時にスキップ）
+    for(long j = 0; j < array_len(payment->shard_ids); j++) {
+      long* shard_id_ptr = array_get(payment->shard_ids, j);
+      struct payment* shard = array_get(payments, *shard_id_ptr);
+      shard->id = -1;
     }
-    else{
-      payment->route = NULL;
-    }
-    //a trick to avoid processing already processed shards
-    shard1->id = -1;
-    shard2->id = -1;
   }
 }
 
@@ -540,7 +568,7 @@ int main(int argc, char *argv[]) {
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:
-      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method, net_params);
+      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method, net_params, pay_params);
       break;
     case SENDPAYMENT:
       send_payment(event, simulation, network, net_params);
@@ -555,7 +583,7 @@ int main(int argc, char *argv[]) {
       forward_success(event, simulation, network, net_params);
       break;
     case RECEIVESUCCESS:
-      receive_success(event, simulation, network, net_params);
+      receive_success(event, simulation, network, &payments, net_params, pay_params);
       break;
     case FORWARDFAIL:
       forward_fail(event, simulation, network, net_params);

@@ -129,6 +129,11 @@ struct payments_params {
     unsigned int payments_from_file;
     char payments_filename[256];
     unsigned int mpp;
+    /**
+     * MPP有効時の最大分割数（デフォルト16）
+     * 支払いは2分割を再帰的に行うため、2のべき乗が推奨
+     */
+    unsigned int max_shard_count;
     double max_fee_limit_mu; // average_max_fee_limit [satoshi]
     double max_fee_limit_sigma; // variance_max_fee_limit [satoshi]
 };
