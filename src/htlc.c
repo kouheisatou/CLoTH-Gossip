@@ -305,8 +305,8 @@ void check_mpp_completion(struct payment* payment, struct array** payments, stru
       long* shard_id_ptr = array_get(root_payment->shard_ids, i);
       struct payment* shard = array_get(*payments, *shard_id_ptr);
 
-      // 分割済みシャード、または子を持つシャードはスキップ
-      if(shard->is_shard == 2 || (shard->shard_ids != NULL && array_len(shard->shard_ids) > 0)) {
+      // 分割済みシャード、ロールバック済みシャード、または子を持つシャードはスキップ
+      if(shard->is_shard == 2 || shard->is_rolledback || (shard->shard_ids != NULL && array_len(shard->shard_ids) > 0)) {
         continue;
       }
 
