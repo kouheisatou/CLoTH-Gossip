@@ -670,6 +670,7 @@ void free_route(struct route* route){
 }
 
 /* Calculate the estimated capacity of a path based on group capacities */
+/* For group routing: use group_cap if available, otherwise channel_capacity / 2 */
 uint64_t calculate_path_capacity(struct array* path, struct network* network, long source, enum routing_method routing_method) {
     if(path == NULL || array_len(path) == 0) return 0;
 
@@ -682,6 +683,14 @@ uint64_t calculate_path_capacity(struct array* path, struct network* network, lo
         if(i == 0) {
             // First hop: use actual balance
             estimated_cap = edge->balance;
+        } else if(routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL) {
+            // Group routing: use group_cap or channel_capacity / 2
+            if(edge->group != NULL) {
+                estimated_cap = edge->group->group_cap;
+            } else {
+                struct channel* channel = array_get(network->channels, edge->channel_id);
+                estimated_cap = channel->capacity / 2;
+            }
         } else {
             estimated_cap = estimate_capacity(edge, network, routing_method);
         }
