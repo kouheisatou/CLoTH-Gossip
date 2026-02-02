@@ -89,4 +89,6 @@ uint64_t calculate_path_capacity(struct array* path, struct network* network, lo
 
 struct element* get_path_edges(struct array* path, struct network* network, struct element* exclude_list);
 
+uint64_t calculate_path_fee(struct array* path, struct network* network, uint64_t amount);
+
 #endif

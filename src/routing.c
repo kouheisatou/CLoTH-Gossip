@@ -713,3 +713,23 @@ struct element* get_path_edges(struct array* path, struct network* network, stru
     }
     return exclude_list;
 }
+
+/* Calculate the estimated fee for a path */
+uint64_t calculate_path_fee(struct array* path, struct network* network, uint64_t amount) {
+    if(path == NULL || array_len(path) == 0) return UINT64_MAX;
+
+    uint64_t total_fee = 0;
+    uint64_t amt = amount;
+
+    // Calculate fee from last hop to first (reverse order)
+    for(int i = array_len(path) - 1; i >= 0; i--) {
+        struct path_hop* hop = array_get(path, i);
+        struct edge* edge = array_get(network->edges, hop->edge);
+        struct policy policy = edge->policy;
+
+        uint64_t fee = policy.fee_base + (amt * policy.fee_proportional) / 1000000;
+        total_fee += fee;
+        amt += fee;
+    }
+    return total_fee;
+}
