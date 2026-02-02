@@ -659,6 +659,12 @@ normal_path_search:
     shard1 = create_payment_shard(shard1_id, shard1_amount, payment, payment->id);
     shard2 = create_payment_shard(shard2_id, shard2_amount, payment, payment->id);
 
+    // Group Routingの場合はis_shard=3を設定
+    if(routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL) {
+      shard1->is_shard = 3;
+      shard2->is_shard = 3;
+    }
+
     *payments = array_insert(*payments, shard1);
     *payments = array_insert(*payments, shard2);
 
