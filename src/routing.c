@@ -668,3 +668,39 @@ void free_route(struct route* route){
     array_free(route->route_hops);
     free(route);
 }
+
+/* Calculate the estimated capacity of a path based on group capacities */
+uint64_t calculate_path_capacity(struct array* path, struct network* network, long source, enum routing_method routing_method) {
+    if(path == NULL || array_len(path) == 0) return 0;
+
+    uint64_t min_capacity = UINT64_MAX;
+    for(int i = 0; i < array_len(path); i++) {
+        struct path_hop* hop = array_get(path, i);
+        struct edge* edge = array_get(network->edges, hop->edge);
+        uint64_t estimated_cap;
+
+        if(i == 0) {
+            // First hop: use actual balance
+            estimated_cap = edge->balance;
+        } else {
+            estimated_cap = estimate_capacity(edge, network, routing_method);
+        }
+
+        if(estimated_cap < min_capacity) {
+            min_capacity = estimated_cap;
+        }
+    }
+    return min_capacity;
+}
+
+/* Get edges from a path for exclusion */
+struct element* get_path_edges(struct array* path, struct network* network, struct element* exclude_list) {
+    if(path == NULL) return exclude_list;
+
+    for(int i = 0; i < array_len(path); i++) {
+        struct path_hop* hop = array_get(path, i);
+        struct edge* edge = array_get(network->edges, hop->edge);
+        exclude_list = push(exclude_list, edge);
+    }
+    return exclude_list;
+}

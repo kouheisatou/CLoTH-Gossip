@@ -421,6 +421,114 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
+  // Group Routing MPP: 初回試行、シャードでない、MPP有効の場合
+  // group capacityを活用して最適な分割を1回で行う
+  if(mpp && payment->attempts == 1 && !payment->is_shard &&
+     (routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL)) {
+    // まず最小額(1)でパスを探索してパス容量を計算
+    struct array* first_path = dijkstra(payment->sender, payment->receiver, 1, network, simulation->current_time, 0, &error, routing_method, NULL, payment->max_fee_limit);
+
+    if(first_path != NULL) {
+      uint64_t first_path_cap = calculate_path_capacity(first_path, network, payment->sender, routing_method);
+
+      // 単一パスで十分な容量がある場合
+      if(first_path_cap >= payment->amount) {
+        // 通常のパス探索へ（正しい額で探索）
+        for(int i = 0; i < array_len(first_path); i++) free(array_get(first_path, i));
+        array_free(first_path);
+        goto normal_path_search;
+      }
+
+      // 容量不足の場合、複数パスで最適分割を試みる
+      struct array* found_paths = array_initialize(pay_params.max_shard_count);
+      uint64_t* path_capacities = malloc(sizeof(uint64_t) * pay_params.max_shard_count);
+      struct element* exclude_edges = NULL;
+      uint64_t total_capacity = first_path_cap;
+      int path_count = 1;
+
+      found_paths = array_insert(found_paths, first_path);
+      path_capacities[0] = first_path_cap;
+      exclude_edges = get_path_edges(first_path, network, exclude_edges);
+
+      // 追加のパスを探索
+      while(total_capacity < payment->amount && path_count < pay_params.max_shard_count) {
+        struct array* new_path = dijkstra(payment->sender, payment->receiver, 1, network, simulation->current_time, 0, &error, routing_method, exclude_edges, payment->max_fee_limit / (path_count + 1));
+
+        if(new_path == NULL) break;
+
+        uint64_t path_cap = calculate_path_capacity(new_path, network, payment->sender, routing_method);
+        if(path_cap == 0) {
+          for(int i = 0; i < array_len(new_path); i++) free(array_get(new_path, i));
+          array_free(new_path);
+          break;
+        }
+
+        found_paths = array_insert(found_paths, new_path);
+        path_capacities[path_count] = path_cap;
+        total_capacity += path_cap;
+        path_count++;
+
+        exclude_edges = get_path_edges(new_path, network, exclude_edges);
+      }
+
+      // 十分な容量が見つかった場合、シャードを作成
+      if(total_capacity >= payment->amount && path_count > 1) {
+        uint64_t remaining_amount = payment->amount;
+        int shard_count = 0;
+
+        payment->is_shard = 1; // 分割済みマーク
+        if(payment->shard_ids == NULL) {
+          payment->shard_ids = array_initialize(pay_params.max_shard_count);
+        }
+
+        for(int i = 0; i < path_count && remaining_amount > 0; i++) {
+          struct array* shard_path = array_get(found_paths, i);
+          uint64_t shard_amount = (remaining_amount < path_capacities[i]) ? remaining_amount : path_capacities[i];
+
+          if(shard_amount == 0) continue;
+
+          long shard_id = array_len(*payments);
+          struct payment* shard = create_payment_shard(shard_id, shard_amount, payment, payment->id);
+          *payments = array_insert(*payments, shard);
+
+          long* id_ptr = malloc(sizeof(long));
+          *id_ptr = shard_id;
+          payment->shard_ids = array_insert(payment->shard_ids, id_ptr);
+
+          // シャードにパスを設定してSENDPAYMENTイベントを生成
+          generate_send_payment_event(shard, shard_path, simulation, network);
+
+          remaining_amount -= shard_amount;
+          shard_count++;
+        }
+
+        payment->shard_count = shard_count;
+        payment->pending_shard_count = shard_count;
+        payment->success_shard_count = 0;
+
+        printf("[MPP DEBUG] Group Routing MPP: Split payment %ld (amount=%lu) into %d shards using group capacity\n",
+               payment->id, payment->amount, shard_count);
+
+        list_free(exclude_edges);
+        free(path_capacities);
+        array_free(found_paths);
+        return;
+      }
+
+      // パスが1つしかない、または容量不足の場合はクリーンアップ
+      for(int i = 0; i < path_count; i++) {
+        struct array* p = array_get(found_paths, i);
+        for(int j = 0; j < array_len(p); j++) free(array_get(p, j));
+        array_free(p);
+      }
+      list_free(exclude_edges);
+      free(path_capacities);
+      array_free(found_paths);
+      // 通常のMPP処理にフォールスルー
+    }
+  }
+
+normal_path_search:
   // find path
   if(routing_method == CLOTH_ORIGINAL) {
       // シャードでない場合のみキャッシュを使用
@@ -489,7 +597,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     return;
   }
 
-  // MPP有効かつ初回試行の場合、2分割を試みる
+  // MPP有効かつ初回試行の場合、2分割を試みる（Group Routingは上で処理済み）
   if(mpp && payment->attempts == 1) {
     shard1_amount = payment->amount / 2;
     shard2_amount = payment->amount - shard1_amount;

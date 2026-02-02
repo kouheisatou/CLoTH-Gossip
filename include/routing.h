@@ -85,5 +85,8 @@ int compare_distance(struct distance* a, struct distance* b);
 
 void free_route(struct route* route);
 
+uint64_t calculate_path_capacity(struct array* path, struct network* network, long source, enum routing_method routing_method);
+
+struct element* get_path_edges(struct array* path, struct network* network, struct element* exclude_list);
 
 #endif
