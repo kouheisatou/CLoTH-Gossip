@@ -643,9 +643,8 @@ normal_path_search:
     return;
   }
 
-  // MPP有効かつ初回試行の場合、2分割を試みる（Group Routingは上で処理済み）
-  if(mpp && payment->attempts == 1 &&
-     routing_method != GROUP_ROUTING && routing_method != GROUP_ROUTING_CUL) {
+  // MPP有効かつ初回試行の場合、2分割を試みる
+  if(mpp && payment->attempts == 1) {
     shard1_amount = payment->amount / 2;
     shard2_amount = payment->amount - shard1_amount;
 
