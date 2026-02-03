@@ -1,0 +1,15 @@
+{
+  "test_name": "test_retry_success",
+  "description": "Payment fails due to capacity, retry finds alternative path",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 1},
+        {"field": "attempts", "op": "gt", "value": 1},
+        {"field": "no_balance_count", "op": "gt", "value": 0},
+        {"field": "route", "op": "not_empty"}
+      ]
+    }
+  ]
+}

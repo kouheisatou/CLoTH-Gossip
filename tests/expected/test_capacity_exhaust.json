@@ -1,0 +1,12 @@
+{
+  "test_name": "test_capacity_exhaust",
+  "description": "All paths exhausted, payment fails",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 0}
+      ]
+    }
+  ]
+}

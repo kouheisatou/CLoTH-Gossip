@@ -1,0 +1,12 @@
+{
+  "test_name": "test_mpp_max_shards",
+  "description": "MPP reaches max shard count without completing - payment fails",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 0}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "test_name": "test_mpp_single_path",
+  "description": "MPP enabled but single path sufficient - no split needed",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 1},
+        {"field": "mpp", "op": "eq", "value": 0},
+        {"field": "is_shard", "op": "eq", "value": 0},
+        {"field": "route", "op": "not_empty"}
+      ]
+    }
+  ]
+}

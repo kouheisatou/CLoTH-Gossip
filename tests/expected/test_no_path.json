@@ -1,0 +1,13 @@
+{
+  "test_name": "test_no_path",
+  "description": "No route exists to receiver",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 0},
+        {"field": "route", "op": "empty"}
+      ]
+    }
+  ]
+}

@@ -94,6 +94,41 @@ following:
 - `mpp`. Possible values: 0 or 1. It indicates whether the multi-path-payment
   feature is activated or not.
 
+## Tests
+
+Run the test suite to verify routing behavior across all routing methods:
+
+```shell
+cd tests
+python3 run_tests.py              # Run all tests
+python3 run_tests.py --list       # List available tests
+python3 run_tests.py --test mpp   # Run tests matching "mpp"
+python3 run_tests.py --routing cloth  # Run cloth_original tests only
+python3 run_tests.py --verbose    # Verbose output
+```
+
+### Test Coverage
+
+| Category | Description |
+|----------|-------------|
+| Basic routing | Success, retry, capacity exhaustion, no path |
+| MPP (Non-GCB) | Binary split, max shards limit |
+| MPP (GCB) | Optimal capacity-based split |
+| GCB-specific | Group capacity limits, CUL threshold |
+
+Tests are defined for each routing method: `cloth_original`, `ideal`, `group_routing`, `group_routing_cul`.
+
+### Test Structure
+
+```
+tests/
+├── run_tests.py      # Test runner
+├── networks/         # Minimal test networks (3-6 nodes)
+├── payments/         # Payment definitions
+├── expected/         # Expected results (JSON)
+└── output/           # Test output (auto-generated)
+```
+
 ## References
 
 I published a paper that describes the code and the functioning of CLoTH:

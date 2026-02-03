@@ -1,0 +1,19 @@
+{
+  "test_name": "test_mpp_split_success_cloth",
+  "description": "MPP binary split - payment splits into shards, all succeed",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 1},
+        {"field": "mpp", "op": "eq", "value": 1}
+      ]
+    }
+  ],
+  "check_shards": true,
+  "shard_assertions": [
+    {"field": "is_shard", "op": "eq", "value": 1},
+    {"field": "parent_payment_id", "op": "gte", "value": 0},
+    {"field": "is_success", "op": "eq", "value": 1}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "test_name": "test_gcb_cul_closure",
+  "description": "Payment causes CUL threshold to be exceeded",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 1},
+        {"field": "route", "op": "not_empty"}
+      ]
+    }
+  ]
+}

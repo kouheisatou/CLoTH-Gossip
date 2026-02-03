@@ -61,3 +61,7 @@ dijkstra_cache/*
 .DS_Store
 tasks.json
 .vscode
+
+# Test temporary files
+*_test.csv
+tests/output/
