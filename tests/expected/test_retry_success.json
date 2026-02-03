@@ -5,11 +5,39 @@
     {
       "id": 0,
       "assertions": [
-        {"field": "is_success", "op": "eq", "value": 1},
-        {"field": "attempts", "op": "gt", "value": 1},
-        {"field": "no_balance_count", "op": "gt", "value": 0},
-        {"field": "route", "op": "not_empty"}
+        {
+          "field": "is_success",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "field": "attempts",
+          "op": "gt",
+          "value": 1
+        },
+        {
+          "field": "no_balance_count",
+          "op": "gt",
+          "value": 0
+        },
+        {
+          "field": "route",
+          "op": "not_empty"
+        }
       ]
     }
-  ]
+  ],
+  "edges": [
+    {
+      "id": 0,
+      "assertions": [
+        {
+          "field": "balance",
+          "op": "lt",
+          "value": 4500000
+        }
+      ]
+    }
+  ],
+  "groups": []
 }

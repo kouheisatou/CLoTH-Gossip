@@ -1,6 +1,6 @@
 {
-  "test_name": "test_mpp_max_shards",
-  "description": "MPP reaches max shard count without completing - payment fails",
+  "test_name": "test_mpp_gcb_no_path",
+  "description": "GCB MPP - amount too large, no paths available even with splitting",
   "payments": [
     {
       "id": 0,

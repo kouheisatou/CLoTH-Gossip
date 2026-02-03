@@ -5,8 +5,25 @@
     {
       "id": 0,
       "assertions": [
-        {"field": "is_success", "op": "eq", "value": 0}
+        {
+          "field": "is_success",
+          "op": "eq",
+          "value": 0
+        }
       ]
     }
-  ]
+  ],
+  "edges": [
+    {
+      "id": 0,
+      "assertions": [
+        {
+          "field": "balance",
+          "op": "eq",
+          "value": 4500000
+        }
+      ]
+    }
+  ],
+  "groups": []
 }

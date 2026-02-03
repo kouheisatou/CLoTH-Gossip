@@ -1,6 +1,6 @@
 {
-  "test_name": "test_mpp_split_success_gcb",
-  "description": "GCB MPP optimal split - capacity-based path splitting, all succeed",
+  "test_name": "test_mpp_gcb_max_shards_boundary",
+  "description": "GCB MPP - payment needs exactly max_shard_count shards",
   "payments": [
     {
       "id": 0,
@@ -43,17 +43,7 @@
       "assertions": [
         {
           "field": "balance",
-          "op": "lt",
-          "value": 5000000
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "assertions": [
-        {
-          "field": "balance",
-          "op": "lt",
+          "op": "lte",
           "value": 5000000
         }
       ]

@@ -1,0 +1,23 @@
+{
+  "test_name": "test_mpp_gcb_timeout",
+  "description": "GCB MPP - payment times out during shard processing",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {
+          "field": "is_timeout",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "field": "is_success",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    }
+  ],
+  "groups": [],
+  "edges": []
+}

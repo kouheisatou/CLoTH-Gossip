@@ -1,0 +1,31 @@
+{
+  "test_name": "test_mpp_gcb_rollback",
+  "description": "GCB MPP - partial success triggers rollback of successful shards",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {
+          "field": "is_success",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "field": "mpp",
+          "op": "eq",
+          "value": 1
+        }
+      ]
+    }
+  ],
+  "check_shards": true,
+  "shard_assertions": [
+    {
+      "field": "is_shard",
+      "op": "gte",
+      "value": 1
+    }
+  ],
+  "groups": [],
+  "edges": []
+}

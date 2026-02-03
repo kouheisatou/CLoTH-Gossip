@@ -1,6 +1,6 @@
 {
-  "test_name": "test_mpp_split_success_gcb",
-  "description": "GCB MPP optimal split - capacity-based path splitting, all succeed",
+  "test_name": "test_mpp_gcb_3way_split",
+  "description": "GCB MPP - payment splits across 3 parallel paths",
   "payments": [
     {
       "id": 0,
@@ -50,6 +50,16 @@
     },
     {
       "id": 2,
+      "assertions": [
+        {
+          "field": "balance",
+          "op": "lt",
+          "value": 5000000
+        }
+      ]
+    },
+    {
+      "id": 4,
       "assertions": [
         {
           "field": "balance",

@@ -1,0 +1,23 @@
+{
+  "test_name": "test_retry_success_gcb",
+  "description": "Payment retries on non-group link and succeeds",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 1},
+        {"field": "attempts", "op": "gte", "value": 1},
+        {"field": "route", "op": "not_empty"}
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "balance", "op": "lt", "value": 5000000}
+      ]
+    }
+  ],
+  "groups": []
+}

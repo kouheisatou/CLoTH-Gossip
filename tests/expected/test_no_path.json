@@ -5,9 +5,18 @@
     {
       "id": 0,
       "assertions": [
-        {"field": "is_success", "op": "eq", "value": 0},
-        {"field": "route", "op": "empty"}
+        {
+          "field": "is_success",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "field": "route",
+          "op": "empty"
+        }
       ]
     }
-  ]
+  ],
+  "groups": [],
+  "edges": []
 }

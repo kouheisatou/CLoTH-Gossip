@@ -1,6 +1,6 @@
 {
-  "test_name": "test_mpp_single_path",
-  "description": "MPP enabled but single path sufficient - no split needed",
+  "test_name": "test_mpp_gcb_small_amount",
+  "description": "GCB MPP enabled but amount small enough for single path - no split",
   "payments": [
     {
       "id": 0,
@@ -19,10 +19,6 @@
           "field": "is_shard",
           "op": "eq",
           "value": 0
-        },
-        {
-          "field": "route",
-          "op": "not_empty"
         }
       ]
     }
@@ -34,7 +30,7 @@
       "assertions": [
         {
           "field": "balance",
-          "op": "lte",
+          "op": "lt",
           "value": 5000000
         }
       ]

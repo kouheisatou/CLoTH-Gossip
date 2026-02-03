@@ -108,6 +108,22 @@ class TestRunner:
         with open(csv_path, 'r') as f:
             return list(csv.DictReader(f))
 
+    def load_edges_output(self, output_dir: Path) -> List[Dict]:
+        """Load edges_output.csv."""
+        csv_path = output_dir / "edges_output.csv"
+        if not csv_path.exists():
+            return []
+        with open(csv_path, 'r') as f:
+            return list(csv.DictReader(f))
+
+    def load_groups_output(self, output_dir: Path) -> List[Dict]:
+        """Load groups_output.csv."""
+        csv_path = output_dir / "groups_output.csv"
+        if not csv_path.exists():
+            return []
+        with open(csv_path, 'r') as f:
+            return list(csv.DictReader(f))
+
     def load_expected(self, test: TestCase) -> Dict:
         """Load expected results JSON."""
         path = SCRIPT_DIR / "expected" / test.expected_file
@@ -149,11 +165,15 @@ class TestRunner:
         """Validate results against expected."""
         expected = self.load_expected(test)
         payments = self.load_payments_output(output_dir)
+        edges = self.load_edges_output(output_dir)
+        groups = self.load_groups_output(output_dir)
 
         if not payments:
             return TestResult(test.name, False, "No output found")
 
         failures = []
+        
+        # Validate payments
         for exp in expected.get("payments", []):
             actual = next((p for p in payments if int(p["id"]) == exp["id"]), None)
             if not actual:
@@ -174,6 +194,28 @@ class TestRunner:
                     ok, msg = self.check_assertion(shard, assertion)
                     if not ok:
                         failures.append(f"Shard {shard['id']}: {msg}")
+
+        # Validate edges
+        for exp_edge in expected.get("edges", []):
+            actual = next((e for e in edges if int(e["id"]) == exp_edge["id"]), None)
+            if not actual:
+                failures.append(f"Edge {exp_edge['id']} not found")
+                continue
+            for assertion in exp_edge.get("assertions", []):
+                ok, msg = self.check_assertion(actual, assertion)
+                if not ok:
+                    failures.append(f"Edge {exp_edge['id']}: {msg} (expected {assertion['op']} {assertion.get('value', '')})")
+
+        # Validate groups
+        for exp_group in expected.get("groups", []):
+            actual = next((g for g in groups if int(g["id"]) == exp_group["id"]), None)
+            if not actual:
+                failures.append(f"Group {exp_group['id']} not found")
+                continue
+            for assertion in exp_group.get("assertions", []):
+                ok, msg = self.check_assertion(actual, assertion)
+                if not ok:
+                    failures.append(f"Group {exp_group['id']}: {msg} (expected {assertion['op']} {assertion.get('value', '')})")
 
         if failures:
             return TestResult(test.name, False, "; ".join(failures[:3]))
@@ -222,7 +264,11 @@ class TestRunner:
 def get_test_cases() -> List[TestCase]:
     """Define all test cases."""
     return [
-        # Basic routing tests
+        # ============================================================
+        # Basic routing tests - ALL METHODS
+        # ============================================================
+        
+        # CLoTH Original - Basic tests
         TestCase("test_success_single_cloth", "simple_linear", "test_success_single.csv",
                  "test_success_single.json", {"routing_method": "cloth_original", "mpp": "0"},
                  description="[cloth_original] Single payment succeeds"),
@@ -236,31 +282,59 @@ def get_test_cases() -> List[TestCase]:
                  "test_no_path.json", {"routing_method": "cloth_original", "mpp": "0"},
                  description="[cloth_original] No route exists -> failure"),
 
-        # Ideal routing
+        # Ideal routing - Basic tests
         TestCase("test_success_single_ideal", "simple_linear", "test_success_single.csv",
                  "test_success_single.json", {"routing_method": "ideal", "mpp": "0"},
                  description="[ideal] Single payment succeeds"),
+        TestCase("test_retry_success_ideal", "imbalanced_4node", "test_retry_success.csv",
+                 "test_retry_success_ideal.json", {"routing_method": "ideal", "mpp": "0"},
+                 description="[ideal] Capacity failure -> retry -> success"),
+        TestCase("test_capacity_exhaust_ideal", "imbalanced_4node", "test_capacity_exhaust.csv",
+                 "test_capacity_exhaust.json", {"routing_method": "ideal", "mpp": "0"},
+                 description="[ideal] All paths exhausted -> failure"),
         TestCase("test_no_path_ideal", "isolated_node", "test_no_path.csv",
                  "test_no_path.json", {"routing_method": "ideal", "mpp": "0"},
                  description="[ideal] No route exists -> failure"),
 
-        # Group routing (GCB)
-        TestCase("test_success_single_gcb", "simple_linear", "test_success_single.csv",
-                 "test_success_single.json",
+        # Group routing (GCB) - Basic tests on grouped network
+        TestCase("test_success_single_gcb", "grouped_network", "test_success_single_gcb.csv",
+                 "test_success_single_gcb.json",
                  {"routing_method": "group_routing", "mpp": "0", "group_size": "5", "group_limit_rate": "0.3"},
-                 description="[group_routing] Single payment succeeds"),
+                 description="[group_routing] Single payment succeeds on grouped network"),
+        TestCase("test_retry_success_gcb", "grouped_network", "test_retry_success_gcb.csv",
+                 "test_retry_success_gcb.json",
+                 {"routing_method": "group_routing", "mpp": "0", "group_size": "5", "group_limit_rate": "0.3"},
+                 description="[group_routing] Retry on non-group link failure"),
+        TestCase("test_capacity_exhaust_gcb", "grouped_network", "test_capacity_exhaust_gcb.csv",
+                 "test_capacity_exhaust_gcb.json",
+                 {"routing_method": "group_routing", "mpp": "0", "group_size": "5", "group_limit_rate": "0.3"},
+                 description="[group_routing] All paths exhausted -> failure"),
         TestCase("test_no_path_gcb", "isolated_node", "test_no_path.csv",
                  "test_no_path.json",
                  {"routing_method": "group_routing", "mpp": "0", "group_size": "5", "group_limit_rate": "0.3"},
                  description="[group_routing] No route exists -> failure"),
 
-        # Group routing CUL
-        TestCase("test_success_single_cul", "simple_linear", "test_success_single.csv",
-                 "test_success_single.json",
+        # Group routing CUL - Basic tests on grouped network
+        TestCase("test_success_single_cul", "grouped_network", "test_success_single_cul.csv",
+                 "test_success_single_cul.json",
                  {"routing_method": "group_routing_cul", "mpp": "0", "group_size": "5"},
-                 description="[group_routing_cul] Single payment succeeds"),
+                 description="[group_routing_cul] Single payment succeeds on grouped network"),
+        TestCase("test_retry_success_cul", "grouped_network", "test_retry_success_cul.csv",
+                 "test_retry_success_cul.json",
+                 {"routing_method": "group_routing_cul", "mpp": "0", "group_size": "5"},
+                 description="[group_routing_cul] Retry on non-group link failure"),
+        TestCase("test_capacity_exhaust_cul", "grouped_network", "test_capacity_exhaust_cul.csv",
+                 "test_capacity_exhaust_cul.json",
+                 {"routing_method": "group_routing_cul", "mpp": "0", "group_size": "5"},
+                 description="[group_routing_cul] All paths exhausted -> failure"),
+        TestCase("test_no_path_cul", "isolated_node", "test_no_path.csv",
+                 "test_no_path.json",
+                 {"routing_method": "group_routing_cul", "mpp": "0", "group_size": "5"},
+                 description="[group_routing_cul] No route exists -> failure"),
 
+        # ============================================================
         # MPP tests (Non-GCB)
+        # ============================================================
         TestCase("test_mpp_single_path_cloth", "diamond_4node", "test_mpp_single_path.csv",
                  "test_mpp_single_path.json", {"routing_method": "cloth_original", "mpp": "1"},
                  description="[cloth_original+MPP] Amount fits single path"),
@@ -287,15 +361,126 @@ def get_test_cases() -> List[TestCase]:
                  {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "max_shard_count": "4"},
                  description="[group_routing+MPP] Max shards -> failure"),
 
-        # GCB specific
-        TestCase("test_gcb_group_limit", "simple_linear", "test_gcb_group_limit.csv",
+        # ============================================================
+        # GCB/CUL specific parameter tests
+        # ============================================================
+        TestCase("test_gcb_group_limit", "grouped_network", "test_gcb_group_limit.csv",
                  "test_gcb_group_limit.json",
                  {"routing_method": "group_routing", "mpp": "0", "group_size": "5", "group_limit_rate": "0.1"},
                  description="[group_routing] Group capacity affects routing"),
-        TestCase("test_gcb_cul_threshold", "simple_linear", "test_gcb_cul_closure.csv",
+        TestCase("test_gcb_cul_threshold", "grouped_network", "test_gcb_cul_closure.csv",
                  "test_gcb_cul_closure.json",
                  {"routing_method": "group_routing_cul", "mpp": "0", "group_size": "5"},
                  description="[group_routing_cul] CUL threshold behavior"),
+
+        # GCB MPP comprehensive tests
+        # 1. Small amount - no split needed (single path sufficient with group capacity)
+        TestCase("test_mpp_gcb_small_amount", "diamond_4node", "test_mpp_gcb_small_amount.csv",
+                 "test_mpp_gcb_small_amount.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3"},
+                 description="[group_routing+MPP] Small amount - no split needed"),
+
+        # 2. Multi-path split using group capacity information
+        TestCase("test_mpp_gcb_multipath_split", "diamond_4node", "test_mpp_gcb_multipath_split.csv",
+                 "test_mpp_gcb_multipath_split.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "8"},
+                 description="[group_routing+MPP] Optimal multi-path split using group capacity"),
+
+        # 3. Shard re-split on failure
+        TestCase("test_mpp_gcb_shard_resplit", "diamond_4node", "test_mpp_gcb_shard_resplit.csv",
+                 "test_mpp_gcb_shard_resplit.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "8"},
+                 description="[group_routing+MPP] Failed shard triggers re-split"),
+
+        # 4. No path available even with splitting (amount too large)
+        TestCase("test_mpp_gcb_no_path", "diamond_4node", "test_mpp_gcb_no_path.csv",
+                 "test_mpp_gcb_no_path.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "16"},
+                 description="[group_routing+MPP] Amount too large - all paths exhausted"),
+
+        # 5. Timeout during shard processing
+        TestCase("test_mpp_gcb_timeout", "diamond_4node", "test_mpp_gcb_timeout.csv",
+                 "test_mpp_gcb_timeout.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "payment_timeout": "1"},
+                 description="[group_routing+MPP] Payment times out during shard processing"),
+
+        # 6. Rollback mechanism on partial success
+        TestCase("test_mpp_gcb_rollback", "diamond_4node", "test_mpp_gcb_rollback.csv",
+                 "test_mpp_gcb_rollback.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "8"},
+                 description="[group_routing+MPP] Partial success triggers rollback"),
+
+        # 7. Group limit affects MPP path selection
+        TestCase("test_mpp_gcb_group_limit_rate", "diamond_4node", "test_mpp_gcb_group_limit.csv",
+                 "test_mpp_gcb_group_limit.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.1"},
+                 description="[group_routing+MPP] Tight group_limit_rate affects splitting"),
+
+        # 8. Max shards boundary test (using multipath network)
+        TestCase("test_mpp_gcb_max_shards_boundary", "multipath_8node", "test_mpp_gcb_max_shards_boundary.csv",
+                 "test_mpp_gcb_max_shards_boundary.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "8"},
+                 description="[group_routing+MPP] Payment needs exactly max shards"),
+
+        # 3-way split test (requires 3+ parallel paths)
+        TestCase("test_mpp_gcb_3way_split", "multipath_8node", "test_mpp_gcb_3way_split.csv",
+                 "test_mpp_gcb_3way_split.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "8"},
+                 description="[group_routing+MPP] 3-way split across parallel paths"),
+
+        # 4-way split test (requires 4 parallel paths)
+        TestCase("test_mpp_gcb_4way_split", "multipath_8node", "test_mpp_gcb_4way_split.csv",
+                 "test_mpp_gcb_4way_split.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "8"},
+                 description="[group_routing+MPP] 4-way split using all available routes"),
+
+        # Many shards test
+        TestCase("test_mpp_gcb_many_shards", "multipath_8node", "test_mpp_gcb_many_shards.csv",
+                 "test_mpp_gcb_many_shards.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "16"},
+                 description="[group_routing+MPP] Multiple shards across multiple paths"),
+
+        # 9. CUL + MPP combination
+        TestCase("test_mpp_cul_split", "diamond_4node", "test_mpp_cul_split.csv",
+                 "test_mpp_cul_split.json",
+                 {"routing_method": "group_routing_cul", "mpp": "1", "group_size": "5", "max_shard_count": "8"},
+                 description="[group_routing_cul+MPP] CUL threshold-based split"),
+
+        # 10. Large group size affects MPP behavior
+        TestCase("test_mpp_gcb_large_group", "diamond_4node", "test_mpp_split_success.csv",
+                 "test_mpp_split_success_gcb.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "10", "group_limit_rate": "0.5"},
+                 description="[group_routing+MPP] Large group size affects capacity estimation"),
+
+        # 11. Very restrictive group limit rate - may cause different split behavior
+        TestCase("test_mpp_gcb_restrictive_limit", "diamond_4node", "test_mpp_split_success.csv",
+                 "test_mpp_split_success_gcb.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.05", "max_shard_count": "16"},
+                 description="[group_routing+MPP] Very restrictive group_limit_rate"),
+
+        # 12. MPP with max_shard_count=2 (minimal splitting)
+        TestCase("test_mpp_gcb_minimal_shards", "diamond_4node", "test_mpp_split_success.csv",
+                 "test_mpp_split_success_gcb.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "2"},
+                 description="[group_routing+MPP] Minimal shard count (2)"),
+
+        # 13. CUL with different threshold values
+        TestCase("test_mpp_cul_high_threshold", "diamond_4node", "test_mpp_split_success.csv",
+                 "test_mpp_split_success_gcb.json",
+                 {"routing_method": "group_routing_cul", "mpp": "1", "group_size": "5", "max_shard_count": "8"},
+                 description="[group_routing_cul+MPP] High CUL threshold behavior"),
+
+        # 14. GCB MPP failure then retry with smaller shards
+        TestCase("test_mpp_gcb_retry_smaller", "parallel_6node", "test_mpp_max_shards.csv",
+                 "test_mpp_max_shards.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3", "max_shard_count": "4"},
+                 description="[group_routing+MPP] Max shards exceeded -> failure"),
+
+        # 15. Single group member edge case
+        TestCase("test_mpp_gcb_single_group_member", "simple_linear", "test_success_single.csv",
+                 "test_success_single.json",
+                 {"routing_method": "group_routing", "mpp": "1", "group_size": "5", "group_limit_rate": "0.3"},
+                 description="[group_routing+MPP] Single path network - no MPP needed"),
     ]
 
 

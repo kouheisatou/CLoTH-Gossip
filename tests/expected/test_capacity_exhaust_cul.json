@@ -1,0 +1,22 @@
+{
+  "test_name": "test_capacity_exhaust_cul",
+  "description": "All paths exhausted even with CUL routing",
+  "payments": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "is_success", "op": "eq", "value": 0},
+        {"field": "attempts", "op": "gt", "value": 1}
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "balance", "op": "eq", "value": 5000000}
+      ]
+    }
+  ],
+  "groups": []
+}

@@ -5,9 +5,25 @@
     {
       "id": 0,
       "assertions": [
-        {"field": "is_success", "op": "eq", "value": 1},
-        {"field": "route", "op": "not_empty"}
+        {
+          "field": "is_success",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "field": "route",
+          "op": "not_empty"
+        }
       ]
     }
-  ]
+  ],
+  "edges": [
+    {
+      "id": 0,
+      "assertions": [
+        {"field": "balance", "op": "lt", "value": 5000000}
+      ]
+    }
+  ],
+  "groups": []
 }

@@ -1,6 +1,6 @@
 {
-  "test_name": "test_mpp_split_success_gcb",
-  "description": "GCB MPP optimal split - capacity-based path splitting, all succeed",
+  "test_name": "test_mpp_cul_split",
+  "description": "GCB CUL + MPP - split using CUL threshold-based group capacity",
   "payments": [
     {
       "id": 0,
@@ -40,16 +40,6 @@
   "edges": [
     {
       "id": 0,
-      "assertions": [
-        {
-          "field": "balance",
-          "op": "lt",
-          "value": 5000000
-        }
-      ]
-    },
-    {
-      "id": 2,
       "assertions": [
         {
           "field": "balance",

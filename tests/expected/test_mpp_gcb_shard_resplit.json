@@ -1,6 +1,6 @@
 {
-  "test_name": "test_mpp_single_path",
-  "description": "MPP enabled but single path sufficient - no split needed",
+  "test_name": "test_mpp_gcb_shard_resplit",
+  "description": "GCB MPP - failed shard triggers re-split and retry",
   "payments": [
     {
       "id": 0,
@@ -13,18 +13,22 @@
         {
           "field": "mpp",
           "op": "eq",
-          "value": 0
-        },
-        {
-          "field": "is_shard",
-          "op": "eq",
-          "value": 0
-        },
-        {
-          "field": "route",
-          "op": "not_empty"
+          "value": 1
         }
       ]
+    }
+  ],
+  "check_shards": true,
+  "shard_assertions": [
+    {
+      "field": "is_shard",
+      "op": "gte",
+      "value": 1
+    },
+    {
+      "field": "parent_payment_id",
+      "op": "gte",
+      "value": 0
     }
   ],
   "groups": [],
