@@ -223,6 +223,140 @@ static int can_create_more_shards(struct payment* root_payment, int max_shard_co
 // Minimum shard size (1000 millisatoshi = 1 satoshi)
 #define MIN_SHARD_SIZE 1000000
 
+// Structure for path with capacity and fee info (for GCB optimal N-split)
+struct path_info {
+  struct array* path;
+  uint64_t capacity;
+  uint64_t fee;
+};
+
+// Compare function for sorting paths by fee (ascending)
+static int compare_path_info_by_fee(const void* a, const void* b) {
+  struct path_info* pa = *(struct path_info**)a;
+  struct path_info* pb = *(struct path_info**)b;
+  if(pa->fee < pb->fee) return -1;
+  if(pa->fee > pb->fee) return 1;
+  return 0;
+}
+
+// Calculate path capacity using GCB group_cap
+static uint64_t calculate_path_capacity_gcb(struct array* path, struct network* network, int first_edge_use_balance) {
+  uint64_t min_cap = UINT64_MAX;
+  for(int i = 0; i < array_len(path); i++) {
+    struct path_hop* hop = array_get(path, i);
+    struct edge* edge = array_get(network->edges, hop->edge);
+    uint64_t estimated_cap;
+    
+    if(i == 0 && first_edge_use_balance) {
+      // First edge (directly connected): use actual balance
+      estimated_cap = edge->balance;
+    } else if(edge->group != NULL) {
+      // GCB group: use group_cap
+      estimated_cap = edge->group->group_cap;
+    } else {
+      // Non-group edge: use channel_capacity / 2 (conservative estimate)
+      struct channel* channel = array_get(network->channels, edge->channel_id);
+      estimated_cap = channel->capacity / 2;
+    }
+    
+    if(estimated_cap < min_cap) min_cap = estimated_cap;
+  }
+  return min_cap;
+}
+
+// Find multiple paths for GCB optimal N-split
+// Returns array of path_info structures, sorted by fee
+static struct array* find_multiple_paths_gcb(
+    long sender, long receiver, uint64_t total_amount,
+    struct network* network, uint64_t current_time,
+    enum routing_method routing_method, uint64_t max_fee_limit,
+    int max_paths) {
+  
+  struct array* path_infos = array_initialize(max_paths);
+  struct element* exclude_edges = NULL;
+  uint64_t remaining = total_amount;
+  
+  for(int i = 0; i < max_paths && remaining > 0; i++) {
+    enum pathfind_error error;
+    // Find path for remaining amount (or smaller if needed)
+    uint64_t search_amount = remaining < MIN_SHARD_SIZE ? MIN_SHARD_SIZE : remaining;
+    struct array* path = dijkstra(sender, receiver, search_amount, network, current_time, 0, 
+                                   &error, routing_method, exclude_edges, max_fee_limit);
+    
+    if(path == NULL) {
+      // Try with smaller amount
+      search_amount = MIN_SHARD_SIZE;
+      path = dijkstra(sender, receiver, search_amount, network, current_time, 0,
+                       &error, routing_method, exclude_edges, max_fee_limit);
+      if(path == NULL) break;
+    }
+    
+    // Calculate path capacity
+    uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
+    
+    // Calculate fee for the full capacity amount (not search_amount)
+    struct route* route = transform_path_into_route(path, capacity, network, current_time);
+    uint64_t fee = route->total_fee;
+    free_route(route);
+    
+    // The capacity we can actually use is the minimum edge capacity minus the fee
+    // because (amount + fee) must fit within the edge capacity
+    if(capacity > fee) {
+      capacity = capacity - fee;
+    } else {
+      // Fee would consume all capacity - skip this path
+      struct path_hop* first_hop = array_get(path, 0);
+      struct edge* first_edge = array_get(network->edges, first_hop->edge);
+      exclude_edges = push(exclude_edges, first_edge);
+      continue;
+    }
+    
+    // Create path_info
+    struct path_info* info = malloc(sizeof(struct path_info));
+    info->path = path;
+    info->capacity = capacity;
+    info->fee = fee;
+    path_infos = array_insert(path_infos, info);
+    
+    // Add first edge of this path to exclude list to find different paths
+    struct path_hop* first_hop = array_get(path, 0);
+    struct edge* first_edge = array_get(network->edges, first_hop->edge);
+    exclude_edges = push(exclude_edges, first_edge);
+    
+    remaining -= (capacity < remaining) ? capacity : remaining;
+  }
+  
+  list_free(exclude_edges);
+  
+  // Sort by fee (ascending)
+  if(array_len(path_infos) > 1) {
+    // Simple bubble sort (paths count is small)
+    for(int i = 0; i < array_len(path_infos) - 1; i++) {
+      for(int j = 0; j < array_len(path_infos) - i - 1; j++) {
+        struct path_info* a = array_get(path_infos, j);
+        struct path_info* b = array_get(path_infos, j + 1);
+        if(a->fee > b->fee) {
+          // Swap
+          path_infos->element[j] = b;
+          path_infos->element[j + 1] = a;
+        }
+      }
+    }
+  }
+  
+  return path_infos;
+}
+
+// Free path_info array
+static void free_path_infos(struct array* path_infos) {
+  for(int i = 0; i < array_len(path_infos); i++) {
+    struct path_info* info = array_get(path_infos, i);
+    // Note: don't free path here as it may be used by shards
+    free(info);
+  }
+  array_free(path_infos);
+}
+
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
 void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, struct payments_params pay_params, struct network_params net_params) {
   struct payment *payment, *shard1, *shard2, *root_payment;
@@ -321,18 +455,148 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   
   if(mpp && path == NULL && payment->amount >= MIN_SHARD_SIZE * 2) {
     
+    // Section 4: GCB optimal N-split for GROUP_ROUTING and GROUP_ROUTING_CUL
+    // For GCB modes, shards should NOT split again - only the root payment can split
+    if((routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL) && payment->is_shard) {
+      // GCB shard failed to find path - do not split, just fail
+      printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=GCB_SHARD_NO_PATH, is_shard=1, amount=%llu\n",
+             payment->id, payment->amount);
+      payment->end_time = simulation->current_time;
+      return;
+    }
+    
+    // Mark that MPP was triggered
+    if(!payment->mpp_triggered) {
+      payment->mpp_triggered = 1;
+      root_payment->mpp_triggered = 1;
+    }
+
+    // Section 4: GCB optimal N-split for GROUP_ROUTING and GROUP_ROUTING_CUL
+    if(routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL) {
+      
+      // Find multiple paths sorted by fee
+      int max_paths = pay_params.max_shard_count - root_payment->shard_count;
+      if(max_paths < 1) max_paths = 1;
+      if(max_paths > 16) max_paths = 16;  // Reasonable limit for path search
+      
+      struct array* path_infos = find_multiple_paths_gcb(
+          payment->sender, payment->receiver, payment->amount,
+          network, simulation->current_time, routing_method,
+          payment->max_fee_limit, max_paths);
+      
+      if(array_len(path_infos) == 0) {
+        printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=NO_PATHS_FOR_GCB_MPP\n", payment->id);
+        free_path_infos(path_infos);
+        payment->end_time = simulation->current_time;
+        return;
+      }
+      
+      // Greedily allocate payment amount to paths (sorted by fee, cheapest first)
+      uint64_t remaining = payment->amount;
+      int shard_count = 0;
+      struct array* shard_amounts = array_initialize(array_len(path_infos));
+      struct array* shard_paths = array_initialize(array_len(path_infos));
+      
+      for(int i = 0; i < array_len(path_infos) && remaining > 0; i++) {
+        struct path_info* info = array_get(path_infos, i);
+        
+        // Capacity already has fee subtracted in find_multiple_paths_gcb
+        uint64_t alloc = (info->capacity < remaining) ? info->capacity : remaining;
+        
+        // Ensure minimum shard size
+        if(alloc < MIN_SHARD_SIZE && remaining >= MIN_SHARD_SIZE) {
+          continue;  // Skip paths with too little capacity
+        }
+        if(alloc < MIN_SHARD_SIZE) {
+          alloc = remaining;  // Last shard takes whatever remains
+        }
+        
+        uint64_t* amount_ptr = malloc(sizeof(uint64_t));
+        *amount_ptr = alloc;
+        shard_amounts = array_insert(shard_amounts, amount_ptr);
+        shard_paths = array_insert(shard_paths, info->path);
+        
+        remaining -= alloc;
+        shard_count++;
+      }
+      
+      // Check if we can cover the full amount
+      if(remaining > 0) {
+        printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=INSUFFICIENT_TOTAL_CAPACITY, remaining=%llu\n", 
+               payment->id, remaining);
+        // Free allocated amounts
+        for(int i = 0; i < array_len(shard_amounts); i++) {
+          free(array_get(shard_amounts, i));
+        }
+        array_free(shard_amounts);
+        array_free(shard_paths);
+        free_path_infos(path_infos);
+        payment->end_time = simulation->current_time;
+        return;
+      }
+      
+      // Check shard count limit
+      if(root_payment->shard_count + shard_count > pay_params.max_shard_count) {
+        printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=MAX_SHARD_COUNT_REACHED, needed=%d, max=%d\n",
+               payment->id, root_payment->shard_count + shard_count, pay_params.max_shard_count);
+        for(int i = 0; i < array_len(shard_amounts); i++) {
+          free(array_get(shard_amounts, i));
+        }
+        array_free(shard_amounts);
+        array_free(shard_paths);
+        free_path_infos(path_infos);
+        payment->end_time = simulation->current_time;
+        return;
+      }
+      
+      // Create N shards
+      printf("[MPP DEBUG] GCB_SPLIT: payment_id=%ld, amount=%llu, n_shards=%d\n",
+             payment->id, payment->amount, shard_count);
+      
+      long first_shard_id = array_len(*payments);
+      for(int i = 0; i < shard_count; i++) {
+        uint64_t* amount_ptr = array_get(shard_amounts, i);
+        uint64_t shard_amount = *amount_ptr;
+        struct array* shard_path = array_get(shard_paths, i);
+        
+        long shard_id = array_len(*payments);
+        struct payment* shard = create_payment_shard(shard_id, shard_amount, payment, root_payment);
+        *payments = array_insert(*payments, shard);
+        
+        printf("[MPP DEBUG]   SHARD: shard_id=%ld, amount=%llu, path_len=%ld\n",
+               shard_id, shard_amount, array_len(shard_path));
+        
+        // Generate send payment event with the pre-found path
+        generate_send_payment_event(shard, shard_path, simulation, network);
+        
+        free(amount_ptr);
+      }
+      
+      // Update root payment shard count
+      root_payment->shard_count += shard_count;
+      
+      // Record in parent's shards (only first 2 for compatibility, but we track all via shard_count)
+      if(shard_count >= 1) payment->shards_id[0] = first_shard_id;
+      if(shard_count >= 2) payment->shards_id[1] = first_shard_id + 1;
+      
+      // Record split in attempt history (using first two shard ids for compatibility)
+      add_split_history(payment, simulation->current_time, 
+                        first_shard_id, 
+                        shard_count >= 2 ? first_shard_id + 1 : -1);
+      
+      array_free(shard_amounts);
+      array_free(shard_paths);
+      free_path_infos(path_infos);
+      return;
+    }
+    
+    // Section 3: Non-GCB recursive 2-split
     // Check shard count limit (need at least 2 more slots for new shards)
     if(root_payment->shard_count + 2 > pay_params.max_shard_count) {
       printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=MAX_SHARD_COUNT_REACHED, shard_count=%d, max=%d\n",
              payment->id, root_payment->shard_count, pay_params.max_shard_count);
       payment->end_time = simulation->current_time;
       return;
-    }
-
-    // Mark that MPP was triggered
-    if(!payment->mpp_triggered) {
-      payment->mpp_triggered = 1;
-      root_payment->mpp_triggered = 1;
     }
 
     // Calculate shard amounts (50/50 split)
@@ -347,7 +611,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       return;
     }
 
-    // Section 3: Create shards and schedule FINDPATH for each
+    // Create shards and schedule FINDPATH for each
     // This allows recursive splitting - if a shard can't find a path, it will split again
     shard1_id = array_len(*payments);
     shard2_id = array_len(*payments) + 1;
@@ -357,13 +621,15 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     *payments = array_insert(*payments, shard1);
     *payments = array_insert(*payments, shard2);
     
-    // Update parent payment
-    payment->is_shard = 1;  // Mark as having shards
+    // Update parent payment (note: is_shard is already set correctly on shards via create_payment_shard)
     payment->shards_id[0] = shard1_id;
     payment->shards_id[1] = shard2_id;
     
     // Update root payment shard count
     root_payment->shard_count += 2;
+    
+    // Record split in attempt history
+    add_split_history(payment, simulation->current_time, shard1_id, shard2_id);
     
     printf("[MPP DEBUG] SPLIT: parent_id=%ld, parent_amount=%llu, shard1_id=%ld, shard1_amount=%llu, shard2_id=%ld, shard2_amount=%llu, total_shards=%d\n",
            payment->id, payment->amount, shard1_id, shard1_amount, shard2_id, shard2_amount, root_payment->shard_count);

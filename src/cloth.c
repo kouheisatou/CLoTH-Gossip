@@ -155,11 +155,23 @@ void write_output(struct network* network, struct array* payments, char output_d
     printf("ERROR cannot open payment_output.csv\n");
     exit(-1);
   }
-  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
+  fprintf(csv_payment_output, "id,sender_id,receiver_id,amount,start_time,max_fee_limit,end_time,mpp,is_shard,parent_payment_id,shards,is_success,no_balance_count,offline_node_count,timeout_exp,attempts,route,total_fee,attempts_history\n");
   for(i=0; i<array_len(payments); i++)  {
     payment = array_get(payments, i);
-    if (payment->id == -1) continue;
-    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%d,%d,%u,%d,", payment->id, payment->sender, payment->receiver, payment->amount, payment->start_time, payment->max_fee_limit, payment->end_time, payment->is_shard, payment->is_success, payment->no_balance_count, payment->offline_node_count, payment->is_timeout, payment->attempts);
+    // Output all payments including shards
+    fprintf(csv_payment_output, "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%u,%u,%ld,", 
+            payment->id, payment->sender, payment->receiver, payment->amount, 
+            payment->start_time, payment->max_fee_limit, payment->end_time, 
+            payment->mpp_triggered, payment->is_shard, payment->parent_id);
+    // Output shards array
+    if(payment->shards_id[0] != -1 && payment->shards_id[1] != -1) {
+      fprintf(csv_payment_output, "%ld-%ld,", payment->shards_id[0], payment->shards_id[1]);
+    } else {
+      fprintf(csv_payment_output, ",");
+    }
+    fprintf(csv_payment_output, "%u,%d,%d,%u,%d,", 
+            payment->is_success, payment->no_balance_count, payment->offline_node_count, 
+            payment->is_timeout, payment->attempts);
     route = payment->route;
     if(route==NULL)
       fprintf(csv_payment_output, ",,");
@@ -179,19 +191,30 @@ void write_output(struct network* network, struct array* payments, char output_d
         fprintf(csv_payment_output, "\"[");
         for (struct element *iterator = payment->history; iterator != NULL; iterator = iterator->next) {
             struct attempt *attempt = iterator->data;
-            fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"end_time\"\":%lu,\"\"error_edge\"\":%lu,\"\"error_type\"\":%d,\"\"route\"\":[", attempt->attempts, attempt->is_succeeded, attempt->end_time, attempt->error_edge_id, attempt->error_type);
-            for (j = 0; j < array_len(attempt->route); j++) {
-                struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
-                edge = array_get(network->edges, edge_snapshot->id);
-                channel = array_get(network->channels, edge->channel_id);
-                fprintf(csv_payment_output,"{\"\"edge_id\"\":%lu,\"\"from_node_id\"\":%lu,\"\"to_node_id\"\":%lu,\"\"sent_amt\"\":%lu,\"\"edge_cap\"\":%lu,\"\"channel_cap\"\":%lu,", edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
-                if(edge_snapshot->is_in_group) fprintf(csv_payment_output, "\"\"group_cap\"\":%lu,", edge_snapshot->group_cap);
-                else fprintf(csv_payment_output,"\"\"group_cap\"\":null,");
-                if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%lu}", edge_snapshot->last_channle_update_value);
-                else fprintf(csv_payment_output,"\"\"channel_update\"\":}");
-                if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
+            if(attempt->is_split) {
+                // Split event
+                fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_split\"\":true,\"\"end_time\"\":%llu,\"\"shard1_id\"\":%ld,\"\"shard2_id\"\":%ld}", 
+                        attempt->attempts, attempt->end_time, attempt->shard1_id, attempt->shard2_id);
+            } else {
+                // Normal attempt (success or failure)
+                fprintf(csv_payment_output, "{\"\"attempts\"\":%d,\"\"is_succeeded\"\":%d,\"\"end_time\"\":%llu,\"\"error_edge\"\":%ld,\"\"error_type\"\":%d,\"\"route\"\":[", 
+                        attempt->attempts, attempt->is_succeeded, attempt->end_time, attempt->error_edge_id, attempt->error_type);
+                if(attempt->route != NULL) {
+                    for (j = 0; j < array_len(attempt->route); j++) {
+                        struct edge_snapshot* edge_snapshot = array_get(attempt->route, j);
+                        edge = array_get(network->edges, edge_snapshot->id);
+                        channel = array_get(network->channels, edge->channel_id);
+                        fprintf(csv_payment_output,"{\"\"edge_id\"\":%ld,\"\"from_node_id\"\":%ld,\"\"to_node_id\"\":%ld,\"\"sent_amt\"\":%llu,\"\"edge_cap\"\":%llu,\"\"channel_cap\"\":%llu,", 
+                                edge_snapshot->id, edge->from_node_id, edge->to_node_id, edge_snapshot->sent_amt, edge_snapshot->balance, channel->capacity);
+                        if(edge_snapshot->is_in_group) fprintf(csv_payment_output, "\"\"group_cap\"\":%llu,", edge_snapshot->group_cap);
+                        else fprintf(csv_payment_output,"\"\"group_cap\"\":null,");
+                        if(edge_snapshot->does_channel_update_exist) fprintf(csv_payment_output,"\"\"channel_update\"\":%llu}", edge_snapshot->last_channle_update_value);
+                        else fprintf(csv_payment_output,"\"\"channel_update\"\":null}");
+                        if (j != array_len(attempt->route) - 1) fprintf(csv_payment_output, ",");
+                    }
+                }
+                fprintf(csv_payment_output, "]}");
             }
-            fprintf(csv_payment_output, "]}");
             if (iterator->next != NULL) fprintf(csv_payment_output, ",");
             else fprintf(csv_payment_output, "]");
         }
@@ -446,7 +469,7 @@ static void collect_shard_stats(struct array* payments, struct payment* shard,
                                 uint64_t* max_end_time, int* all_success, 
                                 int* no_balance_count, int* offline_node_count,
                                 int* any_timeout, int* total_attempts, uint64_t* total_fee) {
-  if(shard == NULL || shard->id == -1) return;
+  if(shard == NULL) return;
   
   // If this shard has children, process them recursively
   if(has_shards(shard)) {
@@ -456,9 +479,6 @@ static void collect_shard_stats(struct array* payments, struct payment* shard,
                         offline_node_count, any_timeout, total_attempts, total_fee);
     collect_shard_stats(payments, child2, max_end_time, all_success, no_balance_count,
                         offline_node_count, any_timeout, total_attempts, total_fee);
-    // Mark children as processed
-    child1->id = -1;
-    child2->id = -1;
   } else {
     // Leaf shard - collect stats
     if(shard->end_time > *max_end_time) *max_end_time = shard->end_time;
@@ -477,7 +497,6 @@ void post_process_payment_stats(struct array* payments){
   struct payment* payment, *shard1, *shard2;
   for(i = 0; i < array_len(payments); i++){
     payment = array_get(payments, i);
-    if(payment->id == -1) continue;
     if(!has_shards(payment)) continue;
     
     // For root payments with shards, collect stats from all descendants
@@ -505,20 +524,8 @@ void post_process_payment_stats(struct array* payments){
       payment->is_timeout = any_timeout;
       payment->attempts = total_attempts;
       
-      // Use route from one of the shards for display purposes
-      if(shard1->route != NULL) {
-        payment->route = shard1->route;
-        payment->route->total_fee = total_fee;
-      } else if(shard2->route != NULL) {
-        payment->route = shard2->route;
-        payment->route->total_fee = total_fee;
-      } else {
-        payment->route = NULL;
-      }
-      
-      // Mark immediate children as processed
-      shard1->id = -1;
-      shard2->id = -1;
+      // Note: We don't set a route on the parent for MPP payments
+      // Each shard has its own route in the output
     }
   }
 }
@@ -659,12 +666,12 @@ int main(int argc, char *argv[]) {
   if(pay_params.mpp) {
     post_process_payment_stats(payments);
     
-    // MPP summary statistics
+    // MPP summary statistics (only count root payments, not shards)
     int mpp_payments = 0, mpp_success = 0, total_shards = 0;
     for(long i = 0; i < array_len(payments); i++) {
       struct payment* p = array_get(payments, i);
-      if(p->id == -1) continue;  // skip processed shards
-      if(p->mpp_triggered || p->shard_count > 0) {
+      // Only count root payments that triggered MPP
+      if(p->parent_id == -1 && (p->mpp_triggered || p->shard_count > 0)) {
         mpp_payments++;
         if(p->is_success) mpp_success++;
         total_shards += p->shard_count;

@@ -56,10 +56,14 @@ struct attempt {
   enum payment_error_type error_type;
   struct array* route; // array of `struct edge_snapshot`
   short is_succeeded;
+  short is_split;           // 1 if this attempt resulted in a split
+  long shard1_id;           // shard 1 id if split occurred
+  long shard2_id;           // shard 2 id if split occurred
 };
 
 struct payment* new_payment(long id, long sender, long receiver, uint64_t amount, uint64_t start_time, uint64_t max_fee_limit);
 struct array* initialize_payments(struct payments_params pay_params, long n_nodes, gsl_rng* random_generator);
 void add_attempt_history(struct payment* pmt, struct network* network, uint64_t time, short is_succeeded);
+void add_split_history(struct payment* pmt, uint64_t time, long shard1_id, long shard2_id);
 
 #endif

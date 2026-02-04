@@ -134,6 +134,9 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     attempt->error_type = pmt->error.type;
   }
   attempt->is_succeeded = is_succeeded;
+  attempt->is_split = 0;
+  attempt->shard1_id = -1;
+  attempt->shard2_id = -1;
   long route_len = array_len(pmt->route->route_hops);
   attempt->route = array_initialize(route_len);
 
@@ -145,5 +148,19 @@ void add_attempt_history(struct payment* pmt, struct network* network, uint64_t 
     attempt->route = array_insert(attempt->route, take_edge_snapshot(edge, route_hop->amount_to_forward, is_in_group, route_hop->group_cap));
   }
 
+  pmt->history = push(pmt->history, attempt);
+}
+
+void add_split_history(struct payment* pmt, uint64_t time, long shard1_id, long shard2_id){
+  struct attempt* attempt = malloc(sizeof(struct attempt));
+  attempt->attempts = pmt->attempts;
+  attempt->end_time = time;
+  attempt->error_edge_id = 0;
+  attempt->error_type = NOERROR;
+  attempt->is_succeeded = 0;
+  attempt->is_split = 1;
+  attempt->shard1_id = shard1_id;
+  attempt->shard2_id = shard2_id;
+  attempt->route = NULL;
   pmt->history = push(pmt->history, attempt);
 }
