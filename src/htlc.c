@@ -189,52 +189,83 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
 }
 
 
-struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment){
+struct payment* create_payment_shard(long shard_id, uint64_t shard_amount, struct payment* payment, struct payment* root_payment){
   struct payment* shard;
-  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, payment->max_fee_limit);
-  shard->attempts = 1;
+  // For fee limit, divide proportionally to amount
+  uint64_t shard_fee_limit = payment->max_fee_limit;
+  if(payment->max_fee_limit != UINT64_MAX && payment->amount > 0) {
+    shard_fee_limit = (uint64_t)((double)payment->max_fee_limit * ((double)shard_amount / (double)payment->amount));
+    if(shard_fee_limit == 0) shard_fee_limit = 1; // minimum fee limit
+  }
+  shard = new_payment(shard_id, payment->sender, payment->receiver, shard_amount, payment->start_time, shard_fee_limit);
+  shard->attempts = 0;  // will be incremented on first find_path
   shard->is_shard = 1;
+  shard->parent_id = payment->id;
+  shard->root_payment_id = root_payment->id;
   return shard;
 }
 
 /*HTLC FUNCTIONS*/
 
+// Helper function to get root payment and count shards
+static int count_total_shards(struct payment* root_payment) {
+  int count = 0;
+  if(root_payment->shards_id[0] != -1) count++;
+  if(root_payment->shards_id[1] != -1) count++;
+  return root_payment->shard_count;
+}
+
+// Helper function to check if we can create more shards
+static int can_create_more_shards(struct payment* root_payment, int max_shard_count) {
+  return root_payment->shard_count < max_shard_count;
+}
+
+// Minimum shard size (1000 millisatoshi = 1 satoshi)
+#define MIN_SHARD_SIZE 1000000
+
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
-void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, unsigned int mpp, enum routing_method routing_method, struct network_params net_params) {
-  struct payment *payment, *shard1, *shard2;
-  struct array *path, *shard1_path, *shard2_path;
+void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, struct payments_params pay_params, struct network_params net_params) {
+  struct payment *payment, *shard1, *shard2, *root_payment;
+  struct array *path;
   uint64_t shard1_amount, shard2_amount;
   enum pathfind_error error;
   long shard1_id, shard2_id;
+  unsigned int mpp = pay_params.mpp;
+  enum routing_method routing_method = net_params.routing_method;
 
   payment = event->payment;
+  
+  // Get root payment for shard tracking
+  root_payment = array_get(*payments, payment->root_payment_id);
 
   ++(payment->attempts);
 
   if(net_params.payment_timeout != -1 && simulation->current_time > payment->start_time + net_params.payment_timeout) {
     payment->end_time = simulation->current_time;
     payment->is_timeout = 1;
+    printf("[MPP DEBUG] TIMEOUT: payment_id=%ld, is_shard=%u, elapsed=%llu\n", 
+           payment->id, payment->is_shard, simulation->current_time - payment->start_time);
     return;
   }
 
   // find path
   if(routing_method == CLOTH_ORIGINAL) {
-      if (payment->attempts == 1) {
+      if (payment->attempts == 1 && !payment->is_shard) {
           path = paths[payment->id];
       }else {
           path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
       }
   } else {
 
-      if (payment->attempts == 1) {
+      if (payment->attempts == 1 && !payment->is_shard) {
           path = paths[payment->id];
           if (path != NULL) {
 
               // calc path capacity
               uint64_t path_cap = INT64_MAX;
               for (int i = 0; i < array_len(path); i++) {
-                  struct route_hop *hop = array_get(path, i);
-                  struct edge *edge = array_get(network->edges, hop->edge_id);
+                  struct path_hop *hop = array_get(path, i);
+                  struct edge *edge = array_get(network->edges, hop->edge);
                   uint64_t estimated_cap;
                   if (i == 0) {
                       // if first edge of the path (directory connected edge to source node)
@@ -259,72 +290,96 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           }
       } else {
 
-          // exclude edges
+          // exclude edges from failed attempts
           struct element* exclude_edges = NULL;
           for(struct element* iterator = payment->history; iterator != NULL; iterator = iterator->next) {
             struct attempt* a = iterator->data;
-            struct edge* exclude_edge = array_get(network->edges, a->error_edge_id);
-            exclude_edges = push(exclude_edges, exclude_edge);
+            if(a->error_edge_id != 0) {
+              struct edge* exclude_edge = array_get(network->edges, a->error_edge_id);
+              exclude_edges = push(exclude_edges, exclude_edge);
+            }
           }
 
           path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, exclude_edges, payment->max_fee_limit);
+          list_free(exclude_edges);
       }
   }
 
   if (path != NULL) {
+    printf("[MPP DEBUG] PATH_FOUND: payment_id=%ld, is_shard=%u, amount=%llu, attempts=%d\n",
+           payment->id, payment->is_shard, payment->amount, payment->attempts);
     generate_send_payment_event(payment, path, simulation, network);
     return;
   }
 
-  //  if a path is not found, try to split the payment in two shards (multi-path payment)
-  if(mpp && path == NULL && !(payment->is_shard) && payment->attempts == 1 ){
-    shard1_amount = payment->amount/2;
+  // No path found - try MPP if conditions are met
+  // Section 3 & 4: MPP triggering conditions
+  // - mpp flag is enabled
+  // - path is NULL (NOPATH)
+  // - amount is above minimum shard size
+  // - max_shard_count not yet reached
+  
+  if(mpp && path == NULL && payment->amount >= MIN_SHARD_SIZE * 2) {
+    
+    // Check shard count limit (need at least 2 more slots for new shards)
+    if(root_payment->shard_count + 2 > pay_params.max_shard_count) {
+      printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=MAX_SHARD_COUNT_REACHED, shard_count=%d, max=%d\n",
+             payment->id, root_payment->shard_count, pay_params.max_shard_count);
+      payment->end_time = simulation->current_time;
+      return;
+    }
+
+    // Mark that MPP was triggered
+    if(!payment->mpp_triggered) {
+      payment->mpp_triggered = 1;
+      root_payment->mpp_triggered = 1;
+    }
+
+    // Calculate shard amounts (50/50 split)
+    shard1_amount = payment->amount / 2;
     shard2_amount = payment->amount - shard1_amount;
-    shard1_path = dijkstra(payment->sender, payment->receiver, shard1_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard1_path == NULL){
+    
+    // Check minimum shard size
+    if(shard1_amount < MIN_SHARD_SIZE || shard2_amount < MIN_SHARD_SIZE) {
+      printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=SHARD_TOO_SMALL, shard1=%llu, shard2=%llu, min=%d\n",
+             payment->id, shard1_amount, shard2_amount, MIN_SHARD_SIZE);
       payment->end_time = simulation->current_time;
       return;
     }
-    shard2_path = dijkstra(payment->sender, payment->receiver, shard2_amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit / 2);
-    if(shard2_path == NULL){
-      payment->end_time = simulation->current_time;
-      return;
-    }
-    // if shard1_path and shard2_path is same route, return
-    if(routing_method != CLOTH_ORIGINAL) {
-        long shard1_path_len = array_len(shard1_path);
-        long shard2_path_len = array_len(shard2_path);
-        if (shard1_path_len == shard2_path_len) {
-            int duplicated = 0;
-            for (int i = 0; i < shard1_path_len; i++) {
-                struct route_hop *shard1_hop = array_get(shard1_path, i);
-                for (int j = 0; j < shard2_path_len; j++) {
-                    struct route_hop *shard2_hop = array_get(shard2_path, j);
-                    if (shard1_hop->edge_id == shard2_hop->edge_id) duplicated++;
-                }
-            }
-            // all hop of shade1_path is same as shade2_path's, return
-            if (duplicated == shard1_path_len && duplicated == shard2_path_len) {
-                payment->end_time = simulation->current_time;
-                return;
-            }
-        }
-    }
+
+    // Section 3: Create shards and schedule FINDPATH for each
+    // This allows recursive splitting - if a shard can't find a path, it will split again
     shard1_id = array_len(*payments);
     shard2_id = array_len(*payments) + 1;
-    shard1 = create_payment_shard(shard1_id, shard1_amount, payment);
-    shard2 = create_payment_shard(shard2_id, shard2_amount, payment);
+    shard1 = create_payment_shard(shard1_id, shard1_amount, payment, root_payment);
+    shard2 = create_payment_shard(shard2_id, shard2_amount, payment, root_payment);
+    
     *payments = array_insert(*payments, shard1);
     *payments = array_insert(*payments, shard2);
-    payment->is_shard = 1;
+    
+    // Update parent payment
+    payment->is_shard = 1;  // Mark as having shards
     payment->shards_id[0] = shard1_id;
     payment->shards_id[1] = shard2_id;
-    generate_send_payment_event(shard1, shard1_path, simulation, network);
-    generate_send_payment_event(shard2, shard2_path, simulation, network);
+    
+    // Update root payment shard count
+    root_payment->shard_count += 2;
+    
+    printf("[MPP DEBUG] SPLIT: parent_id=%ld, parent_amount=%llu, shard1_id=%ld, shard1_amount=%llu, shard2_id=%ld, shard2_amount=%llu, total_shards=%d\n",
+           payment->id, payment->amount, shard1_id, shard1_amount, shard2_id, shard2_amount, root_payment->shard_count);
+    
+    // Schedule FINDPATH events for both shards
+    struct event* shard1_event = new_event(simulation->current_time, FINDPATH, shard1->sender, shard1);
+    struct event* shard2_event = new_event(simulation->current_time, FINDPATH, shard2->sender, shard2);
+    simulation->events = heap_insert(simulation->events, shard1_event, compare_event);
+    simulation->events = heap_insert(simulation->events, shard2_event, compare_event);
+    
     return;
   }
 
-  // no path
+  // no path and MPP conditions not met
+  printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=NOPATH, is_shard=%u, amount=%llu, attempts=%d\n",
+         payment->id, payment->is_shard, payment->amount, payment->attempts);
   payment->end_time = simulation->current_time;
 }
 
@@ -570,6 +625,20 @@ void receive_success(struct event* event, struct simulation* simulation, struct 
   event->payment->end_time = simulation->current_time;
 
   add_attempt_history(payment, network, simulation->current_time, 1);
+  
+  // MPP debug logging
+  if(payment->is_shard) {
+    printf("[MPP DEBUG] SHARD_COMPLETE: shard_id=%ld, parent_id=%ld, root_id=%ld, is_success=1, amount=%llu, fee=%llu\n",
+           payment->id, payment->parent_id, payment->root_payment_id, 
+           payment->amount, payment->route ? payment->route->total_fee : 0);
+  } else if(payment->mpp_triggered) {
+    printf("[MPP DEBUG] SUCCESS: payment_id=%ld, shard_count=%d, total_time=%llu\n",
+           payment->id, payment->shard_count, simulation->current_time - payment->start_time);
+  } else {
+    printf("[MPP DEBUG] SUCCESS: payment_id=%ld, amount=%llu, fee=%llu, attempts=%d\n",
+           payment->id, payment->amount, payment->route ? payment->route->total_fee : 0, payment->attempts);
+  }
+  
     // next event
     uint64_t next_event_time = simulation->current_time + net_params.group_broadcast_delay;
 

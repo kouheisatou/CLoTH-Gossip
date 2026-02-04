@@ -129,6 +129,7 @@ struct payments_params {
     unsigned int payments_from_file;
     char payments_filename[256];
     unsigned int mpp;
+    int max_shard_count; // maximum number of shards for MPP (default: 16)
     double max_fee_limit_mu; // average_max_fee_limit [satoshi]
     double max_fee_limit_sigma; // variance_max_fee_limit [satoshi]
 };

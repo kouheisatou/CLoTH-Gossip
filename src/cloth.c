@@ -241,6 +241,7 @@ void initialize_input_parameters(struct network_params *net_params, struct payme
   pay_params->payments_from_file = 0;
   strcpy(pay_params->payments_filename, "\0");
   pay_params->mpp = 0;
+  pay_params->max_shard_count = 16; // default max shard count
 }
 
 
@@ -407,6 +408,9 @@ void read_input(struct network_params* net_params, struct payments_params* pay_p
     else if(strcmp(parameter, "variance_max_fee_limit")==0){
         pay_params->max_fee_limit_sigma = strtod(value, NULL);
     }
+    else if(strcmp(parameter, "max_shard_count")==0){
+        pay_params->max_shard_count = strtol(value, NULL, 10);
+    }
     else{
       fprintf(stderr, "ERROR: unknown parameter <%s>\n", parameter);
       fclose(input_file);
@@ -437,6 +441,36 @@ unsigned int has_shards(struct payment* payment){
 }
 
 
+/* Recursively collect stats from a shard and its children */
+static void collect_shard_stats(struct array* payments, struct payment* shard, 
+                                uint64_t* max_end_time, int* all_success, 
+                                int* no_balance_count, int* offline_node_count,
+                                int* any_timeout, int* total_attempts, uint64_t* total_fee) {
+  if(shard == NULL || shard->id == -1) return;
+  
+  // If this shard has children, process them recursively
+  if(has_shards(shard)) {
+    struct payment* child1 = array_get(payments, shard->shards_id[0]);
+    struct payment* child2 = array_get(payments, shard->shards_id[1]);
+    collect_shard_stats(payments, child1, max_end_time, all_success, no_balance_count, 
+                        offline_node_count, any_timeout, total_attempts, total_fee);
+    collect_shard_stats(payments, child2, max_end_time, all_success, no_balance_count,
+                        offline_node_count, any_timeout, total_attempts, total_fee);
+    // Mark children as processed
+    child1->id = -1;
+    child2->id = -1;
+  } else {
+    // Leaf shard - collect stats
+    if(shard->end_time > *max_end_time) *max_end_time = shard->end_time;
+    if(!shard->is_success) *all_success = 0;
+    *no_balance_count += shard->no_balance_count;
+    *offline_node_count += shard->offline_node_count;
+    if(shard->is_timeout) *any_timeout = 1;
+    *total_attempts += shard->attempts;
+    if(shard->route != NULL) *total_fee += shard->route->total_fee;
+  }
+}
+
 /* process stats of payments that were split (mpp payments) */
 void post_process_payment_stats(struct array* payments){
   long i;
@@ -445,24 +479,47 @@ void post_process_payment_stats(struct array* payments){
     payment = array_get(payments, i);
     if(payment->id == -1) continue;
     if(!has_shards(payment)) continue;
-    shard1 = array_get(payments, payment->shards_id[0]);
-    shard2 = array_get(payments, payment->shards_id[1]);
-    payment->end_time = shard1->end_time > shard2->end_time ? shard1->end_time : shard2->end_time;
-    payment->is_success = shard1->is_success && shard2->is_success ? 1 : 0;
-    payment->no_balance_count = shard1->no_balance_count + shard2->no_balance_count;
-    payment->offline_node_count = shard1->offline_node_count + shard2->offline_node_count;
-    payment->is_timeout = shard1->is_timeout || shard2->is_timeout ? 1 : 0;
-    payment->attempts = shard1->attempts + shard2->attempts;
-    if(shard1->route != NULL && shard2->route != NULL){
-      payment->route = array_len(shard1->route->route_hops) > array_len(shard2->route->route_hops) ? shard1->route : shard2->route;
-      payment->route->total_fee = shard1->route->total_fee + shard2->route->total_fee;
+    
+    // For root payments with shards, collect stats from all descendants
+    if(payment->parent_id == -1 || payment->root_payment_id == payment->id) {
+      uint64_t max_end_time = 0;
+      int all_success = 1;
+      int no_balance_count = 0;
+      int offline_node_count = 0;
+      int any_timeout = 0;
+      int total_attempts = 0;
+      uint64_t total_fee = 0;
+      
+      shard1 = array_get(payments, payment->shards_id[0]);
+      shard2 = array_get(payments, payment->shards_id[1]);
+      
+      collect_shard_stats(payments, shard1, &max_end_time, &all_success, &no_balance_count,
+                          &offline_node_count, &any_timeout, &total_attempts, &total_fee);
+      collect_shard_stats(payments, shard2, &max_end_time, &all_success, &no_balance_count,
+                          &offline_node_count, &any_timeout, &total_attempts, &total_fee);
+      
+      payment->end_time = max_end_time;
+      payment->is_success = all_success;
+      payment->no_balance_count = no_balance_count;
+      payment->offline_node_count = offline_node_count;
+      payment->is_timeout = any_timeout;
+      payment->attempts = total_attempts;
+      
+      // Use route from one of the shards for display purposes
+      if(shard1->route != NULL) {
+        payment->route = shard1->route;
+        payment->route->total_fee = total_fee;
+      } else if(shard2->route != NULL) {
+        payment->route = shard2->route;
+        payment->route->total_fee = total_fee;
+      } else {
+        payment->route = NULL;
+      }
+      
+      // Mark immediate children as processed
+      shard1->id = -1;
+      shard2->id = -1;
     }
-    else{
-      payment->route = NULL;
-    }
-    //a trick to avoid processing already processed shards
-    shard1->id = -1;
-    shard2->id = -1;
   }
 }
 
@@ -540,7 +597,7 @@ int main(int argc, char *argv[]) {
     simulation->current_time = event->time;
     switch(event->type){
     case FINDPATH:
-      find_path(event, simulation, network, &payments, pay_params.mpp, net_params.routing_method, net_params);
+      find_path(event, simulation, network, &payments, pay_params, net_params);
       break;
     case SENDPAYMENT:
       send_payment(event, simulation, network, net_params);
@@ -599,8 +656,23 @@ int main(int argc, char *argv[]) {
   printf("\n");
   end = clock();
 
-  if(pay_params.mpp)
+  if(pay_params.mpp) {
     post_process_payment_stats(payments);
+    
+    // MPP summary statistics
+    int mpp_payments = 0, mpp_success = 0, total_shards = 0;
+    for(long i = 0; i < array_len(payments); i++) {
+      struct payment* p = array_get(payments, i);
+      if(p->id == -1) continue;  // skip processed shards
+      if(p->mpp_triggered || p->shard_count > 0) {
+        mpp_payments++;
+        if(p->is_success) mpp_success++;
+        total_shards += p->shard_count;
+      }
+    }
+    printf("[MPP DEBUG] SUMMARY: mpp_payments=%d, mpp_success=%d, total_shards_created=%d\n",
+           mpp_payments, mpp_success, total_shards);
+  }
 
   time_spent = (double) (end - begin)/CLOCKS_PER_SEC;
   printf("Time consumed by simulation events: %lf s\n", time_spent);

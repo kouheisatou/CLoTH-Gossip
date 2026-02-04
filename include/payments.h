@@ -35,6 +35,12 @@ struct payment {
   /* attributes for multi-path-payment (mpp)*/
   unsigned int is_shard;
   long shards_id[2];
+  long parent_id;           // parent payment/shard id (-1 if root payment)
+  long root_payment_id;     // original payment id (for shard tree tracking)
+  int shard_count;          // number of shards created from this payment (for root tracking)
+  int completed_shard_count; // number of shards completed (success or final fail)
+  int successful_shard_count; // number of successfully completed shards
+  unsigned int mpp_triggered; // 1 if MPP was triggered for this payment
   /* attributes used for computing stats */
   unsigned int is_success;
   int offline_node_count;
