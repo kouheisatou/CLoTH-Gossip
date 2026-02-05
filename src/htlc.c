@@ -720,6 +720,22 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         goto recursive_2_split;
       }
       
+      // If only 1 shard and it covers the full amount, this means a single path exists
+      // but MPP was triggered (probably due to routing failure). In this case, fall back
+      // to 2-split to try sending smaller amounts that are more likely to succeed.
+      if(shard_count == 1 && remaining == 0) {
+        printf("[MPP DEBUG] GCB_SINGLE_PATH_FALLBACK: payment_id=%ld, amount=%llu, falling back to 2-split\n",
+               payment->id, payment->amount);
+        
+        for(int i = 0; i < array_len(shard_amounts); i++) {
+          free(array_get(shard_amounts, i));
+        }
+        array_free(shard_amounts);
+        array_free(shard_paths);
+        free_path_infos(path_infos);
+        goto recursive_2_split;
+      }
+      
       // Check shard count limit
       if(root_payment->shard_count + shard_count > pay_params.max_shard_count) {
         printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=MAX_SHARD_COUNT_REACHED, needed=%d, max=%d\n",
@@ -734,7 +750,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         return;
       }
       
-      // Create N shards
+      // Create N shards (N >= 2 at this point)
       printf("[MPP DEBUG] GCB_SPLIT: payment_id=%ld, amount=%llu, n_shards=%d\n",
              payment->id, payment->amount, shard_count);
       
