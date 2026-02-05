@@ -271,63 +271,187 @@ static struct array* find_multiple_paths_gcb(
     struct network* network, uint64_t current_time,
     enum routing_method routing_method, uint64_t max_fee_limit,
     int max_paths) {
-  
+
   struct array* path_infos = array_initialize(max_paths);
   struct element* exclude_edges = NULL;
   uint64_t remaining = total_amount;
-  
+
+  printf("[MPP DEBUG] find_multiple_paths_gcb: sender=%ld, receiver=%ld, total_amount=%llu, max_paths=%d\n",
+         sender, receiver, total_amount, max_paths);
+
+  // Log sender balance info
+  struct node* sender_node = array_get(network->nodes, sender);
+  uint64_t max_bal = 0, total_bal = 0;
+  for(int k = 0; k < array_len(sender_node->open_edges); k++) {
+    struct edge* e = array_get(sender_node->open_edges, k);
+    total_bal += e->balance;
+    if(e->balance > max_bal) max_bal = e->balance;
+  }
+  printf("[MPP DEBUG]   sender_node=%ld, open_edges=%ld, max_balance=%llu, total_balance=%llu\n",
+         sender, array_len(sender_node->open_edges), max_bal, total_bal);
+
   for(int i = 0; i < max_paths && remaining > 0; i++) {
     enum pathfind_error error;
     // Find path for remaining amount (or smaller if needed)
     uint64_t search_amount = remaining < MIN_SHARD_SIZE ? MIN_SHARD_SIZE : remaining;
-    struct array* path = dijkstra(sender, receiver, search_amount, network, current_time, 0, 
+    struct array* path = dijkstra(sender, receiver, search_amount, network, current_time, 0,
                                    &error, routing_method, exclude_edges, max_fee_limit);
-    
+
     if(path == NULL) {
+      printf("[MPP DEBUG]   dijkstra[%d] FAILED: search_amount=%llu, error=%d\n", i, search_amount, error);
       // Try with smaller amount
       search_amount = MIN_SHARD_SIZE;
       path = dijkstra(sender, receiver, search_amount, network, current_time, 0,
                        &error, routing_method, exclude_edges, max_fee_limit);
-      if(path == NULL) break;
+      if(path == NULL) {
+        printf("[MPP DEBUG]   dijkstra[%d] RETRY FAILED: search_amount=%llu, error=%d\n", i, search_amount, error);
+        break;
+      }
     }
-    
+
     // Calculate path capacity
     uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
-    
+
+    // Identify bottleneck edge for logging
+    long bottleneck_edge_id = -1;
+    uint64_t bottleneck_cap = UINT64_MAX;
+    for(int j = 0; j < array_len(path); j++) {
+      struct path_hop* hop = array_get(path, j);
+      struct edge* edge = array_get(network->edges, hop->edge);
+      uint64_t est_cap;
+      if(j == 0) est_cap = edge->balance;
+      else if(edge->group != NULL) est_cap = edge->group->group_cap;
+      else { struct channel* ch = array_get(network->channels, edge->channel_id); est_cap = ch->capacity / 2; }
+      if(est_cap < bottleneck_cap) { bottleneck_cap = est_cap; bottleneck_edge_id = edge->id; }
+    }
+
     // Calculate fee for the full capacity amount (not search_amount)
     struct route* route = transform_path_into_route(path, capacity, network, current_time);
     uint64_t fee = route->total_fee;
     free_route(route);
-    
+
+    printf("[MPP DEBUG]   dijkstra[%d] SUCCESS: search_amount=%llu, path_capacity=%llu, fee=%llu, bottleneck_edge=%ld\n",
+           i, search_amount, capacity, fee, bottleneck_edge_id);
+
     // The capacity we can actually use is the minimum edge capacity minus the fee
     // because (amount + fee) must fit within the edge capacity
     if(capacity > fee) {
       capacity = capacity - fee;
     } else {
       // Fee would consume all capacity - skip this path
+      printf("[MPP DEBUG]   dijkstra[%d] SKIP: fee(%llu) >= capacity(%llu)\n", i, fee, capacity);
       struct path_hop* first_hop = array_get(path, 0);
       struct edge* first_edge = array_get(network->edges, first_hop->edge);
       exclude_edges = push(exclude_edges, first_edge);
       continue;
     }
-    
+
     // Create path_info
     struct path_info* info = malloc(sizeof(struct path_info));
     info->path = path;
     info->capacity = capacity;
     info->fee = fee;
     path_infos = array_insert(path_infos, info);
-    
-    // Add first edge of this path to exclude list to find different paths
+
+    // Exclude the first edge of this path to find paths through different first edges.
+    // This is the primary strategy for finding diverse paths.
     struct path_hop* first_hop = array_get(path, 0);
     struct edge* first_edge = array_get(network->edges, first_hop->edge);
     exclude_edges = push(exclude_edges, first_edge);
-    
+
     remaining -= (capacity < remaining) ? capacity : remaining;
+    printf("[MPP DEBUG]   path[%d] added: usable_capacity=%llu, remaining=%llu, bottleneck_edge=%ld\n",
+           i, capacity, remaining, bottleneck_edge_id);
   }
-  
+
+  // If we still have remaining amount and found at least 1 path,
+  // try a second pass: exclude bottleneck edges instead of first edges
+  // to find alternative routes through the same first edge but different intermediate nodes.
+  if(remaining > 0 && array_len(path_infos) > 0) {
+    list_free(exclude_edges);
+    exclude_edges = NULL;
+
+    printf("[MPP DEBUG]   second pass: remaining=%llu, excluding bottleneck edges\n", remaining);
+
+    // Exclude bottleneck edges from all found paths
+    for(int j = 0; j < array_len(path_infos); j++) {
+      struct path_info* info = array_get(path_infos, j);
+      // Find bottleneck edge in this path
+      uint64_t min_cap = UINT64_MAX;
+      long bn_id = -1;
+      for(int k = 0; k < array_len(info->path); k++) {
+        struct path_hop* hop = array_get(info->path, k);
+        struct edge* edge = array_get(network->edges, hop->edge);
+        uint64_t est_cap;
+        if(k == 0) est_cap = edge->balance;
+        else if(edge->group != NULL) est_cap = edge->group->group_cap;
+        else { struct channel* ch = array_get(network->channels, edge->channel_id); est_cap = ch->capacity / 2; }
+        if(est_cap < min_cap) { min_cap = est_cap; bn_id = edge->id; }
+      }
+      if(bn_id != -1) {
+        struct edge* bn_edge = array_get(network->edges, bn_id);
+        // Only exclude if not already in list
+        if(!is_in_list(exclude_edges, &(bn_edge->id), is_equal_edge)) {
+          exclude_edges = push(exclude_edges, bn_edge);
+        }
+      }
+    }
+
+    for(int i = array_len(path_infos); i < max_paths && remaining > 0; i++) {
+      enum pathfind_error error;
+      uint64_t search_amount = remaining < MIN_SHARD_SIZE ? MIN_SHARD_SIZE : remaining;
+      struct array* path = dijkstra(sender, receiver, search_amount, network, current_time, 0,
+                                     &error, routing_method, exclude_edges, max_fee_limit);
+      if(path == NULL) {
+        printf("[MPP DEBUG]   dijkstra_pass2[%d] FAILED: search_amount=%llu, error=%d\n", i, search_amount, error);
+        search_amount = MIN_SHARD_SIZE;
+        path = dijkstra(sender, receiver, search_amount, network, current_time, 0,
+                         &error, routing_method, exclude_edges, max_fee_limit);
+        if(path == NULL) {
+          printf("[MPP DEBUG]   dijkstra_pass2[%d] RETRY FAILED: search_amount=%llu, error=%d\n", i, search_amount, error);
+          break;
+        }
+      }
+
+      uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
+      struct route* route = transform_path_into_route(path, capacity, network, current_time);
+      uint64_t fee = route->total_fee;
+      free_route(route);
+
+      printf("[MPP DEBUG]   dijkstra_pass2[%d] SUCCESS: search_amount=%llu, path_capacity=%llu, fee=%llu\n",
+             i, search_amount, capacity, fee);
+
+      if(capacity > fee) {
+        capacity = capacity - fee;
+      } else {
+        printf("[MPP DEBUG]   dijkstra_pass2[%d] SKIP: fee(%llu) >= capacity(%llu)\n", i, fee, capacity);
+        // Exclude first edge and try again
+        struct path_hop* fhop = array_get(path, 0);
+        struct edge* fedge = array_get(network->edges, fhop->edge);
+        exclude_edges = push(exclude_edges, fedge);
+        continue;
+      }
+
+      struct path_info* info = malloc(sizeof(struct path_info));
+      info->path = path;
+      info->capacity = capacity;
+      info->fee = fee;
+      path_infos = array_insert(path_infos, info);
+
+      // In pass 2, exclude the first edge to find yet more diverse paths
+      struct path_hop* first_hop = array_get(path, 0);
+      struct edge* first_edge = array_get(network->edges, first_hop->edge);
+      exclude_edges = push(exclude_edges, first_edge);
+
+      remaining -= (capacity < remaining) ? capacity : remaining;
+      printf("[MPP DEBUG]   path_pass2[%d] added: usable_capacity=%llu, remaining=%llu\n", i, capacity, remaining);
+    }
+  }
+
   list_free(exclude_edges);
-  
+
+  printf("[MPP DEBUG]   find_multiple_paths_gcb result: found %ld paths\n", array_len(path_infos));
+
   // Sort by fee (ascending)
   if(array_len(path_infos) > 1) {
     // Simple bubble sort (paths count is small)
@@ -343,7 +467,7 @@ static struct array* find_multiple_paths_gcb(
       }
     }
   }
-  
+
   return path_infos;
 }
 
@@ -447,22 +571,18 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
   }
 
   // No path found - try MPP if conditions are met
-  // Section 3 & 4: MPP triggering conditions
-  // - mpp flag is enabled
-  // - path is NULL (NOPATH)
-  // - amount is above minimum shard size
-  // - max_shard_count not yet reached
-  
+  printf("[MPP DEBUG] NOPATH: payment_id=%ld, is_shard=%u, amount=%llu, attempts=%d, error=%d\n",
+         payment->id, payment->is_shard, payment->amount, payment->attempts, error);
+
   if(mpp && path == NULL && payment->amount >= MIN_SHARD_SIZE * 2) {
     
-    // Section 4: GCB optimal N-split for GROUP_ROUTING and GROUP_ROUTING_CUL
-    // For GCB modes, shards should NOT split again - only the root payment can split
+    // For GCB shards that fail, allow recursive 2-split (same as non-GCB)
+    // instead of immediately giving up. The shard can split into smaller pieces
+    // that may find paths through edges with smaller group_cap.
     if((routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL) && payment->is_shard) {
-      // GCB shard failed to find path - do not split, just fail
-      printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=GCB_SHARD_NO_PATH, is_shard=1, amount=%llu\n",
+      printf("[MPP DEBUG] GCB_SHARD_NOPATH: payment_id=%ld, amount=%llu, falling back to recursive 2-split\n",
              payment->id, payment->amount);
-      payment->end_time = simulation->current_time;
-      return;
+      goto recursive_2_split;
     }
     
     // Mark that MPP was triggered
@@ -485,10 +605,10 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           payment->max_fee_limit, max_paths);
       
       if(array_len(path_infos) == 0) {
-        printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=NO_PATHS_FOR_GCB_MPP\n", payment->id);
+        printf("[MPP DEBUG] GCB_NSPLIT_NO_PATHS: payment_id=%ld, falling back to recursive 2-split\n", payment->id);
         free_path_infos(path_infos);
-        payment->end_time = simulation->current_time;
-        return;
+        // Fall through to recursive 2-split below
+        goto recursive_2_split;
       }
       
       // Greedily allocate payment amount to paths (sorted by fee, cheapest first)
@@ -522,7 +642,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       
       // Check if we can cover the full amount
       if(remaining > 0) {
-        printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=INSUFFICIENT_TOTAL_CAPACITY, remaining=%llu\n", 
+        printf("[MPP DEBUG] GCB_NSPLIT_INSUFFICIENT: payment_id=%ld, remaining=%llu, falling back to recursive 2-split\n",
                payment->id, remaining);
         // Free allocated amounts
         for(int i = 0; i < array_len(shard_amounts); i++) {
@@ -531,8 +651,8 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         array_free(shard_amounts);
         array_free(shard_paths);
         free_path_infos(path_infos);
-        payment->end_time = simulation->current_time;
-        return;
+        // Fall through to recursive 2-split below
+        goto recursive_2_split;
       }
       
       // Check shard count limit
@@ -590,7 +710,8 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       return;
     }
     
-    // Section 3: Non-GCB recursive 2-split
+    // Section 3: Recursive 2-split (used by non-GCB methods, and as fallback for GCB when N-split fails)
+    recursive_2_split:
     // Check shard count limit (need at least 2 more slots for new shards)
     if(root_payment->shard_count + 2 > pay_params.max_shard_count) {
       printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=MAX_SHARD_COUNT_REACHED, shard_count=%d, max=%d\n",
