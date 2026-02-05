@@ -163,9 +163,22 @@ void write_output(struct network* network, struct array* payments, char output_d
             payment->id, payment->sender, payment->receiver, payment->amount, 
             payment->start_time, payment->max_fee_limit, payment->end_time, 
             payment->mpp_triggered, payment->is_shard, payment->parent_id);
-    // Output shards array
-    if(payment->shards_id[0] != -1 && payment->shards_id[1] != -1) {
-      fprintf(csv_payment_output, "%ld-%ld,", payment->shards_id[0], payment->shards_id[1]);
+    // Output shards array - find all direct child shards by scanning
+    if(payment->shards_id[0] != -1) {
+      // Find all child shards by checking payments with parent_id == this payment's id
+      int first_shard = 1;
+      for(long j = 0; j < array_len(payments); j++) {
+        struct payment* child = array_get(payments, j);
+        if(child->parent_id == payment->id) {
+          if(first_shard) {
+            fprintf(csv_payment_output, "%ld", child->id);
+            first_shard = 0;
+          } else {
+            fprintf(csv_payment_output, "-%ld", child->id);
+          }
+        }
+      }
+      fprintf(csv_payment_output, ",");
     } else {
       fprintf(csv_payment_output, ",");
     }
