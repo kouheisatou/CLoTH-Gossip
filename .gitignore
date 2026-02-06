@@ -61,3 +61,10 @@ dijkstra_cache/*
 .DS_Store
 tasks.json
 .vscode
+
+# Python
+scripts/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/

@@ -79,8 +79,8 @@ function display_progress() {
 for i in $(seq 10000 10000 110000); do
     avg_pmt_amt=$i
     var_pmt_amt=$(("$avg_pmt_amt"/10))
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/average_payment_amount=$avg_pmt_amt                                   payment_timeout=-1 n_payments=5000 mpp=1 routing_method=cloth_original      average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=  "
-    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=group_routing_cul/average_payment_amount=$avg_pmt_amt                                payment_timeout=-1 n_payments=5000 mpp=1 routing_method=group_routing_cul   average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=10"
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=cloth_original/average_payment_amount=$avg_pmt_amt                                   payment_timeout=-1 n_payments=1000 mpp=1 routing_method=cloth_original      average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=  "
+    enqueue_simulation         "./run-simulation.sh $seed $output_dir/routing_method=group_routing_cul/average_payment_amount=$avg_pmt_amt                                payment_timeout=-1 n_payments=1000 mpp=1 routing_method=group_routing_cul   average_payment_amount=$avg_pmt_amt  variance_payment_amount=$var_pmt_amt  group_size=10"
 done
 
 # Process the queue

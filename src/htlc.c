@@ -228,7 +228,21 @@ struct path_info {
   struct array* path;
   uint64_t capacity;
   uint64_t fee;
+  uint64_t min_htlc;  // Maximum min_htlc among all edges in the path
 };
+
+// Calculate the minimum acceptable amount for a path (max min_htlc of all edges)
+static uint64_t calculate_path_min_htlc(struct array* path, struct network* network) {
+  uint64_t max_min_htlc = 0;
+  for(int i = 0; i < array_len(path); i++) {
+    struct path_hop* hop = array_get(path, i);
+    struct edge* edge = array_get(network->edges, hop->edge);
+    if(edge->policy.min_htlc > max_min_htlc) {
+      max_min_htlc = edge->policy.min_htlc;
+    }
+  }
+  return max_min_htlc;
+}
 
 // Compare function for sorting paths by fee (ascending)
 static int compare_path_info_by_fee(const void* a, const void* b) {
@@ -307,6 +321,9 @@ static struct array* find_multiple_paths_gcb(
     // Calculate path capacity
     uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
 
+    // Calculate minimum HTLC for the path
+    uint64_t path_min_htlc = calculate_path_min_htlc(path, network);
+
     // Identify bottleneck edge for logging
     long bottleneck_edge_id = -1;
     uint64_t bottleneck_cap = UINT64_MAX;
@@ -325,8 +342,8 @@ static struct array* find_multiple_paths_gcb(
     uint64_t fee = route->total_fee;
     free_route(route);
 
-    printf("[MPP DEBUG]   dijkstra[%d] SUCCESS: search_amount=%llu, path_capacity=%llu, fee=%llu, bottleneck_edge=%ld\n",
-           i, search_amount, capacity, fee, bottleneck_edge_id);
+    printf("[MPP DEBUG]   dijkstra[%d] SUCCESS: search_amount=%llu, path_capacity=%llu, fee=%llu, min_htlc=%llu, bottleneck_edge=%ld\n",
+           i, search_amount, capacity, fee, path_min_htlc, bottleneck_edge_id);
 
     // The capacity we can actually use is the minimum edge capacity minus the fee
     // because (amount + fee) must fit within the edge capacity
@@ -346,6 +363,7 @@ static struct array* find_multiple_paths_gcb(
     info->path = path;
     info->capacity = capacity;
     info->fee = fee;
+    info->min_htlc = path_min_htlc;
     path_infos = array_insert(path_infos, info);
 
     // Exclude the first edge of this path to find paths through different first edges.
@@ -404,12 +422,16 @@ static struct array* find_multiple_paths_gcb(
       }
 
       uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
+
+      // Calculate minimum HTLC for the path
+      uint64_t path_min_htlc = calculate_path_min_htlc(path, network);
+
       struct route* route = transform_path_into_route(path, capacity, network, current_time);
       uint64_t fee = route->total_fee;
       free_route(route);
 
-      printf("[MPP DEBUG]   dijkstra_pass2[%d] SUCCESS: search_amount=%llu, path_capacity=%llu, fee=%llu\n",
-             i, search_amount, capacity, fee);
+      printf("[MPP DEBUG]   dijkstra_pass2[%d] SUCCESS: search_amount=%llu, path_capacity=%llu, fee=%llu, min_htlc=%llu\n",
+             i, search_amount, capacity, fee, path_min_htlc);
 
       if(capacity > fee) {
         capacity = capacity - fee;
@@ -426,6 +448,7 @@ static struct array* find_multiple_paths_gcb(
       info->path = path;
       info->capacity = capacity;
       info->fee = fee;
+      info->min_htlc = path_min_htlc;
       path_infos = array_insert(path_infos, info);
 
       // In pass 2, exclude the first edge to find yet more diverse paths
@@ -601,23 +624,32 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       
       for(int i = 0; i < array_len(path_infos) && remaining > 0; i++) {
         struct path_info* info = array_get(path_infos, i);
-        
+
         // Capacity already has fee subtracted in find_multiple_paths_gcb
         uint64_t alloc = (info->capacity < remaining) ? info->capacity : remaining;
-        
-        // Ensure minimum shard size
-        if(alloc < MIN_SHARD_SIZE && remaining >= MIN_SHARD_SIZE) {
+
+        // Ensure minimum shard size and respect min_htlc
+        uint64_t min_acceptable = (info->min_htlc > MIN_SHARD_SIZE) ? info->min_htlc : MIN_SHARD_SIZE;
+
+        if(alloc < min_acceptable && remaining >= min_acceptable) {
           continue;  // Skip paths with too little capacity
         }
-        if(alloc < MIN_SHARD_SIZE) {
-          alloc = remaining;  // Last shard takes whatever remains
+        if(alloc < min_acceptable) {
+          // Last shard - only take it if it meets min_htlc requirement
+          if(remaining >= info->min_htlc) {
+            alloc = remaining;
+          } else {
+            // Cannot send remaining amount on this path due to min_htlc constraint
+            printf("[MPP DEBUG]   path[%d] SKIP: remaining=%llu < min_htlc=%llu\n", i, remaining, info->min_htlc);
+            continue;
+          }
         }
-        
+
         uint64_t* amount_ptr = malloc(sizeof(uint64_t));
         *amount_ptr = alloc;
         shard_amounts = array_insert(shard_amounts, amount_ptr);
         shard_paths = array_insert(shard_paths, info->path);
-        
+
         remaining -= alloc;
         shard_count++;
       }
@@ -627,9 +659,8 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         // GCB MPP: If we found paths but can't cover full amount,
         // create shards for found paths and one additional shard for remaining.
         // The remaining shard will try to find its own path via FINDPATH.
-        // Even if remaining < MIN_SHARD_SIZE, we still try to send it
-        // (it may succeed or fail, which is expected behavior).
-        if(shard_count > 0) {
+        // IMPORTANT: Only create remaining shard if it's >= MIN_SHARD_SIZE to avoid min_htlc violations.
+        if(shard_count > 0 && remaining >= MIN_SHARD_SIZE) {
           // Check shard count limit (need slots for found paths + 1 for remaining)
           if(root_payment->shard_count + shard_count + 1 > pay_params.max_shard_count) {
             printf("[MPP DEBUG] FAIL: payment_id=%ld, reason=MAX_SHARD_COUNT_REACHED, needed=%d, max=%d\n",
@@ -643,7 +674,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
             payment->end_time = simulation->current_time;
             return;
           }
-          
+
           printf("[MPP DEBUG] GCB_PARTIAL_SPLIT: payment_id=%ld, amount=%llu, n_shards_with_path=%d, remaining=%llu\n",
                  payment->id, payment->amount, shard_count, remaining);
           
@@ -706,7 +737,22 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           free_path_infos(path_infos);
           return;
         }
-        
+
+        // If shard_count > 0 but remaining < MIN_SHARD_SIZE, we can't create a valid remaining shard.
+        // Fall back to recursive 2-split.
+        if(shard_count > 0 && remaining > 0 && remaining < MIN_SHARD_SIZE) {
+          printf("[MPP DEBUG] GCB_REMAINING_TOO_SMALL: payment_id=%ld, remaining=%llu < MIN_SHARD_SIZE=%d, falling back to recursive 2-split\n",
+                 payment->id, remaining, MIN_SHARD_SIZE);
+          // Free allocated amounts
+          for(int i = 0; i < array_len(shard_amounts); i++) {
+            free(array_get(shard_amounts, i));
+          }
+          array_free(shard_amounts);
+          array_free(shard_paths);
+          free_path_infos(path_infos);
+          goto recursive_2_split;
+        }
+
         printf("[MPP DEBUG] GCB_NSPLIT_INSUFFICIENT: payment_id=%ld, remaining=%llu, shard_count=%d, falling back to recursive 2-split\n",
                payment->id, remaining, shard_count);
         // Free allocated amounts
@@ -1311,7 +1357,7 @@ int can_join_group(struct group* group, struct edge* edge, enum routing_method r
         return 1;
     }
     else{
-        printf(stderr, "ERROR: can_join_group called with unsupported routing method %d\n", routing_method);
+        fprintf(stderr, "ERROR: can_join_group called with unsupported routing method %d\n", routing_method);
         exit(1);
     }
 }
