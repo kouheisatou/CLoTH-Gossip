@@ -366,11 +366,13 @@ static struct array* find_multiple_paths_gcb(
     info->min_htlc = path_min_htlc;
     path_infos = array_insert(path_infos, info);
 
-    // Exclude the first edge of this path to find paths through different first edges.
-    // This is the primary strategy for finding diverse paths.
-    struct path_hop* first_hop = array_get(path, 0);
-    struct edge* first_edge = array_get(network->edges, first_hop->edge);
-    exclude_edges = push(exclude_edges, first_edge);
+    // GCB MPP: Exclude the BOTTLENECK edge of this path (not the first edge).
+    // This allows finding multiple paths through the same first edge but
+    // with different intermediate nodes, enabling optimal N-split in one pass.
+    if(bottleneck_edge_id != -1) {
+      struct edge* bottleneck_edge = array_get(network->edges, bottleneck_edge_id);
+      exclude_edges = push(exclude_edges, bottleneck_edge);
+    }
 
     remaining -= (capacity < remaining) ? capacity : remaining;
     printf("[MPP DEBUG]   path[%d] added: usable_capacity=%llu, remaining=%llu, bottleneck_edge=%ld\n",
