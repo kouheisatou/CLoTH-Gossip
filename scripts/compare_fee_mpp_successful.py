@@ -111,19 +111,28 @@ def load_payments(output_dir):
     if not os.path.exists(payments_file):
         return {}, []
     
-    with open(payments_file, 'r') as f:
-        payments = list(csv.DictReader(f))
-        
-        # 全paymentをIDでマッピング
-        for p in payments:
-            payment_id = int(p["id"])
-            payments_by_id[payment_id] = p
-        
-        # root paymentのみを抽出（シャードではない）
-        root_payments = [
-            p for p in payments 
-            if p.get("is_shard", "0") == "0" or p.get("parent_payment_id", "-1") == "-1"
-        ]
+    # ファイルがディレクトリの場合はスキップ
+    if os.path.isdir(payments_file):
+        print(f"警告: {payments_file} はディレクトリです（スキップ）")
+        return {}, []
+    
+    try:
+        with open(payments_file, 'r') as f:
+            payments = list(csv.DictReader(f))
+            
+            # 全paymentをIDでマッピング
+            for p in payments:
+                payment_id = int(p["id"])
+                payments_by_id[payment_id] = p
+            
+            # root paymentのみを抽出（シャードではない）
+            root_payments = [
+                p for p in payments 
+                if p.get("is_shard", "0") == "0" or p.get("parent_payment_id", "-1") == "-1"
+            ]
+    except Exception as e:
+        print(f"警告: {payments_file} の読み込み中にエラーが発生しました: {e}")
+        return {}, []
     
     return payments_by_id, root_payments
 
@@ -151,65 +160,71 @@ def is_mpp_payment(payment):
 def compare_fees(cloth_original_dir, group_routing_cul_dir):
     """cloth_originalとgroup_routing_culのfeeを比較"""
     
-    # paymentデータを読み込み
-    cloth_payments_by_id, cloth_root_payments = load_payments(cloth_original_dir)
-    group_payments_by_id, group_root_payments = load_payments(group_routing_cul_dir)
-    
-    if not cloth_root_payments or not group_root_payments:
-        print(f"警告: データが見つかりません")
-        print(f"  cloth_original: {len(cloth_root_payments)} payments")
-        print(f"  group_routing_cul: {len(group_root_payments)} payments")
-        return None
-    
-    # cloth_originalで成功したpaymentを抽出（MPP有効時のみ）
-    cloth_successful_mpp = []
-    for payment in cloth_root_payments:
-        is_success = (payment["is_success"] == "1")
-        if is_success and is_mpp_payment(payment):
-            cloth_successful_mpp.append(payment)
-    
-    print(f"cloth_originalで成功したMPP payment数: {len(cloth_successful_mpp)}")
-    
-    # 同じpayment IDでgroup_routing_culのfeeを取得
-    comparison_results = []
-    matched_count = 0
-    not_found_count = 0
-    
-    for cloth_payment in cloth_successful_mpp:
-        payment_id = int(cloth_payment["id"])
-        cloth_fee = get_payment_fee(cloth_payment, cloth_payments_by_id)
+    try:
+        # paymentデータを読み込み
+        cloth_payments_by_id, cloth_root_payments = load_payments(cloth_original_dir)
+        group_payments_by_id, group_root_payments = load_payments(group_routing_cul_dir)
         
-        # group_routing_culで同じpayment IDを探す
-        if payment_id in group_payments_by_id:
-            group_payment = group_payments_by_id[payment_id]
-            group_fee = get_payment_fee(group_payment, group_payments_by_id)
+        if not cloth_root_payments or not group_root_payments:
+            print(f"警告: データが見つかりません")
+            print(f"  cloth_original: {len(cloth_root_payments)} payments")
+            print(f"  group_routing_cul: {len(group_root_payments)} payments")
+            return None
+        
+        # cloth_originalで成功したpaymentを抽出（MPP有効時のみ）
+        cloth_successful_mpp = []
+        for payment in cloth_root_payments:
+            is_success = (payment["is_success"] == "1")
+            if is_success and is_mpp_payment(payment):
+                cloth_successful_mpp.append(payment)
+        
+        print(f"cloth_originalで成功したMPP payment数: {len(cloth_successful_mpp)}")
+        
+        # 同じpayment IDでgroup_routing_culのfeeを取得
+        comparison_results = []
+        matched_count = 0
+        not_found_count = 0
+        
+        for cloth_payment in cloth_successful_mpp:
+            payment_id = int(cloth_payment["id"])
+            cloth_fee = get_payment_fee(cloth_payment, cloth_payments_by_id)
             
-            amount = int(cloth_payment["amount"])
-            fee_reduction = cloth_fee - group_fee
-            fee_reduction_rate = (fee_reduction / cloth_fee * 100) if cloth_fee > 0 else 0
-            
-            comparison_results.append({
-                "payment_id": payment_id,
-                "sender_id": cloth_payment["sender_id"],
-                "receiver_id": cloth_payment["receiver_id"],
-                "amount": amount,
-                "cloth_fee": cloth_fee,
-                "group_fee": group_fee,
-                "fee_reduction": fee_reduction,
-                "fee_reduction_rate": fee_reduction_rate,
-                "cloth_is_success": cloth_payment["is_success"] == "1",
-                "group_is_success": group_payment["is_success"] == "1",
-                "cloth_mpp": is_mpp_payment(cloth_payment),
-                "group_mpp": is_mpp_payment(group_payment),
-            })
-            matched_count += 1
-        else:
-            not_found_count += 1
-    
-    print(f"マッチしたpayment数: {matched_count}")
-    print(f"見つからなかったpayment数: {not_found_count}")
-    
-    return comparison_results
+            # group_routing_culで同じpayment IDを探す
+            if payment_id in group_payments_by_id:
+                group_payment = group_payments_by_id[payment_id]
+                group_fee = get_payment_fee(group_payment, group_payments_by_id)
+                
+                amount = int(cloth_payment["amount"])
+                fee_reduction = cloth_fee - group_fee
+                fee_reduction_rate = (fee_reduction / cloth_fee * 100) if cloth_fee > 0 else 0
+                
+                comparison_results.append({
+                    "payment_id": payment_id,
+                    "sender_id": cloth_payment["sender_id"],
+                    "receiver_id": cloth_payment["receiver_id"],
+                    "amount": amount,
+                    "cloth_fee": cloth_fee,
+                    "group_fee": group_fee,
+                    "fee_reduction": fee_reduction,
+                    "fee_reduction_rate": fee_reduction_rate,
+                    "cloth_is_success": cloth_payment["is_success"] == "1",
+                    "group_is_success": group_payment["is_success"] == "1",
+                    "cloth_mpp": is_mpp_payment(cloth_payment),
+                    "group_mpp": is_mpp_payment(group_payment),
+                })
+                matched_count += 1
+            else:
+                not_found_count += 1
+        
+        print(f"マッチしたpayment数: {matched_count}")
+        print(f"見つからなかったpayment数: {not_found_count}")
+        
+        return comparison_results
+    except Exception as e:
+        print(f"警告: fee比較中にエラーが発生しました: {e}")
+        print(f"  cloth_original: {cloth_original_dir}")
+        print(f"  group_routing_cul: {group_routing_cul_dir}")
+        return None
 
 
 def print_statistics(comparison_results):
@@ -394,28 +409,24 @@ def create_average_fee_plot(results, output_file, title=""):
     import numpy as np
     
     # resultsが辞書のリストか、比較結果のリストかを判定
+    # amountはmillisatoshiなのでsatoshiに変換（1000で割る）
     if isinstance(results[0], dict) and 'amount' in results[0]:
-        amounts = np.array([r['amount'] for r in results])
+        amounts = np.array([r['amount'] / 1000 for r in results])  # millisatoshi -> satoshi
         cloth_fees = np.array([r['cloth_fee'] for r in results])
         group_fees = np.array([r['group_fee'] for r in results])
     else:
         # 比較結果の形式（compare_fees関数の戻り値）
-        amounts = np.array([r["amount"] for r in results])
+        amounts = np.array([r["amount"] / 1000 for r in results])  # millisatoshi -> satoshi
         cloth_fees = np.array([r["cloth_fee"] for r in results])
         group_fees = np.array([r["group_fee"] for r in results])
     
-    # 送金額を対数スケールでビンに分ける
-    min_amount = amounts.min()
-    max_amount = amounts.max()
-    
-    # 対数スケールでビンを作成（10のべき乗で区切る）
-    num_bins = 20
-    log_min = np.log10(min_amount)
-    log_max = np.log10(max_amount)
-    log_bins = np.logspace(log_min, log_max, num_bins + 1)
+    # 送金額を線形スケールでビンに分ける（10000〜100000 satoshi、10000刻み）
+    # プロットが10000, 20000, 30000...に来るようにビンを設定
+    bin_centers_target = np.arange(10000, 100001, 10000)  # [10000, 20000, ..., 100000]
+    bins = np.arange(5000, 105001, 10000)  # [5000, 15000, 25000, ..., 105000] 各中心の±5000
     
     # 各ビンごとの平均feeを計算
-    bin_indices = np.digitize(amounts, log_bins)
+    bin_indices = np.digitize(amounts, bins)
     bin_centers = []
     cloth_avg_fees = []
     group_avg_fees = []
@@ -423,10 +434,10 @@ def create_average_fee_plot(results, output_file, title=""):
     group_std_fees = []
     bin_counts = []
     
-    for i in range(1, len(log_bins)):
+    for i in range(1, len(bins)):
         mask = (bin_indices == i)
         if np.sum(mask) > 0:
-            bin_centers.append(np.sqrt(log_bins[i-1] * log_bins[i]))  # 幾何平均
+            bin_centers.append(bin_centers_target[i-1])  # 10000, 20000, 30000...
             cloth_avg_fees.append(np.mean(cloth_fees[mask]))
             group_avg_fees.append(np.mean(group_fees[mask]))
             cloth_std_fees.append(np.std(cloth_fees[mask]))
@@ -464,8 +475,9 @@ def create_average_fee_plot(results, output_file, title=""):
     ax.legend(fontsize=11, loc='upper left')
     ax.grid(True, alpha=0.3, linestyle='--')
 
-    # x軸は対数スケール、y軸は線形スケール（0始まり）
-    ax.set_xscale('log')
+    # x軸は線形スケール（10000〜100000、10000刻み）、y軸は線形スケール（0始まり）
+    ax.set_xlim(10000, 100000)
+    ax.set_xticks(np.arange(10000, 100001, 10000))
     ax.set_ylim(bottom=0)
     
     # レイアウトを調整して保存
@@ -475,31 +487,33 @@ def create_average_fee_plot(results, output_file, title=""):
     
     print(f"グラフを保存しました: {output_file}")
     print(f"  ビン数: {len(bin_centers)}")
-    print(f"  各ビンのサンプル数: 最小={min(bin_counts)}, 最大={max(bin_counts)}, 平均={np.mean(bin_counts):.1f}")
+    if bin_counts:
+        print(f"  各ビンのサンプル数: 最小={min(bin_counts)}, 最大={max(bin_counts)}, 平均={np.mean(bin_counts):.1f}")
     return True
 
 
 def find_output_dirs_with_summary(parent_dir):
     """
-    parent_dir下の日付時刻形式のディレクトリで、summary.csvがあるものを探す
-    日付時刻形式: YYYYMMDDHHMMSS (例: 20260206170728)
+    parent_dir下のディレクトリで、summary.csvがあるものを探す
+    日付時刻形式に限らず、summary.csvが存在すれば有効とする
     """
     output_dirs = []
-    datetime_pattern = re.compile(r'^\d{14}$')  # 14桁の数字
 
     if not os.path.isdir(parent_dir):
         return output_dirs
 
-    for item in os.listdir(parent_dir):
-        item_path = os.path.join(parent_dir, item)
+    try:
+        for item in os.listdir(parent_dir):
+            item_path = os.path.join(parent_dir, item)
 
-        # ディレクトリで、日付時刻形式の名前で、summary.csvがある
-        if (os.path.isdir(item_path) and
-            datetime_pattern.match(item) and
-            os.path.exists(os.path.join(item_path, 'summary.csv'))):
-            output_dirs.append(item_path)
+            # ディレクトリで、summary.csvがある
+            if (os.path.isdir(item_path) and
+                os.path.isfile(os.path.join(item_path, 'summary.csv'))):
+                output_dirs.append(item_path)
+    except Exception as e:
+        print(f"警告: {parent_dir} の読み込み中にエラーが発生しました: {e}")
 
-    # 日付時刻順にソート
+    # ソート
     output_dirs.sort()
     return output_dirs
 
@@ -509,31 +523,38 @@ def find_matching_dirs(root_dir):
     cloth_dirs = {}
     group_dirs = {}
     
-    for subdir, _, files in os.walk(root_dir):
-        if 'cloth_input.txt' in files:
-            cloth_input_file = os.path.join(subdir, 'cloth_input.txt')
-            with open(cloth_input_file, 'r') as f:
-                params = {}
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        if '=' in line:
-                            key, value = line.split('=', 1)
-                            params[key.strip()] = value.strip()
-                
-                routing_method = params.get('routing_method', '')
-                # 設定を識別するキーを作成（routing_method以外の主要パラメータ）
-                key_params = {
-                    'average_payment_amount': params.get('average_payment_amount', ''),
-                    'seed': params.get('seed', ''),
-                    'mpp': params.get('mpp', ''),
-                }
-                key = tuple(sorted(key_params.items()))
-                
-                if routing_method == 'cloth_original':
-                    cloth_dirs[key] = subdir + '/'
-                elif routing_method == 'group_routing_cul':
-                    group_dirs[key] = subdir + '/'
+    try:
+        for subdir, _, files in os.walk(root_dir):
+            if 'cloth_input.txt' in files:
+                cloth_input_file = os.path.join(subdir, 'cloth_input.txt')
+                try:
+                    with open(cloth_input_file, 'r') as f:
+                        params = {}
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#'):
+                                if '=' in line:
+                                    key, value = line.split('=', 1)
+                                    params[key.strip()] = value.strip()
+                        
+                        routing_method = params.get('routing_method', '')
+                        # 設定を識別するキーを作成（routing_method以外の主要パラメータ）
+                        key_params = {
+                            'average_payment_amount': params.get('average_payment_amount', ''),
+                            'seed': params.get('seed', ''),
+                            'mpp': params.get('mpp', ''),
+                        }
+                        key = tuple(sorted(key_params.items()))
+                        
+                        if routing_method == 'cloth_original':
+                            cloth_dirs[key] = subdir + '/'
+                        elif routing_method == 'group_routing_cul':
+                            group_dirs[key] = subdir + '/'
+                except Exception as e:
+                    print(f"警告: {cloth_input_file} の読み込み中にエラーが発生しました: {e}")
+                    continue
+    except Exception as e:
+        print(f"警告: {root_dir} の探索中にエラーが発生しました: {e}")
     
     # マッチするペアを返す
     matching_pairs = []
