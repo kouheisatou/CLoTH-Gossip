@@ -4,38 +4,25 @@ cloth_originalで成功したpaymentに絞って、同じ設定のgroup_routing_
 MPP有効時のfee削減効果を測定する
 
 使用方法:
-  1. 単一のoutput_dirから比較を実行:
-     python3 compare_fee_mpp_successful.py <output_dir>
+  1. ディレクトリから比較を実行:
+     python3 compare_fee_mpp_successful.py <parent_dir1> [parent_dir2] ...
 
-     例: python3 compare_fee_mpp_successful.py /Volumes/kohei/result/20260206170728
-
-     出力:
-     - fee_comparison_<amount>_seed<seed>.csv: 各設定ごとの詳細比較結果
-     - fee_comparison_all.csv: 全設定を統合した比較結果
-     - fee_scatter_all.png: 送金額ごとの平均fee比較グラフ
-
-  2. 複数のoutput_dirを統合して比較 (推奨):
-     python3 compare_fee_mpp_successful.py --multi <parent_dir>
-
-     例: python3 compare_fee_mpp_successful.py --multi /Volumes/kohei/result
+     例: python3 compare_fee_mpp_successful.py /Volumes/kohei/result
+     例: python3 compare_fee_mpp_successful.py /Volumes/kohei/result1 /Volumes/kohei/result2
 
      動作:
-     - parent_dir下の日付時刻形式のディレクトリ(YYYYMMDDHHMMSS)を探索
-     - summary.csvがあるディレクトリのみを対象
+     - 指定されたparent_dir下のディレクトリを探索
+     - summary.csvがあるディレクトリのみを対象（シミュレーション完了済み）
      - すべてのoutput_dirから比較結果を統合して平均を計算
 
      出力:
      - fee_comparison_multi_all.csv: 全output_dirを統合した詳細比較結果
      - fee_scatter_multi_all.png: 統合データの送金額ごとの平均fee比較グラフ
 
-  3. CSVファイルからグラフを作成:
+  2. CSVファイルからグラフを作成:
      python3 compare_fee_mpp_successful.py --csv <csv_file> [output_png]
 
-     例: python3 compare_fee_mpp_successful.py --csv fee_comparison_all.csv fee_graph.png
-
-     動作:
-     - 既存の比較結果CSVからグラフのみを再作成
-     - output_pngを省略すると自動で<csv_file>_scatter.pngを生成
+     例: python3 compare_fee_mpp_successful.py --csv fee_comparison_multi_all.csv
 
 統計情報:
   - cloth_originalで成功したMPP paymentのみを対象
@@ -353,26 +340,6 @@ def save_detailed_results(comparison_results, output_file):
     print(f"  両方とも失敗: {both_fail_count}")
 
 
-def load_comparison_csv(csv_file):
-    """比較結果のCSVファイルを読み込む（両方とも成功したもののみ）"""
-    results = []
-    with open(csv_file, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # 両方とも成功したもののみを対象にする
-            cloth_success = row.get('cloth_is_success', '').lower() == 'true'
-            group_success = row.get('group_is_success', '').lower() == 'true'
-            
-            if cloth_success and group_success:
-                results.append({
-                    'amount': int(row['amount']),
-                    'cloth_fee': int(row['cloth_fee']),
-                    'group_fee': int(row['group_fee']),
-                    'payment_id': int(row['payment_id']),
-                })
-    return results
-
-
 def create_fee_scatter_plot(comparison_results, output_file, title_suffix=""):
     """送金額ごとの平均feeをプロット（両方とも成功したもののみ）"""
     if not HAS_MATPLOTLIB:
@@ -394,6 +361,26 @@ def create_fee_scatter_plot(comparison_results, output_file, title_suffix=""):
     
     create_average_fee_plot(successful_comparisons, output_file,
                            f'Average Fee Comparison by Payment Amount{title_suffix}')
+
+
+def load_comparison_csv(csv_file):
+    """比較結果のCSVファイルを読み込む（両方とも成功したもののみ）"""
+    results = []
+    with open(csv_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # 両方とも成功したもののみを対象にする
+            cloth_success = row.get('cloth_is_success', '').lower() == 'true'
+            group_success = row.get('group_is_success', '').lower() == 'true'
+            
+            if cloth_success and group_success:
+                results.append({
+                    'amount': int(row['amount']),
+                    'cloth_fee': int(row['cloth_fee']),
+                    'group_fee': int(row['group_fee']),
+                    'payment_id': int(row['payment_id']),
+                })
+    return results
 
 
 def create_average_fee_plot(results, output_file, title=""):
@@ -569,22 +556,19 @@ def main():
     if len(sys.argv) < 2:
         print("使用方法:")
         print("  1. ディレクトリから比較を実行:")
-        print("     python3 compare_fee_mpp_successful.py <output_root_dir>")
+        print("     python3 compare_fee_mpp_successful.py <parent_dir1> [parent_dir2] ...")
         print("  2. CSVファイルからグラフを作成:")
-        print("     python3 compare_fee_mpp_successful.py --csv <comparison_csv_file> [output_png_file]")
-        print("  3. 複数のoutput_dirを統合して比較:")
-        print("     python3 compare_fee_mpp_successful.py --multi <parent_dir>")
+        print("     python3 compare_fee_mpp_successful.py --csv <csv_file> [output_png]")
         print("\n例:")
-        print("  python3 compare_fee_mpp_successful.py .")
-        print("  python3 compare_fee_mpp_successful.py --csv fee_comparison_all.csv fee_scatter.png")
-        print("  python3 compare_fee_mpp_successful.py --multi /Volumes/kohei/result")
+        print("  python3 compare_fee_mpp_successful.py /Volumes/kohei/result")
+        print("  python3 compare_fee_mpp_successful.py --csv fee_comparison_multi_all.csv")
         sys.exit(1)
-    
+
     # CSVファイルからグラフを作成するモード
     if sys.argv[1] == '--csv':
         if len(sys.argv) < 3:
             print("エラー: CSVファイルを指定してください")
-            print("使用方法: python3 compare_fee_mpp_successful.py --csv <comparison_csv_file> [output_png_file]")
+            print("使用方法: python3 compare_fee_mpp_successful.py --csv <csv_file> [output_png]")
             sys.exit(1)
         
         csv_file = sys.argv[2]
@@ -606,141 +590,78 @@ def main():
         print(f"読み込んだデータ数: {len(results)}")
         
         # グラフを作成
-        title = f"Average Fee Comparison by Payment Amount ({os.path.basename(csv_file)})"
+        title = f"Average Fee Comparison by Payment Amount"
         create_average_fee_plot(results, output_file, title)
         return
 
-    # 複数のoutput_dirを統合して比較するモード
-    if sys.argv[1] == '--multi':
-        if len(sys.argv) < 3:
-            print("エラー: 親ディレクトリを指定してください")
-            print("使用方法: python3 compare_fee_mpp_successful.py --multi <parent_dir>")
-            sys.exit(1)
-
-        parent_dir = sys.argv[2]
+    parent_dirs = sys.argv[1:]
+    
+    # 各ディレクトリの存在確認
+    for parent_dir in parent_dirs:
         if not os.path.isdir(parent_dir):
             print(f"エラー: ディレクトリが見つかりません: {parent_dir}")
             sys.exit(1)
 
-        # summary.csvがある日付時刻形式のディレクトリを探す
+    # 全ての親ディレクトリからoutput_dirsを収集
+    all_output_dirs = []
+    for parent_dir in parent_dirs:
         output_dirs = find_output_dirs_with_summary(parent_dir)
+        print(f"{parent_dir} から {len(output_dirs)} 個のoutput_dirを発見")
+        all_output_dirs.extend(output_dirs)
 
-        if not output_dirs:
-            print(f"エラー: {parent_dir} 下にsummary.csvがある日付時刻形式のディレクトリが見つかりません")
-            sys.exit(1)
-
-        print(f"見つかったoutput_dir数: {len(output_dirs)}")
-        for d in output_dirs:
-            print(f"  - {d}")
-        print()
-
-        # 各output_dirから比較結果を収集
-        all_results = []
-        total_matching_pairs = 0
-
-        for output_dir in output_dirs:
-            print(f"\n{'='*80}")
-            print(f"処理中: {output_dir}")
-            print(f"{'='*80}\n")
-
-            # マッチするディレクトリペアを探す
-            matching_pairs = find_matching_dirs(output_dir)
-
-            if not matching_pairs:
-                print(f"  警告: マッチするディレクトリペアが見つかりません（スキップ）")
-                continue
-
-            print(f"  見つかったマッチングペア数: {len(matching_pairs)}")
-            total_matching_pairs += len(matching_pairs)
-
-            # 各ペアについて比較を実行
-            for cloth_dir, group_dir, key_params in matching_pairs:
-                comparison_results = compare_fees(cloth_dir, group_dir)
-
-                if comparison_results:
-                    all_results.extend(comparison_results)
-
-        if not all_results:
-            print("\n比較結果が得られませんでした")
-            sys.exit(1)
-
-        # 統合結果を出力
-        print(f"\n\n{'='*80}")
-        print(f"統合統計（{len(output_dirs)}個のoutput_dirから{total_matching_pairs}個のペアを統合）")
-        print(f"{'='*80}")
-        print_statistics(all_results)
-
-        # 統合結果を保存
-        output_file = os.path.join(parent_dir, "fee_comparison_multi_all.csv")
-        save_detailed_results(all_results, output_file)
-
-        # 統合グラフを作成
-        graph_output = os.path.join(parent_dir, "fee_scatter_multi_all.png")
-        create_fee_scatter_plot(all_results, graph_output, f" (Aggregated: {len(output_dirs)} output_dirs)")
-
-        return
-
-    # ディレクトリから比較を実行するモード（既存の動作）
-    root_dir = sys.argv[1]
-    if not os.path.isdir(root_dir):
-        print(f"エラー: ディレクトリが見つかりません: {root_dir}")
+    if not all_output_dirs:
+        print(f"エラー: 指定されたディレクトリ下にsummary.csvがあるディレクトリが見つかりません")
         sys.exit(1)
-    
-    # マッチするディレクトリペアを探す
-    matching_pairs = find_matching_dirs(root_dir)
-    
-    if not matching_pairs:
-        print("エラー: マッチするcloth_originalとgroup_routing_culのディレクトリが見つかりません")
-        sys.exit(1)
-    
-    print(f"見つかったマッチングペア数: {len(matching_pairs)}\n")
-    
-    # 出力ディレクトリをroot_dirの直下に設定
-    output_dir = root_dir
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    # 各ペアについて比較を実行
+
+    print(f"\n見つかった総output_dir数: {len(all_output_dirs)}")
+    for d in all_output_dirs:
+        print(f"  - {d}")
+    print()
+
+    # 各output_dirから比較結果を収集
     all_results = []
-    for cloth_dir, group_dir, key_params in matching_pairs:
-        # 設定情報を表示
-        params_dict = dict(key_params)
+    total_matching_pairs = 0
+
+    for output_dir in all_output_dirs:
         print(f"\n{'='*80}")
-        print(f"設定: {params_dict}")
-        print(f"  cloth_original: {cloth_dir}")
-        print(f"  group_routing_cul: {group_dir}")
+        print(f"処理中: {output_dir}")
         print(f"{'='*80}\n")
-        
-        comparison_results = compare_fees(cloth_dir, group_dir)
-        
-        if comparison_results:
-            print_statistics(comparison_results)
-            
-            # 結果を保存（root_dirの直下に）
-            output_file = os.path.join(output_dir, f"fee_comparison_{params_dict.get('average_payment_amount', 'unknown')}_seed{params_dict.get('seed', 'unknown')}.csv")
-            save_detailed_results(comparison_results, output_file)
-            
-            # グラフは全体統合のみ作成するため、ここでは作成しない
-            
-            all_results.extend(comparison_results)
-    
-    # 全体の統計
-    if len(matching_pairs) > 1 and all_results:
-        print(f"\n\n{'='*80}")
-        print("全体統計（全設定を統合）")
-        print(f"{'='*80}")
-        print_statistics(all_results)
-        
-        # 全体結果を保存（root_dirの直下に）
-        save_detailed_results(all_results, os.path.join(output_dir, "fee_comparison_all.csv"))
-        
-        # 全体のグラフを作成（root_dirの直下に）
-        create_fee_scatter_plot(all_results, os.path.join(output_dir, "fee_scatter_all.png"), " (All Settings)")
-    elif all_results:
-        # 1つのペアのみの場合もグラフを作成（root_dirの直下に）
-        params_dict = dict(matching_pairs[0][2])
-        output_file = os.path.join(output_dir, f"fee_scatter_{params_dict.get('average_payment_amount', 'unknown')}_seed{params_dict.get('seed', 'unknown')}.png")
-        create_fee_scatter_plot(all_results, output_file)
+
+        # マッチするディレクトリペアを探す
+        matching_pairs = find_matching_dirs(output_dir)
+
+        if not matching_pairs:
+            print(f"  警告: マッチするディレクトリペアが見つかりません（スキップ）")
+            continue
+
+        print(f"  見つかったマッチングペア数: {len(matching_pairs)}")
+        total_matching_pairs += len(matching_pairs)
+
+        # 各ペアについて比較を実行
+        for cloth_dir, group_dir, key_params in matching_pairs:
+            comparison_results = compare_fees(cloth_dir, group_dir)
+
+            if comparison_results:
+                all_results.extend(comparison_results)
+
+    if not all_results:
+        print("\n比較結果が得られませんでした")
+        sys.exit(1)
+
+    # 統合結果を出力
+    print(f"\n\n{'='*80}")
+    print(f"統合統計（{len(parent_dirs)}個の親ディレクトリから{len(all_output_dirs)}個のoutput_dir、{total_matching_pairs}個のペアを統合）")
+    print(f"{'='*80}")
+    print_statistics(all_results)
+
+    # 統合結果を保存（最初の親ディレクトリに出力）
+    output_base_dir = parent_dirs[0]
+    output_file = os.path.join(output_base_dir, "fee_comparison_multi_all.csv")
+    save_detailed_results(all_results, output_file)
+
+    # 統合グラフを作成
+    graph_output = os.path.join(output_base_dir, "fee_scatter_multi_all.png")
+    create_fee_scatter_plot(all_results, graph_output, f" (Aggregated: {len(all_output_dirs)} output_dirs)")
 
 
 if __name__ == "__main__":
