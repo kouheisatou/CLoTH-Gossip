@@ -599,7 +599,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
     // Section 4: GCB optimal N-split for GROUP_ROUTING and GROUP_ROUTING_CUL
     // This applies to both root payments AND shards (grandchildren etc.)
-    if(routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL) {
+    if(routing_method == GROUP_ROUTING || routing_method == GROUP_ROUTING_CUL || routing_method == IDEAL) {
       
       // Find multiple paths sorted by fee
       int max_paths = pay_params.max_shard_count - root_payment->shard_count;
