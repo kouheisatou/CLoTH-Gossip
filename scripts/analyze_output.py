@@ -1,13 +1,11 @@
 import csv
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 csv.field_size_limit(200_000_000)
-if len(sys.argv) < 1:
+if len(sys.argv) < 2:
     print("python3 analyze_output.py <output_dir>")
     exit(1)
 output_root_dir_name = sys.argv[1]
@@ -190,338 +188,270 @@ def find_output_dirs(root_dir):
     return files
 
 
-def save_histogram(data: list, x_label: str, y_label: str, filepath: str, bins):
-    fig, ax = plt.subplots()
-    ax.hist(data, bins=bins)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    ax.axvline(x=np.mean(data), color='green', linestyle='--', linewidth=1, label=f'Mean: {np.mean(data):.2f}')
-    ax.axvline(x=np.median(data), color='red', linestyle='--', linewidth=1, label=f'Median: {np.median(data):.2f}')
-    fig.legend()
-    fig.savefig(filepath)
-    plt.clf()
-    plt.close()
+def _dist_stats(data, prefix):
+    if not data:
+        return {
+            f"{prefix}/average": 0, f"{prefix}/variance": 0,
+            f"{prefix}/max": 0, f"{prefix}/min": 0,
+            f"{prefix}/5-percentile": 0, f"{prefix}/25-percentile": 0,
+            f"{prefix}/50-percentile": 0, f"{prefix}/75-percentile": 0,
+            f"{prefix}/95-percentile": 0,
+        }
+    arr = np.array(data)
+    return {
+        f"{prefix}/average": np.mean(arr),
+        f"{prefix}/variance": np.var(arr),
+        f"{prefix}/max": np.max(arr),
+        f"{prefix}/min": np.min(arr),
+        f"{prefix}/5-percentile": np.percentile(arr, 5),
+        f"{prefix}/25-percentile": np.percentile(arr, 25),
+        f"{prefix}/50-percentile": np.percentile(arr, 50),
+        f"{prefix}/75-percentile": np.percentile(arr, 75),
+        f"{prefix}/95-percentile": np.percentile(arr, 95),
+    }
 
 
-def save_scatter(data_x: list, data_y: list, x_label: str, y_label: str, filepath: str):
-    fig, ax = plt.subplots()
-    ax.scatter(data_x, data_y)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    fig.savefig(filepath)
-    plt.clf()
-    plt.close()
+def _dist_stats_short(data, prefix):
+    if not data:
+        return {
+            f"{prefix}/average": 0, f"{prefix}/variance": 0,
+            f"{prefix}/max": 0, f"{prefix}/min": 0,
+            f"{prefix}/50-percentile": 0,
+        }
+    arr = np.array(data)
+    return {
+        f"{prefix}/average": np.mean(arr),
+        f"{prefix}/variance": np.var(arr),
+        f"{prefix}/max": np.max(arr),
+        f"{prefix}/min": np.min(arr),
+        f"{prefix}/50-percentile": np.percentile(arr, 50),
+    }
 
 
-# 1シミュレーションのoutputからその分析結果を得る
+def _dist_stats_optional(data, prefix):
+    if not data:
+        return {
+            f"{prefix}/average": "", f"{prefix}/var": "",
+            f"{prefix}/max": "", f"{prefix}/min": "",
+            f"{prefix}/5-percentile": "", f"{prefix}/25-percentile": "",
+            f"{prefix}/50-percentile": "", f"{prefix}/75-percentile": "",
+            f"{prefix}/95-percentile": "",
+        }
+    arr = np.array(data)
+    return {
+        f"{prefix}/average": np.mean(arr),
+        f"{prefix}/var": np.var(arr),
+        f"{prefix}/max": np.max(arr),
+        f"{prefix}/min": np.min(arr),
+        f"{prefix}/5-percentile": np.percentile(arr, 5),
+        f"{prefix}/25-percentile": np.percentile(arr, 25),
+        f"{prefix}/50-percentile": np.percentile(arr, 50),
+        f"{prefix}/75-percentile": np.percentile(arr, 75),
+        f"{prefix}/95-percentile": np.percentile(arr, 95),
+    }
+
+
 def analyze_output(output_dir_name):
     simulation_time = 0
     result = {}
+
     with open(output_dir_name + 'payments_output.csv', 'r') as csv_pay:
-        payments = list(csv.DictReader(csv_pay))
+        reader = csv.reader(csv_pay)
+        header = next(reader)
+        col = {name: i for i, name in enumerate(header)}
+        rows = list(reader)
 
-        # Filter out shards - only count root payments for statistics
-        # Shards have is_shard=1 and parent_payment_id != -1
-        root_payments = [p for p in payments if p.get("is_shard", "0") == "0" or p.get("parent_payment_id", "-1") == "-1"]
-        
-        total_payment_num = len(root_payments)
-        total_attempts_num = 0
-        total_success_num = 0
-        total_timeout_num = 0
-        total_fail_no_path_num = 0
-        total_retry_num = 0
-        total_retry_no_balance_num = 0
-        total_fail_no_alternative_path_num = 0
-        time_distribution = []
-        time_success_distribution = []
-        time_fail_distribution = []
-        retry_distribution = []
-        fee_distribution = []
-        fee_per_satoshi_distribution = []
-        route_len_distribution = []
-        
-        # MPP statistics
-        total_mpp_num = 0
-        total_mpp_success_num = 0
-        shard_count_distribution = []
-        
-        # Fee comparison metrics for MPP vs non-MPP
-        mpp_fee_distribution = []  # Total fee for successful MPP payments
-        mpp_fee_per_satoshi_distribution = []  # Fee per satoshi for successful MPP payments
-        non_mpp_fee_distribution = []  # Fee for successful non-MPP payments
-        non_mpp_fee_per_satoshi_distribution = []  # Fee per satoshi for non-MPP payments
-        
-        # Build a map of payment_id -> payment for shard fee calculation
-        payments_by_id = {int(p["id"]): p for p in payments}
-        
-        def calculate_mpp_total_fee(payment, payments_by_id):
-            """Recursively calculate total fee for an MPP payment by summing shard fees"""
-            shards_str = payment.get("shards", "")
-            if not shards_str:
-                # Leaf shard or non-MPP payment
-                fee_str = payment.get("total_fee", "")
-                return int(fee_str) if fee_str else 0
-            
-            total_fee = 0
-            shard_ids = shards_str.split('-')
-            for shard_id_str in shard_ids:
-                shard_id = int(shard_id_str)
-                if shard_id in payments_by_id:
-                    shard = payments_by_id[shard_id]
-                    total_fee += calculate_mpp_total_fee(shard, payments_by_id)
-            return total_fee
+    # Build lightweight maps for MPP fee calculation
+    has_shards = "shards" in col
+    has_is_shard = "is_shard" in col
+    has_parent = "parent_payment_id" in col
+    has_mpp = "mpp" in col
+    has_timeout = "timeout_exp" in col
 
-        for pay in root_payments:
-            is_success = (pay["is_success"] == "1")
-            amount = int(pay["amount"])
-            start_time = int(pay["start_time"])
-            end_time = int(pay["end_time"])
-            time = end_time - start_time
-            attempts = int(pay["attempts"])
-            retry = attempts - 1
-            
-            # Check if MPP was used
-            mpp_triggered = (pay.get("mpp", "0") == "1")
-            shards = pay.get("shards", "")
-            is_mpp = mpp_triggered or bool(shards)
-            
-            if is_mpp:
-                total_mpp_num += 1
-                # Count shards (shards column format: "100-101-102" or empty)
-                if shards:
-                    shard_ids = shards.split('-')
-                    shard_count_distribution.append(len(shard_ids))
-                if is_success:
-                    total_mpp_success_num += 1
-                    # Calculate total fee for MPP by summing shard fees
-                    mpp_total_fee = calculate_mpp_total_fee(pay, payments_by_id)
-                    mpp_fee_distribution.append(mpp_total_fee)
-                    mpp_fee_per_satoshi_distribution.append(mpp_total_fee / amount if amount > 0 else 0)
+    shard_children = {}  # pid -> [child_ids]
+    leaf_fee = {}        # pid -> int (total_fee for leaf/non-MPP payments)
 
-            if simulation_time < end_time:
-                simulation_time = end_time
+    for row in rows:
+        pid = int(row[col["id"]])
+        fee_str = row[col["total_fee"]]
+        leaf_fee[pid] = int(fee_str) if fee_str else 0
+        if has_shards:
+            shards_str = row[col["shards"]]
+            if shards_str:
+                shard_children[pid] = [int(s) for s in shards_str.split('-')]
 
+    # Memoized MPP fee calculation
+    mpp_fee_cache = {}
+
+    def calculate_mpp_total_fee(pid):
+        if pid in mpp_fee_cache:
+            return mpp_fee_cache[pid]
+        if pid not in shard_children:
+            fee = leaf_fee.get(pid, 0)
+        else:
+            fee = sum(calculate_mpp_total_fee(sid) for sid in shard_children[pid])
+        mpp_fee_cache[pid] = fee
+        return fee
+
+    # Filter root payments
+    root_payments = []
+    for row in rows:
+        is_shard = has_is_shard and row[col["is_shard"]] == "1"
+        parent_neg = (not has_parent) or row[col["parent_payment_id"]] == "-1"
+        if not is_shard or parent_neg:
+            root_payments.append(row)
+
+    total_payment_num = len(root_payments)
+    total_attempts_num = 0
+    total_success_num = 0
+    total_timeout_num = 0
+    total_fail_no_path_num = 0
+    total_retry_num = 0
+    total_retry_no_balance_num = 0
+    total_fail_no_alternative_path_num = 0
+    time_distribution = []
+    time_success_distribution = []
+    time_fail_distribution = []
+    retry_distribution = []
+    fee_distribution = []
+    fee_per_satoshi_distribution = []
+    route_len_distribution = []
+
+    total_mpp_num = 0
+    total_mpp_success_num = 0
+    shard_count_distribution = []
+    mpp_fee_distribution = []
+    mpp_fee_per_satoshi_distribution = []
+    non_mpp_fee_distribution = []
+    non_mpp_fee_per_satoshi_distribution = []
+
+    for row in root_payments:
+        pid = int(row[col["id"]])
+        is_success = (row[col["is_success"]] == "1")
+        amount = int(row[col["amount"]])
+        start_time = int(row[col["start_time"]])
+        end_time = int(row[col["end_time"]])
+        time = end_time - start_time
+        attempts = int(row[col["attempts"]])
+        retry = attempts - 1
+
+        mpp_triggered = has_mpp and row[col["mpp"]] == "1"
+        shards_str = row[col["shards"]] if has_shards else ""
+        is_mpp = mpp_triggered or bool(shards_str)
+
+        mpp_total_fee = 0
+        if is_mpp:
+            total_mpp_num += 1
+            if shards_str:
+                shard_count_distribution.append(len(shards_str.split('-')))
             if is_success:
-                time_success_distribution.append(time)
-                total_success_num += 1
-                
-                if is_mpp:
-                    # For MPP, total_fee is calculated above from shards
-                    total_fee = calculate_mpp_total_fee(pay, payments_by_id)
-                else:
-                    # For non-MPP, use the total_fee directly
-                    total_fee = int(pay["total_fee"]) if pay["total_fee"] else 0
-                    non_mpp_fee_distribution.append(total_fee)
-                    non_mpp_fee_per_satoshi_distribution.append(total_fee / amount if amount > 0 else 0)
-                
-                retry_distribution.append(retry)
-                fee_distribution.append(total_fee)
-                fee_per_satoshi_distribution.append(total_fee / amount if amount > 0 else 0)
-                if pay['route']:
-                    route_len_distribution.append(len(pay['route'].split('-')))
+                total_mpp_success_num += 1
+                mpp_total_fee = calculate_mpp_total_fee(pid)
+                mpp_fee_distribution.append(mpp_total_fee)
+                mpp_fee_per_satoshi_distribution.append(mpp_total_fee / amount if amount > 0 else 0)
+
+        if simulation_time < end_time:
+            simulation_time = end_time
+
+        if is_success:
+            time_success_distribution.append(time)
+            total_success_num += 1
+
+            if is_mpp:
+                total_fee = mpp_total_fee
             else:
-                time_fail_distribution.append(time)
-                if (pay["route"] == "") and (attempts == 1):
-                    total_fail_no_path_num += 1
-                elif pay.get("timeout_exp", "0") == "1":
-                    total_timeout_num += 1
-                else:
-                    total_fail_no_alternative_path_num += 1
+                total_fee = leaf_fee.get(pid, 0)
+                non_mpp_fee_distribution.append(total_fee)
+                non_mpp_fee_per_satoshi_distribution.append(total_fee / amount if amount > 0 else 0)
 
-            total_attempts_num += attempts
-            total_retry_num += retry
-            total_retry_no_balance_num += int(pay["no_balance_count"])
-            time_distribution.append(time)
+            retry_distribution.append(retry)
+            fee_distribution.append(total_fee)
+            fee_per_satoshi_distribution.append(total_fee / amount if amount > 0 else 0)
+            route_str = row[col["route"]]
+            if route_str:
+                route_len_distribution.append(len(route_str.split('-')))
+        else:
+            time_fail_distribution.append(time)
+            route_str = row[col["route"]]
+            if route_str == "" and attempts == 1:
+                total_fail_no_path_num += 1
+            elif has_timeout and row[col["timeout_exp"]] == "1":
+                total_timeout_num += 1
+            else:
+                total_fail_no_alternative_path_num += 1
 
-        # save_histogram(time_distribution, "Time[ms]", "Frequency", f"{output_dir_name}/time_histogram.pdf", 500)
-        # save_histogram(retry_distribution, "Retry Num", "Frequency", f"{output_dir_name}/retry_num_histogram.pdf", range(np.min(retry_distribution), np.max(retry_distribution) + 2, 1))
-        # save_histogram(fee_distribution, "Fee [satoshi]", "Frequency", f"{output_dir_name}/fee_histogram.pdf", 500)
-        # save_histogram(route_len_distribution, "Route Length", "Frequency", f"{output_dir_name}/route_len_histogram.pdf", range(np.min(route_len_distribution), np.max(route_len_distribution) + 2, 1))
+        total_attempts_num += attempts
+        total_retry_num += retry
+        total_retry_no_balance_num += int(row[col["no_balance_count"]])
+        time_distribution.append(time)
 
-        result = result | {
-            "simulation_time": simulation_time,  # シミュレーション時間
+    result = {
+        "simulation_time": simulation_time,
+        "success_rate": total_success_num / total_payment_num,
+        "fail_no_path_rate": total_fail_no_path_num / total_payment_num,
+        "fail_timeout_rate": total_timeout_num / total_payment_num,
+        "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num,
+        "retry_rate": total_retry_num / total_attempts_num,
+        "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,
 
-            "success_rate": total_success_num / total_payment_num,  # 送金成功率
-            "fail_no_path_rate": total_fail_no_path_num / total_payment_num,  # 送金前に送金経路なしと判断され送金失敗した確率
-            "fail_timeout_rate": total_timeout_num / total_payment_num,  # timeoutによる送金失敗率
-            "fail_no_alternative_path_rate": total_fail_no_alternative_path_num / total_payment_num,  # 送金失敗とリンク除外を繰り返し他結果送金経路がなくなったため送金失敗した確率
+        "mpp/total_count": total_mpp_num,
+        "mpp/success_count": total_mpp_success_num,
+        "mpp/success_rate": total_mpp_success_num / total_mpp_num if total_mpp_num > 0 else 0,
+        "mpp/usage_rate": total_mpp_num / total_payment_num if total_payment_num > 0 else 0,
+    }
 
-            "retry_rate": total_retry_num / total_attempts_num,  # 試行1回あたりの平均リトライ発生回数
-            "retry_no_balance_rate": total_retry_no_balance_num / total_attempts_num,  # 試行1回あたりのfail_no_balanceによる平均リトライ発生回数
+    result.update(_dist_stats(time_distribution, "time"))
+    result.update(_dist_stats(time_success_distribution, "time_success"))
+    result.update(_dist_stats(time_fail_distribution, "time_fail"))
+    result.update(_dist_stats(retry_distribution, "retry"))
+    result.update(_dist_stats(fee_distribution, "fee"))
+    result.update(_dist_stats(fee_per_satoshi_distribution, "fee_per_satoshi"))
+    result.update(_dist_stats(route_len_distribution, "route_len"))
+    result.update(_dist_stats_short(shard_count_distribution, "shard_count"))
+    result.update(_dist_stats_short(mpp_fee_distribution, "mpp_fee"))
+    result.update(_dist_stats_short(mpp_fee_per_satoshi_distribution, "mpp_fee_per_satoshi"))
+    result.update(_dist_stats_short(non_mpp_fee_distribution, "non_mpp_fee"))
+    result.update(_dist_stats_short(non_mpp_fee_per_satoshi_distribution, "non_mpp_fee_per_satoshi"))
 
-            # 送金開始から送金が完了するまでにかかる時間（送金の成否に関わらず全ての平均）
-            "time/average": np.mean(time_distribution),
-            "time/variance": np.var(time_distribution),
-            "time/max": np.max(time_distribution),
-            "time/min": np.min(time_distribution),
-            "time/5-percentile": np.percentile(time_distribution, 5),
-            "time/25-percentile": np.percentile(time_distribution, 25),
-            "time/50-percentile": np.percentile(time_distribution, 50),
-            "time/75-percentile": np.percentile(time_distribution, 75),
-            "time/95-percentile": np.percentile(time_distribution, 95),
-
-            # 送金開始から送金が完了するまでにかかる時間（成功した送金のみ）
-            "time_success/average": np.mean(time_success_distribution) if time_success_distribution else 0,
-            "time_success/variance": np.var(time_success_distribution) if time_success_distribution else 0,
-            "time_success/max": np.max(time_success_distribution) if time_success_distribution else 0,
-            "time_success/min": np.min(time_success_distribution) if time_success_distribution else 0,
-            "time_success/5-percentile": np.percentile(time_success_distribution, 5) if time_success_distribution else 0,
-            "time_success/25-percentile": np.percentile(time_success_distribution, 25) if time_success_distribution else 0,
-            "time_success/50-percentile": np.percentile(time_success_distribution, 50) if time_success_distribution else 0,
-            "time_success/75-percentile": np.percentile(time_success_distribution, 75) if time_success_distribution else 0,
-            "time_success/95-percentile": np.percentile(time_success_distribution, 95) if time_success_distribution else 0,
-
-            # 送金開始から送金が完了するまでにかかる時間（失敗した送金のみ）
-            "time_fail/average": np.mean(time_fail_distribution) if time_fail_distribution else 0,
-            "time_fail/variance": np.var(time_fail_distribution) if time_fail_distribution else 0,
-            "time_fail/max": np.max(time_fail_distribution) if time_fail_distribution else 0,
-            "time_fail/min": np.min(time_fail_distribution) if time_fail_distribution else 0,
-            "time_fail/5-percentile": np.percentile(time_fail_distribution, 5) if time_fail_distribution else 0,
-            "time_fail/25-percentile": np.percentile(time_fail_distribution, 25) if time_fail_distribution else 0,
-            "time_fail/50-percentile": np.percentile(time_fail_distribution, 50) if time_fail_distribution else 0,
-            "time_fail/75-percentile": np.percentile(time_fail_distribution, 75) if time_fail_distribution else 0,
-            "time_fail/95-percentile": np.percentile(time_fail_distribution, 95) if time_fail_distribution else 0,
-
-            # 送金1回あたりのリトライ回数
-            "retry/average": np.mean(retry_distribution) if retry_distribution else 0,
-            "retry/variance": np.var(retry_distribution) if retry_distribution else 0,
-            "retry/max": np.max(retry_distribution) if retry_distribution else 0,
-            "retry/min": np.min(retry_distribution) if retry_distribution else 0,
-            "retry/5-percentile": np.percentile(retry_distribution, 5) if retry_distribution else 0,
-            "retry/25-percentile": np.percentile(retry_distribution, 25) if retry_distribution else 0,
-            "retry/50-percentile": np.percentile(retry_distribution, 50) if retry_distribution else 0,
-            "retry/75-percentile": np.percentile(retry_distribution, 75) if retry_distribution else 0,
-            "retry/95-percentile": np.percentile(retry_distribution, 95) if retry_distribution else 0,
-
-            # 送金手数料
-            "fee/average": np.mean(fee_distribution) if fee_distribution else 0,
-            "fee/variance": np.var(fee_distribution) if fee_distribution else 0,
-            "fee/max": np.max(fee_distribution) if fee_distribution else 0,
-            "fee/min": np.min(fee_distribution) if fee_distribution else 0,
-            "fee/5-percentile": np.percentile(fee_distribution, 5) if fee_distribution else 0,
-            "fee/25-percentile": np.percentile(fee_distribution, 25) if fee_distribution else 0,
-            "fee/50-percentile": np.percentile(fee_distribution, 50) if fee_distribution else 0,
-            "fee/75-percentile": np.percentile(fee_distribution, 75) if fee_distribution else 0,
-            "fee/95-percentile": np.percentile(fee_distribution, 95) if fee_distribution else 0,
-
-            # 送金手数料(1satoshi送るのにかかる手数料の平均)
-            "fee_per_satoshi/average": np.mean(fee_per_satoshi_distribution) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/variance": np.var(fee_per_satoshi_distribution) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/max": np.max(fee_per_satoshi_distribution) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/min": np.min(fee_per_satoshi_distribution) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/5-percentile": np.percentile(fee_per_satoshi_distribution, 5) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/25-percentile": np.percentile(fee_per_satoshi_distribution, 25) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/50-percentile": np.percentile(fee_per_satoshi_distribution, 50) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/75-percentile": np.percentile(fee_per_satoshi_distribution, 75) if fee_per_satoshi_distribution else 0,
-            "fee_per_satoshi/95-percentile": np.percentile(fee_per_satoshi_distribution, 95) if fee_per_satoshi_distribution else 0,
-
-            # 送金経路長
-            "route_len/average": np.mean(route_len_distribution) if route_len_distribution else 0,
-            "route_len/variance": np.var(route_len_distribution) if route_len_distribution else 0,
-            "route_len/max": np.max(route_len_distribution) if route_len_distribution else 0,
-            "route_len/min": np.min(route_len_distribution) if route_len_distribution else 0,
-            "route_len/5-percentile": np.percentile(route_len_distribution, 5) if route_len_distribution else 0,
-            "route_len/25-percentile": np.percentile(route_len_distribution, 25) if route_len_distribution else 0,
-            "route_len/50-percentile": np.percentile(route_len_distribution, 50) if route_len_distribution else 0,
-            "route_len/75-percentile": np.percentile(route_len_distribution, 75) if route_len_distribution else 0,
-            "route_len/95-percentile": np.percentile(route_len_distribution, 95) if route_len_distribution else 0,
-            
-            # MPP統計
-            "mpp/total_count": total_mpp_num,  # MPPがトリガーされたペイメント数
-            "mpp/success_count": total_mpp_success_num,  # MPPで成功したペイメント数
-            "mpp/success_rate": total_mpp_success_num / total_mpp_num if total_mpp_num > 0 else 0,  # MPP成功率
-            "mpp/usage_rate": total_mpp_num / total_payment_num if total_payment_num > 0 else 0,  # MPP使用率
-            
-            # シャード数の分布
-            "shard_count/average": np.mean(shard_count_distribution) if shard_count_distribution else 0,
-            "shard_count/variance": np.var(shard_count_distribution) if shard_count_distribution else 0,
-            "shard_count/max": np.max(shard_count_distribution) if shard_count_distribution else 0,
-            "shard_count/min": np.min(shard_count_distribution) if shard_count_distribution else 0,
-            "shard_count/50-percentile": np.percentile(shard_count_distribution, 50) if shard_count_distribution else 0,
-            
-            # MPP手数料統計 (MPPで成功したペイメントの手数料)
-            "mpp_fee/average": np.mean(mpp_fee_distribution) if mpp_fee_distribution else 0,
-            "mpp_fee/variance": np.var(mpp_fee_distribution) if mpp_fee_distribution else 0,
-            "mpp_fee/max": np.max(mpp_fee_distribution) if mpp_fee_distribution else 0,
-            "mpp_fee/min": np.min(mpp_fee_distribution) if mpp_fee_distribution else 0,
-            "mpp_fee/50-percentile": np.percentile(mpp_fee_distribution, 50) if mpp_fee_distribution else 0,
-            
-            # MPP手数料効率 (1satoshiあたりの手数料)
-            "mpp_fee_per_satoshi/average": np.mean(mpp_fee_per_satoshi_distribution) if mpp_fee_per_satoshi_distribution else 0,
-            "mpp_fee_per_satoshi/variance": np.var(mpp_fee_per_satoshi_distribution) if mpp_fee_per_satoshi_distribution else 0,
-            "mpp_fee_per_satoshi/max": np.max(mpp_fee_per_satoshi_distribution) if mpp_fee_per_satoshi_distribution else 0,
-            "mpp_fee_per_satoshi/min": np.min(mpp_fee_per_satoshi_distribution) if mpp_fee_per_satoshi_distribution else 0,
-            "mpp_fee_per_satoshi/50-percentile": np.percentile(mpp_fee_per_satoshi_distribution, 50) if mpp_fee_per_satoshi_distribution else 0,
-            
-            # 非MPP手数料統計 (シングルパスで成功したペイメントの手数料)
-            "non_mpp_fee/average": np.mean(non_mpp_fee_distribution) if non_mpp_fee_distribution else 0,
-            "non_mpp_fee/variance": np.var(non_mpp_fee_distribution) if non_mpp_fee_distribution else 0,
-            "non_mpp_fee/max": np.max(non_mpp_fee_distribution) if non_mpp_fee_distribution else 0,
-            "non_mpp_fee/min": np.min(non_mpp_fee_distribution) if non_mpp_fee_distribution else 0,
-            "non_mpp_fee/50-percentile": np.percentile(non_mpp_fee_distribution, 50) if non_mpp_fee_distribution else 0,
-            
-            # 非MPP手数料効率 (1satoshiあたりの手数料)
-            "non_mpp_fee_per_satoshi/average": np.mean(non_mpp_fee_per_satoshi_distribution) if non_mpp_fee_per_satoshi_distribution else 0,
-            "non_mpp_fee_per_satoshi/variance": np.var(non_mpp_fee_per_satoshi_distribution) if non_mpp_fee_per_satoshi_distribution else 0,
-            "non_mpp_fee_per_satoshi/max": np.max(non_mpp_fee_per_satoshi_distribution) if non_mpp_fee_per_satoshi_distribution else 0,
-            "non_mpp_fee_per_satoshi/min": np.min(non_mpp_fee_per_satoshi_distribution) if non_mpp_fee_per_satoshi_distribution else 0,
-            "non_mpp_fee_per_satoshi/50-percentile": np.percentile(non_mpp_fee_per_satoshi_distribution, 50) if non_mpp_fee_per_satoshi_distribution else 0,
-        }
-
+    # edges_output.csv - stream without materializing
     with open(output_dir_name + 'edges_output.csv', 'r') as csv_edge:
-        edges = list(csv.DictReader(csv_edge))
-
+        reader = csv.reader(csv_edge)
+        edge_header = next(reader)
+        edge_col = {name: i for i, name in enumerate(edge_header)}
         edge_in_group_num = 0
-
-        for edge in edges:
-            if edge["group"] != "NULL" and edge["group"] != "":
+        total_edges = 0
+        for row in reader:
+            total_edges += 1
+            group_val = row[edge_col["group"]]
+            if group_val != "NULL" and group_val != "":
                 edge_in_group_num += 1
 
-        result = result | {
-            "group_cover_rate": edge_in_group_num / len(edges),  # 全エッジに対するグループに属するエッジが占める割合
-        }
+    result["group_cover_rate"] = edge_in_group_num / total_edges
 
+    # groups_output.csv - stream without materializing
     with open(output_dir_name + 'groups_output.csv', 'r') as csv_group:
-        groups = list(csv.DictReader(csv_group))
+        reader = csv.reader(csv_group)
+        group_header = next(reader)
+        group_col = {name: i for i, name in enumerate(group_header)}
 
         group_survival_time_distribution = []
         cul_distribution = []
 
-        for group in groups:
+        for row in reader:
             try:
-                if group["is_closed(closed_time)"] != "0":
-                    closed_time = int(group["is_closed(closed_time)"])
-                    constructed_time = int(group["constructed_time"])
+                closed_val = row[group_col["is_closed(closed_time)"]]
+                if closed_val != "0":
+                    closed_time = int(closed_val)
+                    constructed_time = int(row[group_col["constructed_time"]])
                     group_survival_time_distribution.append(closed_time - constructed_time)
                 else:
-                    cul_distribution.append(float(group["cul_average"]))
+                    cul_distribution.append(float(row[group_col["cul_average"]]))
             except Exception as e:
                 print(e)
                 continue
 
-        result = result | {
-            "group_survival_time/average": np.mean(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
-            "group_survival_time/var": np.var(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
-            "group_survival_time/max": np.max(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
-            "group_survival_time/min": np.min(group_survival_time_distribution) if len(group_survival_time_distribution) else "",
-            "group_survival_time/5-percentile": np.percentile(group_survival_time_distribution, 5) if len(group_survival_time_distribution) else "",
-            "group_survival_time/25-percentile": np.percentile(group_survival_time_distribution, 25) if len(group_survival_time_distribution) else "",
-            "group_survival_time/50-percentile": np.percentile(group_survival_time_distribution, 50) if len(group_survival_time_distribution) else "",
-            "group_survival_time/75-percentile": np.percentile(group_survival_time_distribution, 75) if len(group_survival_time_distribution) else "",
-            "group_survival_time/95-percentile": np.percentile(group_survival_time_distribution, 95) if len(group_survival_time_distribution) else "",
-
-            "cul_average/average": np.mean(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul_average/var": np.var(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul_average/max": np.max(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul_average/min": np.min(cul_distribution) if len(group_survival_time_distribution) else "",
-            "cul_average/5-percentile": np.percentile(cul_distribution, 5) if len(group_survival_time_distribution) else "",
-            "cul_average/25-percentile": np.percentile(cul_distribution, 25) if len(group_survival_time_distribution) else "",
-            "cul_average/50-percentile": np.percentile(cul_distribution, 50) if len(group_survival_time_distribution) else "",
-            "cul_average/75-percentile": np.percentile(cul_distribution, 75) if len(group_survival_time_distribution) else "",
-            "cul_average/95-percentile": np.percentile(cul_distribution, 95) if len(group_survival_time_distribution) else "",
-        }
+    result.update(_dist_stats_optional(group_survival_time_distribution, "group_survival_time"))
+    result.update(_dist_stats_optional(cul_distribution, "cul_average"))
 
     return result
 
@@ -555,14 +485,9 @@ if __name__ == "__main__":
     output_root_dir_name = sys.argv[1]
     output_dirs = find_output_dirs(output_root_dir_name)
 
-    num_processes = os.cpu_count()
-
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        futures = [executor.submit(process_output_dir, output_dir) for output_dir in output_dirs]
-
-        rows = []
-        for future in futures:
-            rows.append(future.result())
+    rows = []
+    for output_dir in output_dirs:
+        rows.append(process_output_dir(output_dir))
 
     summary_csv_header = set()
     for row in rows:
