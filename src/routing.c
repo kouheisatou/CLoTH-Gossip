@@ -566,6 +566,8 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
   while(curr!=target) {
     if(distance[p][curr].next_edge == -1) {
       *error = NOPATH;
+      for(int k = 0; k < array_len(hops); k++) free(array_get(hops, k));
+      array_free(hops);
       return NULL;
     }
     hop = malloc(sizeof(struct path_hop));
@@ -579,6 +581,8 @@ struct array* dijkstra(long source, long target, uint64_t amount, struct network
 
   if(array_len(hops) > HOPSLIMIT){
     *error = NOPATH;
+    for(int k = 0; k < array_len(hops); k++) free(array_get(hops, k));
+    array_free(hops);
     return NULL;
   }
 

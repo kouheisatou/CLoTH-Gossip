@@ -22,6 +22,9 @@
    They are a (high-level) copy of functions in lnd-v0.9.1-beta (see files `routing/missioncontrol.go`, `htlcswitch/switch.go`, `htlcswitch/link.go`) */
 
 
+/* Forward declarations */
+static void free_path(struct array* path);
+
 /* AUXILIARY FUNCTIONS */
 
 /* compute the fees to be paid to a hop for forwarding the payment */
@@ -181,6 +184,10 @@ void generate_send_payment_event(struct payment* payment, struct array* path, st
   uint64_t next_event_time;
   struct event* send_payment_event;
   route = transform_path_into_route(path, payment->amount, network, simulation->current_time);
+  // Free previous route if retrying
+  if(payment->route != NULL) {
+    free_route(payment->route);
+  }
   payment->route = route;
   // execute send_payment event immediately
   next_event_time = simulation->current_time;
@@ -230,6 +237,29 @@ struct path_info {
   uint64_t fee;
   uint64_t min_htlc;  // Maximum min_htlc among all edges in the path
 };
+
+// Free a path (array of path_hop pointers)
+static void free_path(struct array* path) {
+  if(path == NULL) return;
+  for(int i = 0; i < array_len(path); i++) {
+    free(array_get(path, i));
+  }
+  array_free(path);
+}
+
+// Free path_info array
+// If free_paths is true, also free the path arrays inside each path_info.
+// Set free_paths to false only when paths have been handed off to shards.
+static void free_path_infos(struct array* path_infos, int free_paths) {
+  for(int i = 0; i < array_len(path_infos); i++) {
+    struct path_info* info = array_get(path_infos, i);
+    if(free_paths && info->path != NULL) {
+      free_path(info->path);
+    }
+    free(info);
+  }
+  array_free(path_infos);
+}
 
 // Calculate the minimum acceptable amount for a path (max min_htlc of all edges)
 static uint64_t calculate_path_min_htlc(struct array* path, struct network* network) {
@@ -359,6 +389,7 @@ static struct array* find_multiple_paths_gcb(
       struct path_hop* first_hop = array_get(path, 0);
       struct edge* first_edge = array_get(network->edges, first_hop->edge);
       exclude_edges = push(exclude_edges, first_edge);
+      free_path(path);
       continue;
     }
 
@@ -447,6 +478,7 @@ static struct array* find_multiple_paths_gcb(
         struct path_hop* fhop = array_get(path, 0);
         struct edge* fedge = array_get(network->edges, fhop->edge);
         exclude_edges = push(exclude_edges, fedge);
+        free_path(path);
         continue;
       }
 
@@ -490,15 +522,6 @@ static struct array* find_multiple_paths_gcb(
   return path_infos;
 }
 
-// Free path_info array
-static void free_path_infos(struct array* path_infos) {
-  for(int i = 0; i < array_len(path_infos); i++) {
-    struct path_info* info = array_get(path_infos, i);
-    // Note: don't free path here as it may be used by shards
-    free(info);
-  }
-  array_free(path_infos);
-}
 
 /* find a path for a payment (a modified version of dijkstra is used: see `routing.c`) */
 void find_path(struct event *event, struct simulation* simulation, struct network* network, struct array** payments, struct payments_params pay_params, struct network_params net_params) {
@@ -560,6 +583,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
 
               // if path capacity is not enough to send the payment, find new path
               if (path_cap < payment->amount + fee) {
+                  free_path(path);
                   path = dijkstra(payment->sender, payment->receiver, payment->amount, network, simulation->current_time, 0, &error, net_params.routing_method, NULL, payment->max_fee_limit);
               }
           } else {
@@ -586,6 +610,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
     printf("[MPP DEBUG] PATH_FOUND: payment_id=%ld, is_shard=%u, amount=%llu, attempts=%d\n",
            payment->id, payment->is_shard, payment->amount, payment->attempts);
     generate_send_payment_event(payment, path, simulation, network);
+    free_path(path);
     return;
   }
 
@@ -617,7 +642,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       
       if(array_len(path_infos) == 0) {
         printf("[MPP DEBUG] GCB_NSPLIT_NO_PATHS: payment_id=%ld, falling back to recursive 2-split\n", payment->id);
-        free_path_infos(path_infos);
+        free_path_infos(path_infos, 1);
         // Fall through to recursive 2-split below
         goto recursive_2_split;
       }
@@ -676,7 +701,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
             }
             array_free(shard_amounts);
             array_free(shard_paths);
-            free_path_infos(path_infos);
+            free_path_infos(path_infos, 1);
             payment->end_time = simulation->current_time;
             return;
           }
@@ -740,7 +765,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           
           array_free(shard_amounts);
           array_free(shard_paths);
-          free_path_infos(path_infos);
+          free_path_infos(path_infos, 1);
           return;
         }
 
@@ -755,7 +780,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
           }
           array_free(shard_amounts);
           array_free(shard_paths);
-          free_path_infos(path_infos);
+          free_path_infos(path_infos, 1);
           goto recursive_2_split;
         }
 
@@ -767,7 +792,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         }
         array_free(shard_amounts);
         array_free(shard_paths);
-        free_path_infos(path_infos);
+        free_path_infos(path_infos, 1);
         // Fall through to recursive 2-split below
         goto recursive_2_split;
       }
@@ -784,7 +809,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         }
         array_free(shard_amounts);
         array_free(shard_paths);
-        free_path_infos(path_infos);
+        free_path_infos(path_infos, 1);
         goto recursive_2_split;
       }
       
@@ -797,7 +822,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         }
         array_free(shard_amounts);
         array_free(shard_paths);
-        free_path_infos(path_infos);
+        free_path_infos(path_infos, 1);
         payment->end_time = simulation->current_time;
         return;
       }
@@ -821,7 +846,13 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
         
         // Generate send payment event with the pre-found path
         generate_send_payment_event(shard, shard_path, simulation, network);
-        
+        // Path data has been copied into route; mark as NULL to avoid double-free in free_path_infos
+        for(int pi = 0; pi < array_len(path_infos); pi++) {
+          struct path_info* pinfo = array_get(path_infos, pi);
+          if(pinfo->path == shard_path) { pinfo->path = NULL; break; }
+        }
+        free_path(shard_path);
+
         free(amount_ptr);
       }
       
@@ -839,7 +870,7 @@ void find_path(struct event *event, struct simulation* simulation, struct networ
       
       array_free(shard_amounts);
       array_free(shard_paths);
-      free_path_infos(path_infos);
+      free_path_infos(path_infos, 1);
       return;
     }
     

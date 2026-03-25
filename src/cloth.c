@@ -699,6 +699,15 @@ int main(int argc, char *argv[]) {
 
   write_output(network, payments, output_dir_name);
 
+  // Free payment routes and history
+  for(long i = 0; i < array_len(payments); i++) {
+    struct payment* p = array_get(payments, i);
+    if(p->route != NULL) {
+      free_route(p->route);
+      p->route = NULL;
+    }
+  }
+
     list_free(group_add_queue);
     free(simulation->random_generator);
     heap_free(simulation->events);
