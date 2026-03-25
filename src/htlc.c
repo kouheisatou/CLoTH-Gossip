@@ -254,15 +254,18 @@ static int compare_path_info_by_fee(const void* a, const void* b) {
 }
 
 // Calculate path capacity using GCB group_cap
-static uint64_t calculate_path_capacity_gcb(struct array* path, struct network* network, int first_edge_use_balance) {
+static uint64_t calculate_path_capacity_gcb(struct array* path, struct network* network, int first_edge_use_balance, enum routing_method routing_method) {
   uint64_t min_cap = UINT64_MAX;
   for(int i = 0; i < array_len(path); i++) {
     struct path_hop* hop = array_get(path, i);
     struct edge* edge = array_get(network->edges, hop->edge);
     uint64_t estimated_cap;
-    
+
     if(i == 0 && first_edge_use_balance) {
       // First edge (directly connected): use actual balance
+      estimated_cap = edge->balance;
+    } else if(routing_method == IDEAL) {
+      // IDEAL: use actual balance (real-time balance broadcast)
       estimated_cap = edge->balance;
     } else if(edge->group != NULL) {
       // GCB group: use group_cap
@@ -272,7 +275,7 @@ static uint64_t calculate_path_capacity_gcb(struct array* path, struct network* 
       struct channel* channel = array_get(network->channels, edge->channel_id);
       estimated_cap = channel->capacity / 2;
     }
-    
+
     if(estimated_cap < min_cap) min_cap = estimated_cap;
   }
   return min_cap;
@@ -319,7 +322,7 @@ static struct array* find_multiple_paths_gcb(
     }
 
     // Calculate path capacity
-    uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
+    uint64_t capacity = calculate_path_capacity_gcb(path, network, 1, routing_method);
 
     // Calculate minimum HTLC for the path
     uint64_t path_min_htlc = calculate_path_min_htlc(path, network);
@@ -332,6 +335,7 @@ static struct array* find_multiple_paths_gcb(
       struct edge* edge = array_get(network->edges, hop->edge);
       uint64_t est_cap;
       if(j == 0) est_cap = edge->balance;
+      else if(routing_method == IDEAL) est_cap = edge->balance;
       else if(edge->group != NULL) est_cap = edge->group->group_cap;
       else { struct channel* ch = array_get(network->channels, edge->channel_id); est_cap = ch->capacity / 2; }
       if(est_cap < bottleneck_cap) { bottleneck_cap = est_cap; bottleneck_edge_id = edge->id; }
@@ -423,7 +427,7 @@ static struct array* find_multiple_paths_gcb(
         break;
       }
 
-      uint64_t capacity = calculate_path_capacity_gcb(path, network, 1);
+      uint64_t capacity = calculate_path_capacity_gcb(path, network, 1, routing_method);
 
       // Calculate minimum HTLC for the path
       uint64_t path_min_htlc = calculate_path_min_htlc(path, network);
